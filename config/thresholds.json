@@ -1,0 +1,129 @@
+{
+  "_comment": "Central threshold configuration for DOAR pipeline v2. All thresholds are marked with their justification source.",
+
+  "image_quality": {
+    "blur_laplacian_min": 100,
+    "_blur_source": "empirical — standard OpenCV practice; values <100 indicate motion/defocus blur",
+    "low_res_min_px": 200,
+    "_low_res_source": "heuristic — below 200px detail is insufficient for symbol detection",
+    "quality_score_blur_divisor": 500,
+    "_quality_divisor_source": "heuristic — maps typical Laplacian range [0-500+] to [0,1]",
+    "low_res_penalty": 0.5,
+    "_low_res_penalty_source": "heuristic"
+  },
+
+  "color_extraction": {
+    "active_color_min_ratio": 0.02,
+    "_active_source": "heuristic — below 2% a color does not meaningfully contribute to composition",
+    "paper_white_threshold": 230,
+    "_paper_source": "standard — grayscale value >230 reliably indicates blank paper"
+  },
+
+  "composition": {
+    "baseline_region_bottom_fraction": 0.8,
+    "_baseline_source": "convention — bottom 20% of page used as grounding strip",
+    "baseline_density_min": 0.03,
+    "_baseline_density_source": "heuristic — loose threshold to detect minimal grounding marks"
+  },
+
+  "stroke_features": {
+    "canny_low": 50,
+    "canny_high": 150,
+    "_canny_source": "standard OpenCV recommendation",
+    "min_contour_area_px2": 100,
+    "_contour_source": "heuristic — removes single-pixel noise",
+    "fragmentation_small_area_px2": 100,
+    "_fragmentation_source": "heuristic — contours <100px² counted as fragmented marks"
+  },
+
+  "object_detection": {
+    "min_region_area_px2": 400,
+    "_region_source": "heuristic — tuned down from 600 to catch small figures in children's drawings",
+    "clip_confidence": {
+      "people": 0.22,
+      "_people_note": "heuristic — abstract child figures score 0.20–0.26; lowered to reduce false negatives",
+      "nature": 0.30,
+      "structures": 0.30,
+      "animals": 0.28,
+      "symbols_positive": 0.28,
+      "symbols_concerning": 0.35,
+      "_concerning_note": "heuristic — raised to reduce false positives on sensitive categories",
+      "marks": 0.30
+    },
+    "visual_claim_validator": {
+      "default_verify_threshold": 0.60,
+      "object_symbol_threshold": 0.70,
+      "_object_note": "heuristic — objects must exceed this to be shown as verified",
+      "concerning_symbol_threshold": 0.85,
+      "_concerning_note": "heuristic — weapons/threatening imagery require high confidence; sensitive claims",
+      "eye_feature_threshold": 0.75,
+      "_eye_note": "heuristic — eye state (closed/angry/wide) is hard to distinguish; conservative",
+      "animal_type_threshold": 0.72,
+      "_animal_note": "heuristic — distinguishing fox vs. squirrel vs. cat requires higher confidence"
+    }
+  },
+
+  "ocr": {
+    "min_confidence": 0.65,
+    "_ocr_source": "heuristic — PaddleOCR scores below 0.65 show high handwriting misread rate",
+    "uncertain_confidence_max": 0.80,
+    "_uncertain_note": "heuristic — OCR between 0.65 and 0.80 flagged as uncertain"
+  },
+
+  "psychological_rules": {
+    "empty_space_high": 0.60,
+    "_empty_source": "heuristic — Koppitz (1968) and Malchiodi (1998) reference notably sparse compositions",
+    "empty_space_moderate": 0.50,
+    "_empty_moderate_source": "heuristic",
+    "empty_space_low": 0.20,
+    "_empty_low_source": "heuristic — drawing <20% of page is compositionally very small",
+    "dark_dominance_low": 0.15,
+    "_dark_low_source": "heuristic",
+    "dark_dominance_moderate": 0.20,
+    "_dark_moderate_source": "heuristic — Malchiodi (1998) references dark palette as potential indicator",
+    "dark_dominance_high": 0.35,
+    "_dark_high_source": "heuristic",
+    "fragmentation_moderate": 0.35,
+    "_frag_moderate_source": "heuristic — Koppitz (1968) references fragmented lines",
+    "fragmentation_high": 0.60,
+    "_frag_high_source": "heuristic",
+    "stroke_darkness_high": 0.65,
+    "_stroke_source": "heuristic — proxy for heavy pressure; cannot be directly measured from static image",
+    "color_diversity_low": 3,
+    "_diversity_source": "heuristic — fewer than 3 active colors considered restricted palette",
+    "red_ratio_high": 0.30,
+    "_red_source": "heuristic — Alschuler & Hattwick (1947) reference strong red dominance",
+    "warm_dominance_high": 0.35,
+    "_warm_source": "heuristic",
+    "rule_base_confidence_cap": 0.70,
+    "_cap_source": "heuristic — maximum rule confidence = image_quality × 0.70",
+    "theme_min_score_for_output": 0.30,
+    "_theme_source": "heuristic — theme scores below this are suppressed"
+  },
+
+  "rule_weights": {
+    "_comment": "Objective, feature-based rules have higher weights than symbolic/projective rules",
+    "objective_feature": 1.0,
+    "literature_supported_feature": 0.8,
+    "heuristic_feature": 0.6,
+    "symbolic_with_support": 0.4,
+    "symbolic_low_support": 0.25,
+    "symbolic_speculative": 0.15
+  },
+
+  "show_to_user_thresholds": {
+    "basic_visual_fact": 0.60,
+    "object_symbol": 0.70,
+    "ocr_text": 0.70,
+    "concerning_symbol": 0.85,
+    "psychological_interpretation": null,
+    "_psych_note": "Shown only when based on verified features AND safety_status == safe",
+    "uncertain_claim": false,
+    "_uncertain_note": "Uncertain claims are never presented as facts"
+  },
+
+  "numeric_validator": {
+    "tolerance": 0.05,
+    "_tolerance_source": "heuristic — ±5% tolerance for numeric claims vs computed values"
+  }
+}
