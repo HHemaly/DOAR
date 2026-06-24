@@ -1,0 +1,37 @@
+# DOAR — Children's Drawing Analysis Pipeline
+# Python 3.11 — Windows / VS Code compatible
+# Install with: pip install -r requirements.txt
+
+# ── Core image processing ────────────────────────────────────────
+opencv-python>=4.8.0
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# ── Visualisation ───────────────────────────────────────────────
+matplotlib>=3.7.0
+
+# ── OCR (optional — comment out if not using text detection) ────
+# PaddleOCR requires paddlepaddle first:
+#   pip install paddlepaddle -f https://www.paddlepaddle.org.cn/whl/windows/mkl/avx/stable.html
+# Then:
+#   pip install paddleocr
+
+# ── Lightweight OCR alternative (no GPU, easier to install) ─────
+easyocr>=1.7.0
+
+# ── Semantic similarity / retrieval ─────────────────────────────
+sentence-transformers>=2.2.0
+
+# ── CLIP (optional — for visual claim validation) ───────────────
+# torch>=2.0.0
+# torchvision>=0.15.0
+# transformers>=4.30.0
+
+# ── Arabic translation ───────────────────────────────────────────
+deep-translator>=1.11.0
+
+# ── UI (Gradio local demo) ───────────────────────────────────────
+gradio>=4.0.0
+
+# ── Utilities ───────────────────────────────────────────────────
+tqdm>=4.65.0
