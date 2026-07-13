@@ -22,10 +22,13 @@ easyocr>=1.7.0
 # ── Semantic similarity / retrieval ─────────────────────────────
 sentence-transformers>=2.2.0
 
-# ── CLIP (optional — for visual claim validation) ───────────────
-# torch>=2.0.0
-# torchvision>=0.15.0
-# transformers>=4.30.0
+# ── Deep learning: training / evaluation / CLIP ─────────────────
+# CPU wheels (Windows / laptop). For CUDA GPU install from the PyTorch
+# index instead:  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchvision>=0.15.0
+scikit-learn>=1.3.0        # ROC-AUC / PR-AUC (metrics degrade gracefully if absent)
+# transformers>=4.30.0     # only needed for CLIP visual validation
 
 # ── Arabic translation ───────────────────────────────────────────
 deep-translator>=1.11.0
