@@ -110,6 +110,37 @@ def cmd_analyze_dataset(args):
                 run_arabic=not args.no_arabic, run_ocr=not args.no_ocr)
 
 
+def cmd_reports(args):
+    """Generate per-image report folders. With --synthetic, uses a clearly-
+    labelled placeholder record to demonstrate the report structure without a
+    dataset or model."""
+    from src.reports.per_image import generate_batch
+    out = args.out
+    if args.synthetic:
+        from src.reports.synthetic_example import make_synthetic_image, build_synthetic_record
+        img = make_synthetic_image(os.path.join(out, "_synthetic", "syn.png"))
+        records = [build_synthetic_record(img)]
+        print("[reports] Using SYNTHETIC placeholder record (clearly labelled).")
+    else:
+        # Build records from a folder of real drawings via the interpretation pipeline
+        from pipeline import run_full_pipeline_v2
+        from src.reports.schema import build_analysis_record
+        from src.data.inspect_dataset import discover_images
+        recs = []
+        imgs = discover_images(args.data)[: (args.max if args.max > 0 else None)]
+        for r in imgs:
+            res = run_full_pipeline_v2(r["path"], run_ocr=not args.no_ocr,
+                                       run_arabic=not args.no_arabic)
+            doc = res["internal_technical_json"]
+            doc["_validated_claims"] = res.get("validated_claims", [])
+            recs.append(build_analysis_record(
+                doc, res["parent_facing_output"], res["final_judgment"],
+                parent_ar=res.get("parent_facing_output_ar")))
+        records = recs
+    ckpt = args.checkpoint or None
+    generate_batch(records, out, checkpoint=ckpt)
+
+
 def cmd_thesis(args):
     """Collate whatever thesis-ready artefacts already exist into thesis/."""
     from src.reports.thesis_collate import collate_thesis
@@ -170,6 +201,17 @@ def build_parser():
     sp.add_argument("--no-ocr", action="store_true")
     sp.add_argument("--no-arabic", action="store_true")
     sp.set_defaults(func=cmd_analyze_dataset)
+
+    sp = sub.add_parser("reports", help="Generate per-image report folders")
+    add_common(sp)
+    sp.add_argument("--data", default=DEFAULT_DATASET)
+    sp.add_argument("--max", type=int, default=5, help="Max images; 0 = all")
+    sp.add_argument("--checkpoint", default=None, help="Enable Grad-CAM with this checkpoint")
+    sp.add_argument("--synthetic", action="store_true",
+                    help="Use a clearly-labelled synthetic record (no dataset/model needed)")
+    sp.add_argument("--no-ocr", action="store_true")
+    sp.add_argument("--no-arabic", action="store_true")
+    sp.set_defaults(func=cmd_reports)
 
     sp = sub.add_parser("thesis", help="Collate thesis figures/tables")
     add_common(sp)
