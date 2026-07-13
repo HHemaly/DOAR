@@ -152,6 +152,18 @@ def test_batch_generation_and_master_seed():
     assert len(master) == 5
 
 
+def test_model_comparison_plot():
+    from src.models.compare import _plot_comparison, DEFAULT_MODELS
+    assert DEFAULT_MODELS == ["baseline", "mobilenet", "resnet18"]
+    d = tempfile.mkdtemp()
+    res = [{"model": "baseline", "best_val_acc": 0.42},
+           {"model": "mobilenet", "best_val_acc": 0.61},
+           {"model": "resnet18", "best_val_acc": 0.58}]
+    _plot_comparison(d, res, "mobilenet")
+    assert os.path.exists(os.path.join(d, "model_comparison.png"))
+    assert os.path.exists(os.path.join(d, "model_comparison.svg"))
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0

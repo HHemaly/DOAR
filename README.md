@@ -59,60 +59,75 @@ DOAR/
 
 ---
 
-## Setup — VS Code on Windows (Python 3.11)
+## Primary environment — Google Colab (GPU)
+
+**Colab is the recommended and primary environment**, especially for training
+and evaluation (free GPU). Open **`notebooks/DOAR_Colab.ipynb`** in Colab, set a
+T4 GPU (*Runtime → Change runtime type → T4 GPU*), and run the cells top to
+bottom. The notebook:
+
+1. mounts Google Drive
+2. clones/updates the repo
+3. installs dependencies
+4. sets the dataset path (a `Combined_Drawing` folder in your Drive)
+5. inspects the dataset → CSVs + figures
+6. builds the leak-safe split
+7. **trains & compares baseline + MobileNetV3 + ResNet18**, selects the winner
+   on **validation** accuracy
+8. evaluates the winner **once** on the untouched test set
+9. generates per-image reports (technical / parent EN+AR / psychologist) + Grad-CAM
+10. collates thesis outputs and copies everything back to Drive
+
+Core logic lives in `src/` — the notebook only calls it, so Colab and VS Code
+run identical code. Regenerate the notebook with
+`python scripts/build_colab_notebook.py`.
+
+### Colab commands (what the notebook runs)
+
+```bash
+python main.py inspect       --data "$DATASET" --out "$OUTPUT"
+python main.py split         --out "$OUTPUT"
+python main.py train-compare --out "$OUTPUT" --epochs 25   # baseline + mobilenet + resnet18
+python main.py evaluate      --out "$OUTPUT"               # (winner already evaluated by train-compare)
+python main.py reports       --data "$DATASET" --out "$OUTPUT" --max 6 --checkpoint "$CKPT"
+python main.py thesis        --out "$OUTPUT"
+```
+
+**Model selection is honest:** all three models train on the same leak-safe
+split; the winner is chosen by validation accuracy; only the winner touches the
+test set, exactly once.
+
+---
+
+## Secondary environment — VS Code on Windows (Python 3.11)
+
+Local Windows works where it already did (single-image analysis, batch
+interpretation, the UI, and the report structure via `--synthetic`). Heavy
+training is possible but slow without a GPU — prefer Colab for that.
 
 ```bat
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-Set your dataset path once (either edit the constant in `main.py` /
-`pipeline.py`, or use an environment variable):
-
-```bat
 set DOAR_DATASET=C:\Users\Ahmed\Downloads\Combined_Drawing\Combined_Drawing
 set DOAR_OUTPUT=outputs
 ```
 
-> For an NVIDIA GPU, install the CUDA build of PyTorch instead of the default:
+> NVIDIA GPU: install the CUDA PyTorch build:
 > `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121`
 
----
-
-## Setup — Google Colab
-
-Open `notebooks/DOAR_Colab.ipynb` in Colab and run the cells top to bottom.
-It mounts Drive, clones/updates the repo, installs deps, and calls the same
-`main.py` commands. Core logic lives in the modules, not the notebook.
-
----
-
-## Commands (the full workflow)
-
 ```bat
-:: 1. Inspect the dataset -> CSVs, statistics JSON, distribution figures
-python main.py inspect --data "%DOAR_DATASET%" --out outputs
-
-:: 2. Build a deterministic, leak-safe 70/15/15 split
-python main.py split --out outputs
-
-:: 3. Train a classifier (transfer=ResNet18 default; also baseline/mobilenet/efficientnet)
-python main.py train --out outputs --model transfer --epochs 25
-
-:: 4. Evaluate the best checkpoint on the untouched test split
-python main.py evaluate --out outputs
-
-:: 5. Interpretation pipeline on a single drawing
+:: Interpretation pipeline on one drawing
 python main.py analyze-image --input "path\to\drawing.jpg" --question "What does it show?"
 
-:: 6. Interpretation pipeline on a folder (5 per class; use --max 0 for all)
+:: Interpretation pipeline on a folder (5 per class; --max 0 for all)
 python main.py analyze-dataset --data "%DOAR_DATASET%" --max 5
 
-:: 7. Collate thesis figures + tables into outputs/thesis/
-python main.py thesis --out outputs
+:: Demonstrate the report structure with no dataset or model
+python main.py reports --synthetic --out outputs
 
-:: Launch the local UI (parents / children / psychologists)
+:: Local UI (parents / children / psychologists)
 python ui\app.py
 ```
 
@@ -126,17 +141,26 @@ outputs/
                       duplicates.csv, corrupted_files.csv,
                       dataset_statistics.json, figures/*.png|svg
   splits/             split.csv, split_meta.json  (leakage_ok flag)
-  training/           best_model.pt, last_model.pt, training_history.csv,
-                      training_config.json, training_log.txt, classes.json,
-                      reproducibility.json, figures/training_curves.*
+  training/<model>/   per-model checkpoints + history + curves
+  model_comparison/   comparison.csv/json, selected_model.json,
+                      figures/model_comparison.*
   evaluation/         metrics.json, classification_report.csv,
                       per_class_metrics.csv, predictions_test.csv,
                       figures/confusion_matrix.*, per_class_f1.*,
-                      confidence_distribution.*, ...
-  <timestamp>/        per-image interpretation: analysis_en.json,
-                      analysis_ar.json, report_card.png
-  thesis/             figures/, tables/, thesis_results_summary.md
+                      confidence_distribution.*, ...   (WINNER only)
+  examples/<case>/    original.*, annotated.png, crops/, gradcam.png,
+                      analysis.json, technical_report.html,
+                      parent_report_en.html, parent_report_ar.html,
+                      psychologist_review.html
+  psychologist_review/review_master.csv
+  thesis/             figures/, tables/ (incl. psychologist_agreement.json),
+                      thesis_results_summary.md
 ```
+
+Every `examples/<case>/analysis.json` follows the documented **AnalysisRecord**
+schema (`src/reports/schema.py`) and keeps the five scientific levels separate.
+The `model_prediction` field is a labelled placeholder until a classifier is
+trained, then auto-filled — no report code changes.
 
 Every per-image analysis contains both `analysis_en` and `analysis_ar`
 (English + Arabic), gentle questions, safety note, disclaimer, and the final

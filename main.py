@@ -77,6 +77,18 @@ def cmd_train(args):
                 seed=args.seed)
 
 
+def cmd_train_compare(args):
+    from src.models.compare import run_comparison, DEFAULT_MODELS
+    split_csv = Path(args.out) / "splits" / "split.csv"
+    if not split_csv.exists():
+        print(f"ERROR: {split_csv} not found. Run 'split' first.")
+        sys.exit(1)
+    models = args.models.split(",") if args.models else DEFAULT_MODELS
+    run_comparison(str(split_csv), args.out, _ts(), models=models,
+                   epochs=args.epochs, batch_size=args.batch_size,
+                   lr=args.lr, seed=args.seed)
+
+
 def cmd_evaluate(args):
     from src.models.evaluate import evaluate_model
     split_csv = Path(args.out) / "splits" / "split.csv"
@@ -179,6 +191,17 @@ def build_parser():
     sp.add_argument("--lr", type=float, default=1e-3)
     sp.add_argument("--seed", type=int, default=42)
     sp.set_defaults(func=cmd_train)
+
+    sp = sub.add_parser("train-compare",
+                        help="Train baseline + 2 transfer models, pick winner on val, test winner once")
+    add_common(sp)
+    sp.add_argument("--models", default=None,
+                    help="Comma list (default: baseline,mobilenet,resnet18)")
+    sp.add_argument("--epochs", type=int, default=25)
+    sp.add_argument("--batch-size", type=int, default=32, dest="batch_size")
+    sp.add_argument("--lr", type=float, default=1e-3)
+    sp.add_argument("--seed", type=int, default=42)
+    sp.set_defaults(func=cmd_train_compare)
 
     sp = sub.add_parser("evaluate", help="Evaluate checkpoint on test split")
     add_common(sp)
