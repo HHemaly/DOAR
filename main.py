@@ -122,6 +122,9 @@ def main() -> None:
     smoke.add_argument("--output", required=True)
     smoke.add_argument("--max-samples-per-class", type=int, default=5)
     smoke.add_argument("--device", default="auto")
+    smoke.add_argument("--skip-deep", action="store_true", help="Skip the optional CNN stage")
+    smoke.add_argument("--require-deep", action="store_true",
+                       help="Fail the smoke run if the CNN stage fails")
 
     oof = commands.add_parser("generate-oof-probabilities")
     oof.add_argument("--features", required=True)
@@ -380,8 +383,12 @@ def main() -> None:
         ), indent=2))
     elif args.command == "run-smoke-experiment":
         from doar.smoke import run_smoke_experiment
-        print(json.dumps(run_smoke_experiment(
-            args.dataset, args.output, args.max_samples_per_class, args.device), indent=2))
+        _res = run_smoke_experiment(
+            args.dataset, args.output, args.max_samples_per_class, args.device,
+            skip_deep=args.skip_deep, require_deep=args.require_deep)
+        print(json.dumps(_res, indent=2))
+        if _res["status"] == "FAIL":
+            sys.exit(1)
     elif args.command == "generate-oof-probabilities":
         from doar.fusion.oof import generate_oof
         print(json.dumps(generate_oof(
