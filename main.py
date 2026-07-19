@@ -29,13 +29,23 @@ def main() -> None:
     manifest = commands.add_parser("build-manifest")
     manifest.add_argument("--dataset", required=True)
     manifest.add_argument("--output", required=True)
+    def _add_leakage_args(parser):
+        parser.add_argument("--subject-key", default="subject_id",
+                            help="Manifest column for child/subject grouping")
+        parser.add_argument("--allow-leakage-override", action="store_true",
+                            help="Proceed despite leakage (requires --override-justification)")
+        parser.add_argument("--override-justification", default=None,
+                            help="Written reason logged to the leakage override audit")
+
     extract = commands.add_parser("extract-features")
     extract.add_argument("--manifest", required=True)
     extract.add_argument("--output", required=True)
+    _add_leakage_args(extract)
     train = commands.add_parser("train")
     train.add_argument("--manifest", required=True)
     train.add_argument("--output", required=True)
     train.add_argument("--seed", type=int, default=42)
+    _add_leakage_args(train)
     evaluate = commands.add_parser("evaluate")
     evaluate.add_argument("--manifest", required=True)
     evaluate.add_argument("--checkpoint", required=True)
@@ -70,6 +80,7 @@ def main() -> None:
     image_train.add_argument("--device", default="auto")
     image_train.add_argument("--augmentation", default="conservative")
     image_train.add_argument("--resume")
+    _add_leakage_args(image_train)
     image_predict = commands.add_parser("predict-image")
     image_predict.add_argument("--image", required=True)
     image_predict.add_argument("--checkpoint", required=True)
@@ -99,6 +110,7 @@ def main() -> None:
     embedding.add_argument("--device", default="auto")
     embedding.add_argument("--batch-size", type=int, default=16)
     embedding.add_argument("--force", action="store_true")
+    _add_leakage_args(embedding)
     fusion = commands.add_parser("train-fusion-model")
     fusion.add_argument("--config")
     fusion.add_argument("--features")
@@ -122,14 +134,31 @@ def main() -> None:
         token[2:].replace("-", "_") for token in sys.argv[1:]
         if token.startswith("--")
     }
+
+    def _gate(source: str) -> None:
+        """Enforce the leakage gate before any extraction/training. Blocks unless
+        clean or explicitly overridden with a written, audit-logged justification."""
+        from doar.leakage import enforce_leakage_gate
+        gate_out = Path(args.output) / "leakage_gate"
+        report = enforce_leakage_gate(
+            source, gate_out, subject_key=getattr(args, "subject_key", "subject_id"),
+            allow_override=getattr(args, "allow_leakage_override", False),
+            override_justification=getattr(args, "override_justification", None),
+            initiated_by=getattr(args, "initiated_by", None) or "cli",
+        )
+        print(json.dumps({"leakage_gate": report["gate"], "status": report["status"],
+                          "report": str(gate_out / "leakage_report.json")}, indent=2))
+
     if args.command == "analyze-image":
         result = analyze_image(args.image, args.output, args.emotion_checkpoint)
         print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
     elif args.command == "build-manifest":
         print(json.dumps(build_manifest(args.dataset, args.output), indent=2))
     elif args.command == "extract-features":
+        _gate(args.manifest)
         print(json.dumps(extract_features(args.manifest, args.output), indent=2))
     elif args.command == "train":
+        _gate(args.manifest)
         print(json.dumps(train_model(args.manifest, args.output, args.seed), indent=2))
     elif args.command == "evaluate":
         print(json.dumps(evaluate_model(
@@ -168,6 +197,7 @@ def main() -> None:
         }, supplied)
         if not all(values.get(name) for name in ("dataset", "model", "output")):
             raise ValueError("train-image-model requires dataset, model, and output via CLI or config")
+        _gate(values["dataset"])
         config_hash = save_resolved(values["output"], args.command, values)
         print(json.dumps(train_image_model(
             values["dataset"], values["model"], values["output"], seed=int(values["seed"]),
@@ -211,6 +241,7 @@ def main() -> None:
         }, supplied)
         if not all(values.get(name) for name in ("manifest", "backbone", "output")):
             raise ValueError("extract-embeddings requires manifest, backbone, and output")
+        _gate(values["manifest"])
         config_hash = save_resolved(values["output"], args.command, values)
         print(json.dumps(extract_embeddings(
             values["manifest"], values["output"], values["backbone"], values["device"],
