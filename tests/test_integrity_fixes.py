@@ -16,12 +16,15 @@ sys.path.insert(0, str(ROOT / "src"))
 class D4ShapeFeatureHonesty(unittest.TestCase):
     def test_unimplemented_shape_features_marked_missing(self):
         from PIL import Image
+        from doar.analysis import analyze_image
         from doar.features import objective_feature_row
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "x.png"
-            Image.new("RGB", (64, 64), (255, 255, 255)).save(p)
-            analysis = {"composition": {"bounding_box": [0, 0, 64, 64]}}
-            row = objective_feature_row(p, analysis)
+            img = Image.new("RGB", (64, 64), (255, 255, 255))
+            img.paste((0, 0, 0), (20, 20, 44, 44))  # a black square so segmentation finds content
+            img.save(p)
+            analysis = analyze_image(p, Path(d) / "out")
+            row = objective_feature_row(p, analysis.to_dict())
             for name in ("shape.enclosed_shape_count", "shape.repetition_score"):
                 self.assertIn(name, row)
                 self.assertTrue(row[name].missing)          # not a fake 0.0
