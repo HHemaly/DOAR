@@ -110,6 +110,19 @@ def main() -> None:
                              choices=["equal_late_fusion", "validation_weighted_late_fusion",
                                       "logistic_probability_meta"])
     late_fusion.add_argument("--calibrated", action="store_true")
+    deep_compare = commands.add_parser("compare-deep-models")
+    deep_compare.add_argument("--dataset", required=True)
+    deep_compare.add_argument("--output", required=True)
+    deep_compare.add_argument("--models", default=None,
+                              help="Comma list (default: small_cnn,mobilenet_v3_small,resnet18,efficientnet_b0)")
+    deep_compare.add_argument("--seeds", default="42,123,2026")
+    deep_compare.add_argument("--batch-size", type=int, default=4, help="6 GB-safe default")
+    deep_compare.add_argument("--epochs", type=int, default=30)
+    deep_compare.add_argument("--grad-accum-steps", type=int, default=1)
+    deep_compare.add_argument("--image-size", type=int, default=224)
+    deep_compare.add_argument("--device", default="auto")
+    deep_compare.add_argument("--calibration", default=None)
+    _add_leakage_args(deep_compare)
     eval_preds = commands.add_parser("evaluate-predictions")
     eval_preds.add_argument("--export", required=True, help="A probability export JSON")
     eval_preds.add_argument("--split", default="valid")
@@ -277,6 +290,17 @@ def main() -> None:
         print(json.dumps(train_late_fusion(
             args.base, args.output, args.method, args.calibrated
         ), ensure_ascii=False, indent=2, default=float))
+    elif args.command == "compare-deep-models":
+        from doar.deep.compare import run_deep_comparison, DEFAULT_MODELS
+        _gate(args.dataset)
+        models = [m.strip() for m in args.models.split(",")] if args.models else DEFAULT_MODELS
+        seeds = tuple(int(s) for s in args.seeds.split(","))
+        print(json.dumps(run_deep_comparison(
+            args.dataset, args.output, models=models, seeds=seeds,
+            batch_size=args.batch_size, image_size=args.image_size, device=args.device,
+            epochs=args.epochs, grad_accum_steps=args.grad_accum_steps,
+            calibration=args.calibration,
+        ), indent=2))
     elif args.command == "evaluate-predictions":
         import numpy as _np
         from doar.evaluation import (load_probability_export, compute_metrics,
