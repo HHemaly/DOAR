@@ -1,0 +1,271 @@
+{
+  "source": {
+    "source_id": "PSYCHOLOGIST_NOTES_AR_2026_07",
+    "source_type": "psychologist_supplied_notes",
+    "language": "ar",
+    "scientifically_validated": false,
+    "transcription_note": "Supplied as pasted Arabic text; spelling and OCR-like spacing were normalized without adding missing clinical meaning."
+  },
+  "references": {
+    "REF_GENERAL_LIMITS_1998": {
+      "title": "Drawing conclusions: a re-examination of empirical and conceptual bases for psychological evaluation of children from their drawings",
+      "doi": "10.1111/j.2044-8260.1998.tb01289.x",
+      "finding": "Little evidence supported reliability and validity of broad psychological assessment from children's drawings."
+    },
+    "REF_PROJECTIVE_REVIEW_2025": {
+      "title": "Projective in Time: A Systematic Review on the Use of Construction Projective Techniques in the Digital Era",
+      "doi": "10.3390/children12040406",
+      "finding": "Recent studies had medium-low overall quality and often lacked detailed psychometric evaluation; projective methods should be supplementary."
+    },
+    "REF_SIZE_2004": {
+      "title": "The effect of affective characterizations on the use of size and colour in drawings produced by children in the absence of a model",
+      "doi": "10.1080/0144341042000211670",
+      "finding": "In an instructed task, children tended to draw positively characterized topics larger; this does not validate fixed personality thresholds."
+    },
+    "REF_SIZE_DEPTH_2013": {
+      "title": "Size and emotion or depth and emotion?",
+      "doi": "10.1186/2050-7283-1-21",
+      "finding": "Size may reflect perceived proximity/depth and is sensitive to developmental and task factors."
+    },
+    "REF_PLACEMENT_1992": {
+      "title": "Children's drawings of topics differing in emotional significance: effects on placement relative to a self-drawing",
+      "doi": "10.1111/j.1469-7610.1992.tb00928.x",
+      "finding": "Relative placement effects were weak and easily masked; the study did not validate top/left/right personality meanings."
+    },
+    "REF_EYES_EXPRESSION_2007": {
+      "title": "Expression of the emotions in the drawing of a man by the child from 5 to 11 years of age",
+      "pmid": "17665754",
+      "finding": "Children can intentionally use facial graphic cues to depict emotion; this does not establish personality inference from isolated eye style."
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "PSY_AR_EYES_WIDE_001",
+      "arabic": "رسم العيون الواسعة يدل على الشخصية المنفتحة.",
+      "english": "The notes propose that drawing wide eyes indicates an outgoing personality.",
+      "observable": "wide_eyes",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.2,
+      "professional_reasoning": "Wide eyes were detected, but the supplied personality interpretation is unvalidated.",
+      "parent_safe_wording": "The drawing includes wide eyes. Ask the child what the expression means to them.",
+      "references": ["REF_EYES_EXPRESSION_2007", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Eye style may reflect emotion depiction, artistic convention, copying, age, or skill.", "Clinician-only hypothesis."]
+    },
+    {
+      "rule_id": "PSY_AR_EYES_STERN_002",
+      "arabic": "رسم العيون الصارمة يدل على الشعور بالغضب.",
+      "english": "The notes propose that stern-looking eyes indicate a feeling of anger.",
+      "observable": "stern_eyes",
+      "scientific_support": "indirect_expression_research_only",
+      "confidence_ceiling": 0.25,
+      "professional_reasoning": "Stern-looking eyes may be an intentional anger cue, but context and the child's explanation are required.",
+      "parent_safe_wording": "The eyes may have been drawn with a stern expression. Ask what the character is feeling.",
+      "references": ["REF_EYES_EXPRESSION_2007", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["An depicted angry expression is not evidence that the child is angry or aggressive."]
+    },
+    {
+      "rule_id": "PSY_AR_EYES_CLOSED_003",
+      "arabic": "رسم العيون المغمضة يدل على رفض الشخص النظر إلى نفسه من الداخل ورفضه الاعتراف بعيوبه.",
+      "english": "The notes propose that closed eyes mean refusing self-reflection or acknowledgement of faults.",
+      "observable": "closed_eyes",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "Closed eyes were detected; the categorical interpretation is unsupported.",
+      "parent_safe_wording": "The drawing includes closed eyes. Their meaning is unknown without asking the child.",
+      "references": ["REF_GENERAL_LIMITS_1998", "REF_PROJECTIVE_REVIEW_2025"],
+      "limitations": ["Restricted from direct parent interpretation.", "Many ordinary artistic explanations are possible."]
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_TIGER_WOLF_004",
+      "arabic": "رسم النمر أو الذئب يدل على الشعور بالغضب.",
+      "english": "The notes propose that drawing a tiger or wolf indicates anger.",
+      "observable": "tiger_or_wolf",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "A tiger or wolf was detected; no reliable source was found for inferring the child's anger.",
+      "parent_safe_wording": "An animal resembling a tiger or wolf may be present. Ask why it was chosen.",
+      "references": ["REF_GENERAL_LIMITS_1998", "REF_PROJECTIVE_REVIEW_2025"],
+      "limitations": ["Animal choice may reflect stories, interests, assignments, or cultural symbolism."]
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_FOX_005",
+      "arabic": "رسم الثعلب يدل على أن الرسام كان يفكر في عمل أمر لئيم أو خبيث.",
+      "english": "The notes propose that drawing a fox indicates thinking about doing something mean or malicious.",
+      "observable": "fox",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.05,
+      "professional_reasoning": "A fox may be present; the malicious-intent interpretation is unsupported and must not be inferred.",
+      "parent_safe_wording": "A fox may be present. Ask the child about its role in the picture.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Clinician-only; categorical intent attribution is unsafe."]
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_SQUIRREL_006",
+      "arabic": "رسم السنجاب يشير إلى حاجة الرسام للحماية والاهتمام.",
+      "english": "The notes propose that drawing a squirrel indicates a need for protection and attention.",
+      "observable": "squirrel",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "A squirrel may be present; no validated inference about protection needs follows from it alone.",
+      "parent_safe_wording": "A squirrel may be present. Ask what it needs and what is happening around it.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Requires converging interview and contextual evidence."]
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_LION_007",
+      "arabic": "رسم الأسد يشير إلى اعتقاد الشخص بأنه متفوق على الآخرين.",
+      "english": "The notes propose that drawing a lion indicates believing oneself superior to others.",
+      "observable": "lion",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.05,
+      "professional_reasoning": "A lion may be present; superiority cannot be inferred from this symbol.",
+      "parent_safe_wording": "A lion may be present. Ask what the lion represents in the story.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Restricted categorical personality claim."]
+    },
+    {
+      "rule_id": "PSY_AR_GEOMETRY_008",
+      "arabic": "حب رسم الأشكال الهندسية يشير إلى كثرة الأهداف والخطط والعناد والإصرار.",
+      "english": "The notes propose that frequently drawing geometric shapes indicates many goals and plans, stubbornness, and persistence.",
+      "observable": "repeated_geometric_shapes",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.15,
+      "professional_reasoning": "Repeated geometry was detected; planning or personality traits cannot be inferred without other evidence.",
+      "parent_safe_wording": "The drawing uses repeated geometric forms. Ask what the pattern means.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["May reflect task demands, practice, aesthetics, or motor preference."]
+    },
+    {
+      "rule_id": "PSY_AR_STARS_009",
+      "arabic": "رسم النجوم يشير إلى أن الشخص يريد أن يكون ملفتاً لنظر الجميع.",
+      "english": "The notes propose that drawing stars indicates wanting everyone's attention.",
+      "observable": "stars",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "Stars were detected; attention-seeking cannot be inferred from the symbol.",
+      "parent_safe_wording": "Stars are present. Ask what they mean in this drawing.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Weak symbolic hypothesis."]
+    },
+    {
+      "rule_id": "PSY_AR_FLOWERS_CLOUDS_SUN_010",
+      "arabic": "رسم الزهور والسحب والشمس قد يعبر عن تخيل أهداف وأفكار جديدة وشخصية إيجابية ومزاج جيد.",
+      "english": "The notes propose that flowers, clouds, and sun may express imagined future goals and new ideas, positivity, and good mood.",
+      "observable": "flowers_clouds_sun",
+      "scientific_support": "not_found_for_combined_claim",
+      "confidence_ceiling": 0.15,
+      "professional_reasoning": "These motifs were detected, but mood and personality require contextual confirmation.",
+      "parent_safe_wording": "The drawing includes positive-weather or nature motifs. Ask the child how the scene feels.",
+      "references": ["REF_GENERAL_LIMITS_1998", "REF_PROJECTIVE_REVIEW_2025"],
+      "limitations": ["Common motifs may be decorative or prompted."]
+    },
+    {
+      "rule_id": "PSY_AR_CIRCLES_011",
+      "arabic": "رسم الدوائر يعبر عن الشعور بالوحدة والحاجة إلى شخص قريب يقف بجانبه.",
+      "english": "The notes propose that drawing circles expresses loneliness and a need for someone close.",
+      "observable": "circles",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "Circles were detected; loneliness cannot be inferred from circles alone.",
+      "parent_safe_wording": "The drawing contains circles. Ask what they represent and who is present or absent.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Do not display loneliness as a conclusion."]
+    },
+    {
+      "rule_id": "PSY_AR_TRANSPORT_012",
+      "arabic": "رسم وسائل النقل يشير إلى حب السفر والعطلة والاجتماعية والانفتاح والمرح والمغامرة وحب الحياة.",
+      "english": "The notes associate vehicles with travel, holidays, sociability, openness, playfulness, adventure, and enjoyment of life.",
+      "observable": "vehicles",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "A vehicle was detected; personality traits cannot be inferred from it.",
+      "parent_safe_wording": "A vehicle may be present. Ask where it is going and who is travelling.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Vehicle interests and drawing prompts are alternative explanations."]
+    },
+    {
+      "rule_id": "PSY_AR_HEARTS_013",
+      "arabic": "رسم القلوب يدل على شخصية عاطفية أو عاشقة واجتماعية ورومانسية لطيفة وقادرة على جذب قلوب الآخرين.",
+      "english": "The notes associate hearts with an affectionate, loving, social, gentle, romantic personality.",
+      "observable": "hearts",
+      "scientific_support": "not_found_for_personality_claim",
+      "confidence_ceiling": 0.15,
+      "professional_reasoning": "Hearts were detected; they may conventionally express affection, but personality cannot be concluded.",
+      "parent_safe_wording": "Heart shapes are present. Ask who or what they are connected to.",
+      "references": ["REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Cultural and decorative convention is a strong alternative explanation."]
+    },
+    {
+      "rule_id": "PSY_AR_SIZE_HALF_014",
+      "arabic": "إذا غطت الرسمة نحو 50% من الورقة فقد تدل على الانفتاح أحياناً والانطواء أحياناً أخرى.",
+      "english": "The notes propose that covering about half the page indicates being outgoing at times and introverted at others.",
+      "observable": "coverage_about_half",
+      "scientific_support": "indirect_size_research_conflicting",
+      "confidence_ceiling": 0.2,
+      "professional_reasoning": "The drawing's bounding box covers about half the page. Research shows size can vary with task and emotional characterization, but this personality interpretation is not validated.",
+      "parent_safe_wording": "The drawing occupies about half the page; this is a visual measurement, not a personality conclusion.",
+      "references": ["REF_SIZE_2004", "REF_SIZE_DEPTH_2013", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Page coverage is not equivalent to emotional or personality status."]
+    },
+    {
+      "rule_id": "PSY_AR_SIZE_FULL_015",
+      "arabic": "إذا غطت الرسمة كل الورقة فهذا يدل على احترام الشخص العالي لنفسه وتقديره لها.",
+      "english": "The notes propose that filling the whole page indicates high self-respect and self-esteem.",
+      "observable": "coverage_full",
+      "scientific_support": "not_found_for_threshold_claim",
+      "confidence_ceiling": 0.15,
+      "professional_reasoning": "The drawing spans nearly the full page. This may reflect planning, scale, task, or style; self-esteem cannot be concluded.",
+      "parent_safe_wording": "The drawing uses nearly the whole page. Ask how the child planned the space.",
+      "references": ["REF_SIZE_2004", "REF_SIZE_DEPTH_2013", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["No validated 90-100% threshold for self-esteem."]
+    },
+    {
+      "rule_id": "PSY_AR_SIZE_SMALL_016",
+      "arabic": "إذا لم تتجاوز الرسمة 20% من الورقة فقد يدل ذلك على عدم الاستقرار أو الخوف.",
+      "english": "The notes propose that using no more than 20% of the page may indicate instability or fear.",
+      "observable": "coverage_small",
+      "scientific_support": "indirect_size_research_does_not_validate_claim",
+      "confidence_ceiling": 0.15,
+      "professional_reasoning": "The drawing's bounding box covers at most one fifth of the page. Fear or instability cannot be inferred without converging evidence.",
+      "parent_safe_wording": "The drawing uses a small part of the page. Ask whether that was intentional and what the child chose to emphasize.",
+      "references": ["REF_SIZE_2004", "REF_SIZE_DEPTH_2013", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Age, motor skill, instructions, subject size, and available time may explain small scale."]
+    },
+    {
+      "rule_id": "PSY_AR_PLACE_TOP_017",
+      "arabic": "الرسم في أعلى الصفحة قد يعبر عن شخصية حالمة أو واقع خيالي وصعوبة في التكيف.",
+      "english": "The notes propose that drawing at the top indicates dreaminess, living in fantasy, and difficulty adapting.",
+      "observable": "placement_top",
+      "scientific_support": "placement_effects_weak_not_specific",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "The foreground centroid is in the upper region. The supplied adaptation interpretation is not supported by the located research.",
+      "parent_safe_wording": "The drawing is positioned high on the page; this is a spatial observation only.",
+      "references": ["REF_PLACEMENT_1992", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Placement effects are weak, task-dependent, and not diagnostic."]
+    },
+    {
+      "rule_id": "PSY_AR_PLACE_LEFT_018",
+      "arabic": "الرسم في الجانب الأيسر يدل على شخصية انطوائية.",
+      "english": "The notes propose that left-side placement indicates an introverted personality.",
+      "observable": "placement_left",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "The foreground centroid is left of centre. Introversion cannot be inferred from this placement.",
+      "parent_safe_wording": "The drawing is positioned toward the left; this is a spatial observation only.",
+      "references": ["REF_PLACEMENT_1992", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Handedness, script direction, composition, copying, and task constraints may influence placement."]
+    },
+    {
+      "rule_id": "PSY_AR_PLACE_RIGHT_019",
+      "arabic": "الرسم في الجانب الأيمن يدل على شخصية منفتحة.",
+      "english": "The notes propose that right-side placement indicates an outgoing personality.",
+      "observable": "placement_right",
+      "scientific_support": "not_found_for_specific_claim",
+      "confidence_ceiling": 0.1,
+      "professional_reasoning": "The foreground centroid is right of centre. Openness cannot be inferred from this placement.",
+      "parent_safe_wording": "The drawing is positioned toward the right; this is a spatial observation only.",
+      "references": ["REF_PLACEMENT_1992", "REF_GENERAL_LIMITS_1998"],
+      "limitations": ["Handedness, script direction, composition, copying, and task constraints may influence placement."]
+    }
+  ]
+}
