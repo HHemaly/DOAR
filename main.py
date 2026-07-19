@@ -123,6 +123,11 @@ def main() -> None:
     apply_late.add_argument("--base", nargs="+", required=True)
     apply_late.add_argument("--split", default="valid")
     apply_late.add_argument("--output", required=True)
+    review_agree = commands.add_parser("review-agreement")
+    review_agree.add_argument("--master", required=True, help="review-master CSV")
+    review_agree.add_argument("--output", required=True)
+    review_agree.add_argument("--include-synthetic", action="store_true")
+
     explain_feat = commands.add_parser("explain-features")
     explain_feat.add_argument("--model", required=True, help="Objective-feature .joblib model")
     explain_feat.add_argument("--features", required=True)
@@ -344,6 +349,12 @@ def main() -> None:
         (out / f"fused_{args.split}.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
         print(json.dumps({"split": args.split, "count": len(ids),
                           "output": str(out / f"fused_{args.split}.json")}, indent=2))
+    elif args.command == "review-agreement":
+        from doar.review import compute_agreement
+        result = compute_agreement(args.master, exclude_synthetic=not args.include_synthetic)
+        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        (out / "agreement.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        print(json.dumps(result, indent=2))
     elif args.command == "explain-features":
         import numpy as _np
         import joblib
