@@ -116,7 +116,9 @@ def _plot_curves_and_bars(out: Path, run_records, summary):
         plt.figure(figsize=(6, 4))
         plt.plot(epochs, vmf1, marker="o")
         plt.title(f"{rec['model']} seed {rec['seed']} — valid macro-F1")
-        plt.xlabel("epoch"); plt.ylabel("valid macro-F1"); plt.grid(alpha=.3)
+        plt.xlabel("epoch")
+        plt.ylabel("valid macro-F1")
+        plt.grid(alpha=.3)
         for ext in ("png", "svg"):
             plt.savefig(fig_dir / f"curve_{rec['model']}_seed_{rec['seed']}.{ext}",
                         dpi=140, bbox_inches="tight")
@@ -132,7 +134,9 @@ def _plot_curves_and_bars(out: Path, run_records, summary):
         plt.bar(names, means, yerr=stds, capsize=5, color=colors, edgecolor="white")
         plt.title("Deep model comparison — mean ± std validation macro-F1\n"
                   f"(winner: {summary['winner']}; selected on validation)")
-        plt.ylabel("validation macro-F1"); plt.ylim(0, 1); plt.xticks(rotation=20, ha="right")
+        plt.ylabel("validation macro-F1")
+        plt.ylim(0, 1)
+        plt.xticks(rotation=20, ha="right")
         for ext in ("png", "svg"):
             plt.savefig(fig_dir / f"deep_comparison.{ext}", dpi=150, bbox_inches="tight")
         plt.close()

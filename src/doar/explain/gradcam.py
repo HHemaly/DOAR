@@ -107,9 +107,11 @@ def generate_gradcam(image_path, checkpoint, output_dir, device="auto",
     weights = grads.mean(dim=(1, 2))
     cam = torch.relu((weights[:, None, None] * acts).sum(0))
     cam = (cam / (cam.max() + 1e-8)).cpu().numpy()
-    h1.remove(); h2.remove()
+    h1.remove()
+    h2.remove()
 
-    out = Path(output_dir); out.mkdir(parents=True, exist_ok=True)
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
     raw_path = out / "gradcam_raw.npy"
     np.save(raw_path, cam)
 
@@ -120,7 +122,9 @@ def generate_gradcam(image_path, checkpoint, output_dir, device="auto",
         import matplotlib.pyplot as plt
         cam_img = np.array(Image.fromarray((cam * 255).astype("uint8")).resize(pil.size))
         fig, ax = plt.subplots(figsize=(5, 5))
-        ax.imshow(pil); ax.imshow(cam_img, cmap="jet", alpha=0.45); ax.axis("off")
+        ax.imshow(pil)
+        ax.imshow(cam_img, cmap="jet", alpha=0.45)
+        ax.axis("off")
         ax.set_title(f"Grad-CAM -> {CLASSES[target_class]}", fontsize=9)
         fig.text(0.5, 0.01, "Classifier attention, not psychological meaning.",
                  ha="center", fontsize=7, color="#555")

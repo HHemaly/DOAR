@@ -55,17 +55,7 @@ def _rule_rows(analysis: dict, language: str) -> str:
 
 
 def render_report(analysis: dict, judges: dict, language: str = "en", parent: bool = False) -> str:
-    ar = language == "ar"
-    title = "تقرير تحليل الرسم - غير تشخيصي" if ar else "Drawing analysis report - non-diagnostic"
-    disclaimer = (
-        "هذا التقرير يصف أدلة بصرية فقط، ولا يمثل تشخيصاً. يجب مراجعة النتائج بواسطة مختص مؤهل."
-        if ar else analysis["safety_disclaimer"]
-    )
-    direction = "rtl" if ar else "ltr"
-    rule_section = "" if parent else f"""
-      <h2>{"تقييم القواعد" if ar else "Rule evaluations"}</h2>
-      <table><tr><th>ID</th><th>Status</th><th>Source wording</th><th>Safe reasoning</th><th>References</th></tr>
-      {_rule_rows(analysis, language)}</table>"""
+    direction = "rtl" if language == "ar" else "ltr"
     inner = _report_inner(analysis, judges, language, parent)
     return _document(inner, language, direction)
 

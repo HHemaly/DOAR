@@ -81,10 +81,13 @@ def collect_validation_logits(checkpoint: str | Path, dataset: str | Path,
     model.load_state_dict(payload["model_state"])
     model.to(selected).eval()
 
-    # build_loaders exposes train + valid ONLY (test is never loaded).
+    # build_loaders exposes train + valid ONLY (test is never loaded). Item 1:
+    # use the checkpoint's stored preprocessing spec so the calibration loader
+    # matches the transform the model was trained/evaluated with.
     _, valid_loader = build_loaders(
         dataset, payload["image_size"], batch_size=32, workers=0,
         augmentation="conservative", weighted_sampler=False,
+        preprocessing_spec=payload.get("preprocessing_spec"),
     )
     logits_all, labels_all = [], []
     with torch.no_grad():

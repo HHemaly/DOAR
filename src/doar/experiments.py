@@ -16,19 +16,19 @@ DEFAULT_SEEDS = (42, 123, 2026)
 
 def _deps():
     try:
-        import joblib
-        import sklearn
-        from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier, RandomForestClassifier
-        from sklearn.impute import SimpleImputer
-        from sklearn.linear_model import LogisticRegression
+        import joblib  # noqa: F401 (used via locals())
+        import sklearn  # noqa: F401 (used via locals())
+        from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier, RandomForestClassifier  # noqa: F401 (used via locals())
+        from sklearn.impute import SimpleImputer  # noqa: F401 (used via locals())
+        from sklearn.linear_model import LogisticRegression  # noqa: F401 (used via locals())
         from sklearn.metrics import (
-            accuracy_score, balanced_accuracy_score, classification_report,
-            confusion_matrix, f1_score, log_loss, precision_recall_fscore_support,
-            roc_auc_score,
+            accuracy_score, balanced_accuracy_score, classification_report,  # noqa: F401 (used via locals())
+            confusion_matrix, f1_score, log_loss, precision_recall_fscore_support,  # noqa: F401 (used via locals())
+            roc_auc_score,  # noqa: F401 (used via locals())
         )
-        from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import StandardScaler
-        from sklearn.svm import SVC
+        from sklearn.pipeline import make_pipeline  # noqa: F401 (used via locals())
+        from sklearn.preprocessing import StandardScaler  # noqa: F401 (used via locals())
+        from sklearn.svm import SVC  # noqa: F401 (used via locals())
     except ImportError as exc:
         raise RuntimeError('Install experiment dependencies with: pip install -e ".[ml]"') from exc
     return locals()

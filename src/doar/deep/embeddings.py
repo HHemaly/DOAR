@@ -9,11 +9,9 @@ from pathlib import Path
 import numpy as np
 
 from ..dataset import CLASSES
-from .augmentations import build_transforms
 
 
 def _torchvision_extractor(backbone: str, device: str):
-    import torch
     from torchvision import models
     from torchvision.models.feature_extraction import create_feature_extractor
     specifications = {

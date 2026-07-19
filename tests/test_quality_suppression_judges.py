@@ -26,7 +26,8 @@ class QualitySuppressionTests(unittest.TestCase):
     def test_supported_runs_all_modules(self):
         from doar.analysis import analyze_image
         with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "s.png"; _supported_image(p)
+            p = Path(d) / "s.png"
+            _supported_image(p)
             a = analyze_image(p, Path(d) / "o")
             self.assertEqual(a.quality["quality_status"], "supported")
             self.assertIn("psychologist_rules", a.module_execution["executed"])
@@ -35,7 +36,8 @@ class QualitySuppressionTests(unittest.TestCase):
     def test_unsupported_suppresses_clinical_modules(self):
         from doar.analysis import analyze_image
         with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "u.png"; _unsupported_image(p)
+            p = Path(d) / "u.png"
+            _unsupported_image(p)
             a = analyze_image(p, Path(d) / "o")
             self.assertEqual(a.quality["quality_status"], "unsupported")
             self.assertEqual(a.emotion["status"], "suppressed")
@@ -47,7 +49,8 @@ class QualitySuppressionTests(unittest.TestCase):
     def test_thresholds_not_claimed_validated(self):
         from doar.analysis import analyze_image
         with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "s.png"; _supported_image(p)
+            p = Path(d) / "s.png"
+            _supported_image(p)
             a = analyze_image(p, Path(d) / "o")
             self.assertFalse(a.quality["thresholds_validated_on_real_dataset"])
 
@@ -93,7 +96,8 @@ class JudgeRepairTests(unittest.TestCase):
     def test_overall_status_and_emotion_judge(self):
         from doar.judges import run_judges
         with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "s.png"; _supported_image(p)
+            p = Path(d) / "s.png"
+            _supported_image(p)
             judges = run_judges(self._analysis(p, d))
             self.assertIn(judges["overall_status"], ("pass", "requires_review", "fail"))
             self.assertFalse(judges["emotion_judge"]["emotion_model_ran"])  # no checkpoint

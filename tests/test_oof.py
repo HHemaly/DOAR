@@ -42,7 +42,8 @@ class GenerateOofTests(unittest.TestCase):
         fp = Path(d) / "features.csv"
         rng = np.random.RandomState(0)
         with open(fp, "w", newline="") as h:
-            w = csv.writer(h); w.writerow(["image_id", "path", "split", "class", "f0", "f1"])
+            w = csv.writer(h)
+            w.writerow(["image_id", "path", "split", "class", "f0", "f1"])
             for i in range(n):
                 cls = ["Angry", "Fear", "Happy", "Sad"][i % 4]
                 w.writerow([f"s{i}", "", "train", cls, rng.randn(), rng.randn()])

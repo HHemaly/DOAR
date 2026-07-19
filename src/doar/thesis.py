@@ -10,7 +10,6 @@ from. Psychologist-agreement figures appear only when real reviews exist.
 """
 
 from __future__ import annotations
-import csv
 import json
 import shutil
 from pathlib import Path
@@ -50,7 +49,8 @@ def _bar_from_leaderboard(plt, rows, value_key, label_key, std_key=None,
     vals = [r[value_key] for r in rows]
     errs = [r.get(std_key, 0) for r in rows] if std_key else None
     ax.bar(names, vals, yerr=errs, capsize=4, color="#3498db", edgecolor="white")
-    ax.set_title(title); ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
     ax.set_ylim(0, max(vals + [0.01]) * 1.2)
     import matplotlib.pyplot as _p
     _p.setp(ax.get_xticklabels(), rotation=20, ha="right")
@@ -111,8 +111,10 @@ def generate_thesis_outputs(output_root) -> dict:
         x = range(len(metrics))
         ax.bar([i - 0.2 for i in x], before, width=0.4, label="before", color="#e74c3c")
         ax.bar([i + 0.2 for i in x], after, width=0.4, label="after", color="#27ae60")
-        ax.set_xticks(list(x)); ax.set_xticklabels([m.upper() for m in metrics])
-        ax.set_title("Calibration: before vs after (validation)"); ax.legend()
+        ax.set_xticks(list(x))
+        ax.set_xticklabels([m.upper() for m in metrics])
+        ax.set_title("Calibration: before vs after (validation)")
+        ax.legend()
         _emit(plt, fig, thesis, "calibration_before_after", p,
               {k: data.get(k) for k in data if k.startswith("validation_")}, manifest)
 
@@ -124,9 +126,12 @@ def generate_thesis_outputs(output_root) -> dict:
         classes = data.get("class_order", [str(i) for i in range(len(cm))])
         fig, ax = plt.subplots(figsize=(5, 5))
         im = ax.imshow(cm, cmap="Blues")
-        ax.set_xticks(range(len(classes))); ax.set_xticklabels(classes, rotation=45, ha="right")
-        ax.set_yticks(range(len(classes))); ax.set_yticklabels(classes)
-        ax.set_title("Confusion matrix (test)"); fig.colorbar(im, fraction=.046)
+        ax.set_xticks(range(len(classes)))
+        ax.set_xticklabels(classes, rotation=45, ha="right")
+        ax.set_yticks(range(len(classes)))
+        ax.set_yticklabels(classes)
+        ax.set_title("Confusion matrix (test)")
+        fig.colorbar(im, fraction=.046)
         _emit(plt, fig, thesis, "confusion_matrix", p,
               {"confusion_matrix": data["confusion_matrix"], "class_order": classes}, manifest)
 
@@ -137,7 +142,8 @@ def generate_thesis_outputs(output_root) -> dict:
         if per:
             fig, ax = plt.subplots(figsize=(8, 5))
             ax.bar(list(per.keys()), list(per.values()), color="#9b59b6", edgecolor="white")
-            ax.set_title("Psychologist agreement per item (%)"); ax.set_ylim(0, 100)
+            ax.set_title("Psychologist agreement per item (%)")
+            ax.set_ylim(0, 100)
             import matplotlib.pyplot as _p
             _p.setp(ax.get_xticklabels(), rotation=20, ha="right")
             _emit(plt, fig, thesis, "psychologist_agreement", p, data, manifest)
