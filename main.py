@@ -74,6 +74,10 @@ def main() -> None:
     image_predict.add_argument("--image", required=True)
     image_predict.add_argument("--checkpoint", required=True)
     image_predict.add_argument("--device", default="auto")
+    ingest = commands.add_parser("ingest-psychology-pdf")
+    ingest.add_argument("--pdf", required=True)
+    ingest.add_argument("--output", required=True)
+    ingest.add_argument("--source-id", default=None)
     late_fusion = commands.add_parser("train-late-fusion")
     late_fusion.add_argument("--base", nargs="+", required=True,
                              help="Two or more exported base-model probability .npz files")
@@ -177,6 +181,13 @@ def main() -> None:
         print(json.dumps(predict_image(
             args.image, args.checkpoint, args.device
         ), ensure_ascii=False, indent=2))
+    elif args.command == "ingest-psychology-pdf":
+        from doar.psychology_ingest import ingest_pdf
+        meta = {"source_id": args.source_id} if args.source_id else None
+        draft = ingest_pdf(args.pdf, args.output, meta)
+        print(json.dumps({"draft": True, "rule_count": draft["rule_count"],
+                          "activation_blocked": draft["activation_blocked"],
+                          "output": args.output}, ensure_ascii=False, indent=2))
     elif args.command == "train-late-fusion":
         from doar.fusion.late import train_late_fusion
         print(json.dumps(train_late_fusion(

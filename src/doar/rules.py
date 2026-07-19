@@ -70,5 +70,10 @@ def evaluate_rules(
             "limitations": rule["limitations"],
             "requires_clinician_review": True,
         })
-    # No isolated clinician-supplied symbolic rule may create a concern.
-    return evaluations, []
+    # Concern profiles now come from a real convergence engine (D6): a concern
+    # requires >=2 independent evidence IDs from >=2 distinct source types and can
+    # never arise from a single clinician-supplied symbol. With the current
+    # release this still yields [] — but by convergence logic, not a hardcode.
+    from .concerns import derive_concerns
+    concerns = derive_concerns(evaluations)
+    return evaluations, concerns
