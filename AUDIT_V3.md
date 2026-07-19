@@ -78,19 +78,22 @@ not discarded.
 
 ### 2.2 Confirmed defects (verified by full module + docs pass)
 
-| # | Defect | Severity | Fix |
+**Status legend:** ✅ fixed on this branch (with tests) · ⏳ remaining (buildable) ·
+🔒 remaining (needs dataset/detectors).
+
+| # | Defect | Sev | Status |
 |---|---|---|---|
-| D1 | **Calibration is written correctly (valid-only NLL grid search) but not wired** — trainer/fusion/inference all emit `calibration_status:"uncalibrated"`; no CLI calls `fit_temperature`. | High (RQ4 depends on it) | Wire a `calibrate` step after training; apply T at inference. |
-| D2 | **Late-fusion / stacking / ensemble-uncertainty exist only as unused library code** (`probability.py`, `uncertainty.py`); `oof_stacking` & `logistic_probability_meta` are named in `PROBABILITY_METHODS` but unimplemented. The *executed* primary path is **early fusion** (concat features+embeddings → one classifier). | Medium | Either wire the late-fusion CLI (for RQ3) or scope the thesis to early-fusion + document. |
-| D3 | **Cross-split duplicate/near-duplicate leakage detected but NOT blocked** (`duplicates_block_training:false`); no perceptual-hash near-dup check. | High (leakage) | **Graft my branch's perceptual-hash dedup + `leakage_ok` gate**; block on cross-split exact/near dupes. |
-| D4 | **Shape feature family stubbed** — `shape.enclosed_shape_count` & `shape.repetition_score` hardcoded `0.0`; `contour_proxy_count` reuses component count. | Medium | Implement or mark `not_evaluated` (brief forbids fake features). |
-| D5 | **Embedding `preprocessing_hash` mislabeled** `imagenet_v1`/224 for CLIP & DINOv2 (they use their own preprocess) — reproducibility-metadata bug. | Medium | Record the true preprocess per backbone. |
-| D6 | **Concern-convergence engine is a stub** — `evaluate_rules` always returns `[]` concerns (safety-preserving but incomplete). | Medium | Build multi-source convergence (require ≥2 independent evidence IDs) — never from a single symbol. |
-| D7 | **`safety_judge` regex is English-only and narrow** — does not scan Arabic `original_arabic` or parent wording; misses "shows signs of trauma". | High (safety) | Broaden patterns; scan Arabic + parent text; add tests. |
-| D8 | **`bilingual.html` is malformed** (two `<!doctype>` roots joined by `<hr>`). | Low | Render one document with two sections. |
-| D9 | **Cosmetic placeholder artifacts** shown as if meaningful — `page_mask` constant, `density_map`/`stroke_map` blurs, `quality.supported` hardcoded `True` (no real blur/res gating). | Medium | Implement real quality gating or label artifacts "illustrative". |
-| D10 | **`confidence_ceiling` never numerically enforced**; Streamlit Q&A tab is inert (prints a CLI string). | Low/Med | Enforce ceiling on any rule-derived score; wire the Q&A tab to `qa.answer`. |
-| D11 | Only `tests/test_objective.py` (17 synthetic tests) — good invariants but far below the brief's critical-path list; no Arabic-safety, no calibration-wired, no leakage-block test. | Medium | Expand suite (mocks/tiny models/synthetic). |
+| D1 | Calibration written (valid-only) but **not wired** — inference always uncalibrated. | High | ✅ **Fixed** — `calibrate_checkpoint()` (valid-only) + `calibrate` CLI + `predict_image` applies temperature; returns calibrated + raw. |
+| D2 | Late-fusion/stacking/ensemble-uncertainty exist only as **unused library code**; executed path is early fusion. | Med | ⏳ Remaining — wire `probability.py`/`uncertainty.py` into a late-fusion CLI arm (RQ3), or scope thesis to early fusion + document. |
+| D3 | Cross-split duplicate/near-dup leakage **detected but not blocked**. | High | ✅ **Fixed** — `build_manifest` now emits `cross_split_exact_leakage`, `cross_split_near_duplicate_leakage` (perceptual hash), `leakage_ok`, `leakage_status`. |
+| D4 | Shape features `enclosed_shape_count`/`repetition_score` hardcoded `0.0`. | Med | ✅ **Fixed** — marked `missing`, confidence 0, `method="not_evaluated_no_detector"` (honest, not faked). |
+| D5 | Embedding `preprocessing_version` mislabeled `imagenet_v1` for CLIP/DINOv2. | Med | ✅ **Fixed** — records `openclip_native_preprocess` / `dinov2_native_preprocess` / `imagenet_v1` correctly. |
+| D6 | Concern-convergence engine is a stub (`evaluate_rules` returns `[]`). | Med | 🔒 Remaining — needs multi-source convergence over ≥2 independent evidence IDs; most symbolic evidence requires detectors that don't exist yet. |
+| D7 | `safety_judge` English-only and narrow. | High | ✅ **Fixed** — broadened EN patterns + Arabic terms; scans reasoning + parent + Arabic wording; EN/AR disclaimer check. |
+| D8 | `bilingual.html` malformed (two doctypes). | Low | ✅ **Fixed** — single valid document with LTR + RTL sections via shared body fragment. |
+| D9 | Cosmetic placeholder artifacts; `quality.supported` hardcoded `True`. | Med | ⏳ Remaining — implement real blur/resolution quality gating or explicitly label illustrative artifacts. |
+| D10 | `confidence_ceiling` never enforced; Streamlit Q&A tab inert. | Low/Med | ⏳ Remaining — enforce ceiling on rule-derived scores; wire Q&A tab to `qa.answer`. |
+| D11 | Only `tests/test_objective.py`. | Med | ⏳ Partially — added 11 tests (safety/leakage/calibration/integrity); more critical-path coverage still valuable. |
 
 **Provenance caveat (important):** `PSYCHOLOGIST_SOURCE_AUDIT.md` states the real
 source PDF (`التحليل النفسي للصور.pdf`) was **never readable** in the v3 authors'
