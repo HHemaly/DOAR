@@ -110,6 +110,10 @@ def main() -> None:
                              choices=["equal_late_fusion", "validation_weighted_late_fusion",
                                       "logistic_probability_meta"])
     late_fusion.add_argument("--calibrated", action="store_true")
+    eval_preds = commands.add_parser("evaluate-predictions")
+    eval_preds.add_argument("--export", required=True, help="A probability export JSON")
+    eval_preds.add_argument("--split", default="valid")
+    eval_preds.add_argument("--output", required=True)
     gpu_smoke = commands.add_parser("gpu-smoke")
     gpu_smoke.add_argument("--output", default=None)
     gpu_smoke.add_argument("--device", default="auto")
@@ -273,6 +277,24 @@ def main() -> None:
         print(json.dumps(train_late_fusion(
             args.base, args.output, args.method, args.calibrated
         ), ensure_ascii=False, indent=2, default=float))
+    elif args.command == "evaluate-predictions":
+        import numpy as _np
+        from doar.evaluation import (load_probability_export, compute_metrics,
+                                     write_metrics_csv, CLASS_ORDER)
+        exp = load_probability_export(args.export)
+        rows = [r for r in exp["predictions"] if r["split"] == args.split]
+        if not rows:
+            raise ValueError(f"No predictions for split {args.split!r}")
+        order = exp["class_order"]
+        y_true = _np.array([order.index(r["true_label"]) for r in rows])
+        proba = _np.array([[r["probabilities"][c] for c in order] for r in rows])
+        y_pred = proba.argmax(1)
+        metrics = compute_metrics(y_true, y_pred, proba, class_names=order)
+        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        write_metrics_csv(metrics, out / "per_class_metrics.csv")
+        print(json.dumps({"split": args.split, "macro_f1": metrics["macro_f1"],
+                          "accuracy": metrics["accuracy"]}, indent=2))
     elif args.command == "gpu-smoke":
         from doar.gpu_smoke import run_gpu_smoke
         print(json.dumps(run_gpu_smoke(args.output, args.device, args.batch_size), indent=2))
