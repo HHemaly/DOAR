@@ -3,6 +3,34 @@
 An evidence-traceable research pipeline for objective analysis of children's
 drawings. Outputs are non-diagnostic and require professional review.
 
+> **Full local workflow:** see [`docs/LOCAL_WORKFLOW_WINDOWS.md`](docs/LOCAL_WORKFLOW_WINDOWS.md)
+> for the complete, verified PowerShell command sequence (dataset validation →
+> features → deep training → embeddings → fusion → calibration → late fusion →
+> ablation → explainability → thesis outputs → locked final test), including how
+> to choose the correct PyTorch/CUDA wheel for a Quadro P3200 **after** checking
+> `nvidia-smi` (no CUDA command is hardcoded as verified).
+
+## Pipeline capabilities (CLI)
+
+Dataset & leakage: `validate-dataset`, `check-training-readiness`,
+`build-manifest` (blocks cross-split exact/near-duplicate/subject leakage).
+Features & embeddings: `extract-features`, `extract-embeddings`
+(`finetuned:<ckpt>` for penultimate-layer embeddings).
+Models: `train-image-model`, `compare-deep-models`, `train-feature-model`,
+`train-fusion-model`, `compare-embeddings`.
+Calibration & fusion: `calibrate`, `calibrate-fusion`, `export-probabilities`,
+`train-late-fusion`, `apply-late-fusion` (all sample_id-aligned, validation-only).
+Evaluation & thesis: `evaluate` (locked test), `evaluate-predictions`,
+`run-ablation`, `generate-thesis-outputs`.
+Explainability: `explain-features` (tabular importance),
+`explain-gradcam` (visual attention) — kept strictly separate.
+Case tools: `analyze-image`, `predict-image`, `qa` (EN/AR),
+`review-agreement`, `ingest-psychology-pdf`, `gpu-smoke`.
+
+All model selection, calibration, weighting and stacking use the **validation**
+split; the **test** split is locked behind `--unlock-test
+--confirm-final-evaluation` with an audit log.
+
 ## Quick start (PowerShell)
 
 ```powershell

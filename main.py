@@ -123,6 +123,31 @@ def main() -> None:
     apply_late.add_argument("--base", nargs="+", required=True)
     apply_late.add_argument("--split", default="valid")
     apply_late.add_argument("--output", required=True)
+    thesis_cmd = commands.add_parser("generate-thesis-outputs")
+    thesis_cmd.add_argument("--output", required=True, help="Output root containing experiment artifacts")
+
+    ablation = commands.add_parser("run-ablation")
+    ablation.add_argument("--features", required=True)
+    ablation.add_argument("--output", required=True)
+    ablation.add_argument("--seeds", default="42,123,2026")
+
+    review_agree = commands.add_parser("review-agreement")
+    review_agree.add_argument("--master", required=True, help="review-master CSV")
+    review_agree.add_argument("--output", required=True)
+    review_agree.add_argument("--include-synthetic", action="store_true")
+
+    explain_feat = commands.add_parser("explain-features")
+    explain_feat.add_argument("--model", required=True, help="Objective-feature .joblib model")
+    explain_feat.add_argument("--features", required=True)
+    explain_feat.add_argument("--output", required=True)
+    explain_feat.add_argument("--n-repeats", type=int, default=5)
+
+    explain_cam = commands.add_parser("explain-gradcam")
+    explain_cam.add_argument("--image", required=True)
+    explain_cam.add_argument("--checkpoint", required=True)
+    explain_cam.add_argument("--output", required=True)
+    explain_cam.add_argument("--device", default="auto")
+
     cal_fusion = commands.add_parser("calibrate-fusion")
     cal_fusion.add_argument("--bundle", required=True, help="Fusion .joblib bundle")
     cal_fusion.add_argument("--features", required=True)
@@ -332,6 +357,47 @@ def main() -> None:
         (out / f"fused_{args.split}.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
         print(json.dumps({"split": args.split, "count": len(ids),
                           "output": str(out / f"fused_{args.split}.json")}, indent=2))
+    elif args.command == "generate-thesis-outputs":
+        from doar.thesis import generate_thesis_outputs
+        print(json.dumps(generate_thesis_outputs(args.output), indent=2))
+    elif args.command == "run-ablation":
+        from doar.ablation import run_feature_ablation
+        seeds = tuple(int(s) for s in args.seeds.split(","))
+        print(json.dumps(run_feature_ablation(args.features, args.output, seeds), indent=2))
+    elif args.command == "review-agreement":
+        from doar.review import compute_agreement
+        result = compute_agreement(args.master, exclude_synthetic=not args.include_synthetic)
+        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        (out / "agreement.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        print(json.dumps(result, indent=2))
+    elif args.command == "explain-features":
+        import numpy as _np
+        import joblib
+        from doar.explain.feature_importance import permutation_importance
+        from doar.fusion.embedding_comparison import load_features_indexed
+        from doar.dataset import CLASSES
+        bundle = joblib.load(args.model)
+        model = bundle["model"]
+        feat = load_features_indexed(args.features)["valid"]
+        names = bundle.get("feature_names") or []
+        ids = sorted(feat)
+        X = _np.vstack([feat[i][0] for i in ids])
+        y = _np.array([feat[i][1] for i in ids])
+        result = permutation_importance(model.predict_proba, X, y,
+                                        names or [f"f{i}" for i in range(X.shape[1])],
+                                        n_repeats=args.n_repeats)
+        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        (out / "feature_importance.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        import csv as _csv
+        with open(out / "feature_importance.csv", "w", newline="", encoding="utf-8") as h:
+            w = _csv.writer(h); w.writerow(["feature", "importance_mean", "importance_std"])
+            for r in result["importances"]:
+                w.writerow([r["feature"], r["importance_mean"], r["importance_std"]])
+        print(json.dumps({"top": result["importances"][:5], "disclaimer": result["disclaimer"]}, indent=2))
+    elif args.command == "explain-gradcam":
+        from doar.explain.gradcam import generate_gradcam
+        print(json.dumps(generate_gradcam(
+            args.image, args.checkpoint, args.output, args.device), indent=2))
     elif args.command == "calibrate-fusion":
         from doar.fusion.calibrate import calibrate_fusion_bundle
         print(json.dumps(calibrate_fusion_bundle(
