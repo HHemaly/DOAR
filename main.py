@@ -218,11 +218,17 @@ def main() -> None:
         if token.startswith("--")
     }
 
-    def _gate(source: str) -> None:
+    def _gate(source: str, resolved_output=None) -> None:
         """Enforce the leakage gate before any extraction/training. Blocks unless
-        clean or explicitly overridden with a written, audit-logged justification."""
+        clean or explicitly overridden with a written, audit-logged justification.
+
+        `resolved_output` must be passed for config-driven commands where
+        args.output may be None (A1). Falls back to args.output for direct CLI."""
         from doar.leakage import enforce_leakage_gate
-        gate_out = Path(args.output) / "leakage_gate"
+        base = resolved_output if resolved_output is not None else getattr(args, "output", None)
+        if base is None:
+            raise ValueError("Leakage gate requires an output directory (config or --output).")
+        gate_out = Path(base) / "leakage_gate"
         report = enforce_leakage_gate(
             source, gate_out, subject_key=getattr(args, "subject_key", "subject_id"),
             allow_override=getattr(args, "allow_leakage_override", False),
@@ -266,7 +272,7 @@ def main() -> None:
             "data": {"dataset", "validation_split"},
             "training": {"model", "pretrained_weights", "seed", "image_size", "batch_size",
                          "epochs", "device", "workers", "augmentation", "freeze_epochs",
-                         "class_weighting", "early_stopping_patience"},
+                         "class_weighting", "early_stopping_patience", "grad_accum_steps"},
             "optimization": {"optimizer", "head_learning_rate", "backbone_learning_rate",
                              "scheduler"},
             "output": {"directory", "calibration"},
@@ -289,13 +295,14 @@ def main() -> None:
             "head_learning_rate": ("optimization", "head_learning_rate"),
             "backbone_learning_rate": ("optimization", "backbone_learning_rate"),
             "scheduler": ("optimization", "scheduler"),
+            "grad_accum_steps": ("training", "grad_accum_steps"),
             "output": ("output", "directory"), "calibration": ("output", "calibration"),
         }
         assert_all_config_consumed(config, mapping)
         values = resolve(vars(args), config, mapping, supplied)
         if not all(values.get(name) for name in ("dataset", "model", "output")):
             raise ValueError("train-image-model requires dataset, model, and output via CLI or config")
-        _gate(values["dataset"])
+        _gate(values["dataset"], values["output"])
         config_hash = save_run_metadata(values["output"], args.command, vars(args), values)
 
         def _opt(name, cast, default):
@@ -409,7 +416,7 @@ def main() -> None:
         ), indent=2))
     elif args.command == "compare-deep-models":
         from doar.deep.compare import run_deep_comparison, DEFAULT_MODELS
-        _gate(args.dataset)
+        _gate(args.dataset, args.output)
         models = [m.strip() for m in args.models.split(",")] if args.models else DEFAULT_MODELS
         seeds = tuple(int(s) for s in args.seeds.split(","))
         print(json.dumps(run_deep_comparison(
@@ -457,7 +464,7 @@ def main() -> None:
         }, supplied)
         if not all(values.get(name) for name in ("manifest", "backbone", "output")):
             raise ValueError("extract-embeddings requires manifest, backbone, and output")
-        _gate(values["manifest"])
+        _gate(values["manifest"], values["output"])
         config_hash = save_resolved(values["output"], args.command, values)
         print(json.dumps(extract_embeddings(
             values["manifest"], values["output"], values["backbone"], values["device"],
