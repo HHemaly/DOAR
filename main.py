@@ -117,6 +117,19 @@ def main() -> None:
     export_probs.add_argument("--splits", default="train,valid", help="Comma splits to export")
     _add_test_guard_args(export_probs)
 
+    smoke = commands.add_parser("run-smoke-experiment")
+    smoke.add_argument("--dataset", required=True)
+    smoke.add_argument("--output", required=True)
+    smoke.add_argument("--max-samples-per-class", type=int, default=5)
+    smoke.add_argument("--device", default="auto")
+
+    oof = commands.add_parser("generate-oof-probabilities")
+    oof.add_argument("--features", required=True)
+    oof.add_argument("--output", required=True)
+    oof.add_argument("--model", default="logistic_regression")
+    oof.add_argument("--n-folds", type=int, default=5)
+    oof.add_argument("--seed", type=int, default=42)
+
     late_fusion = commands.add_parser("train-late-fusion")
     late_fusion.add_argument("--base", nargs="+", required=True,
                              help="Two or more base-model probability export .json files")
@@ -365,6 +378,14 @@ def main() -> None:
             args.model, args.features, args.embeddings, args.output,
             splits=req_splits, manifest=args.manifest, device=args.device,
         ), indent=2))
+    elif args.command == "run-smoke-experiment":
+        from doar.smoke import run_smoke_experiment
+        print(json.dumps(run_smoke_experiment(
+            args.dataset, args.output, args.max_samples_per_class, args.device), indent=2))
+    elif args.command == "generate-oof-probabilities":
+        from doar.fusion.oof import generate_oof
+        print(json.dumps(generate_oof(
+            args.features, args.output, args.model, args.n_folds, args.seed), indent=2))
     elif args.command == "train-late-fusion":
         from doar.fusion.late import train_late_fusion
         print(json.dumps(train_late_fusion(
