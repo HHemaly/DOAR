@@ -133,6 +133,33 @@ def check_training_readiness(
     disk = shutil.disk_usage(output)
     dataset_ok = bool(dataset and (Path(dataset) / "train").exists()
                       and (Path(dataset) / "valid").exists() and (Path(dataset) / "test").exists())
+    # C4: report real status; do NOT hardcode test_locked.
+    from .test_guard import GUARD_VERSION
+    guarded_commands = ["evaluate", "evaluate-predictions", "export-probabilities",
+                        "apply-late-fusion"]
+
+    def _leakage_status(man):
+        if not man:
+            return None
+        for cand in (Path(man).parent / "leakage_gate" / "leakage_report.json",
+                     Path(man).with_suffix(".summary.json")):
+            if cand.exists():
+                try:
+                    data = json.loads(cand.read_text(encoding="utf-8"))
+                    return data.get("leakage_status") or ("PASS" if data.get("leakage_ok") else "FAIL")
+                except Exception:
+                    return "UNKNOWN"
+        return "not_generated"
+
+    def _provenance_status(art_dir, name):
+        if not art_dir:
+            return None
+        p = Path(art_dir).parent / name
+        return "present" if p.exists() else "missing"
+
+    gpu_smoke_recorded = (output / "gpu" / "gpu_smoke.json").exists() or \
+        (Path(output_dir) / "gpu_smoke.json").exists()
+
     checks = {
         "python_3_11": sys.version_info[:2] == (3, 11),
         "core_dependencies": packages["numpy"] and packages["pillow"],
@@ -144,24 +171,38 @@ def check_training_readiness(
         "manifest_exists": bool(manifest and Path(manifest).exists()),
         "feature_table_exists": bool(features and Path(features).exists()),
         "embedding_cache_exists": bool(embeddings and Path(embeddings).exists()),
-        "test_locked": True,
     }
     failures = [name for name in ("core_dependencies", "dataset_structure", "output_writable")
                 if not checks[name]]
     warnings = [name for name, value in checks.items() if not value and name not in failures]
+    # 6 GB-safe default is batch 4 unless an actual memory smoke proves otherwise.
+    mem_gb = (cuda["memory_bytes"] or 0) / 1024**3
     recommendation = (
-        {"device": "cuda", "batch_size": 32, "workers": 4, "profile": "recommended_gpu"}
-        if cuda["available"] and (cuda["memory_bytes"] or 0) >= 8 * 1024**3 else
-        {"device": "cuda", "batch_size": 8, "workers": 2, "profile": "low_memory_gpu"}
+        {"device": "cuda", "batch_size": 8, "workers": 2, "grad_accum_steps": 1,
+         "profile": "gpu_ge_8gb"}
+        if cuda["available"] and mem_gb >= 8 and gpu_smoke_recorded else
+        {"device": "cuda", "batch_size": 4, "workers": 2, "grad_accum_steps": 2,
+         "profile": "gpu_6gb_safe_default",
+         "note": "batch 4 default for 6 GB; raise only after a gpu-smoke memory check"}
         if cuda["available"] else
-        {"device": "cpu", "batch_size": 4, "workers": 0, "profile": "cpu_smoke"}
+        {"device": "cpu", "batch_size": 4, "workers": 0, "grad_accum_steps": 1,
+         "profile": "cpu_smoke"}
     )
     result = {
         "status": "FAIL" if failures else "WARN" if warnings else "PASS",
         "python": platform.python_version(), "platform": platform.platform(),
+        "python_3_11_compatible": sys.version_info[:2] == (3, 11),
         "packages": packages, "cuda": cuda, "disk_free_bytes": disk.free,
         "checks": checks, "failures": failures, "warnings": warnings,
         "recommended_settings": recommendation,
+        "final_test_guard": {
+            "version": GUARD_VERSION, "status": "enforced",
+            "protected_commands": guarded_commands,
+        },
+        "leakage_status": _leakage_status(manifest),
+        "feature_provenance": _provenance_status(features, "extraction_metadata.json"),
+        "embedding_provenance": _provenance_status(embeddings, "embedding_metadata.json"),
+        "gpu_smoke_recorded": bool(gpu_smoke_recorded),
     }
     (output / "training_readiness.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
