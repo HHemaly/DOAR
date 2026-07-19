@@ -74,6 +74,11 @@ def main() -> None:
     image_predict.add_argument("--image", required=True)
     image_predict.add_argument("--checkpoint", required=True)
     image_predict.add_argument("--device", default="auto")
+    calibrate = commands.add_parser("calibrate")
+    calibrate.add_argument("--checkpoint", required=True)
+    calibrate.add_argument("--dataset", required=True)
+    calibrate.add_argument("--output", required=True)
+    calibrate.add_argument("--device", default="auto")
     embedding = commands.add_parser("extract-embeddings")
     embedding.add_argument("--config")
     embedding.add_argument("--manifest")
@@ -163,6 +168,11 @@ def main() -> None:
         from doar.deep.inference import predict_image
         print(json.dumps(predict_image(
             args.image, args.checkpoint, args.device
+        ), ensure_ascii=False, indent=2))
+    elif args.command == "calibrate":
+        from doar.deep.calibration import calibrate_checkpoint
+        print(json.dumps(calibrate_checkpoint(
+            args.checkpoint, args.dataset, args.output, args.device
         ), ensure_ascii=False, indent=2))
     elif args.command == "extract-embeddings":
         from doar.deep.embeddings import extract_embeddings

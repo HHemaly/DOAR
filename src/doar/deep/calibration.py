@@ -56,3 +56,68 @@ def fit_temperature(validation_logits: np.ndarray, validation_labels: np.ndarray
 
 def save_calibration(result: dict, output: str | Path) -> None:
     Path(output).write_text(json.dumps(result, indent=2), encoding="utf-8")
+
+
+def collect_validation_logits(checkpoint: str | Path, dataset: str | Path,
+                              device: str = "auto") -> tuple:
+    """Run the checkpoint's model over the VALIDATION split only and return
+    (logits, labels) as numpy arrays. Test split is never touched.
+    torch is imported lazily so this module stays importable without it."""
+    try:
+        import torch
+    except ImportError as exc:  # pragma: no cover - exercised only with [deep]
+        raise RuntimeError('Install PyTorch support with: pip install -e ".[deep]"') from exc
+    from ..dataset import CLASSES
+    from .registry import build_model
+    from .datasets import build_loaders
+
+    selected = "cuda" if device == "auto" and torch.cuda.is_available() else (
+        "cpu" if device == "auto" else device
+    )
+    payload = torch.load(checkpoint, map_location=selected, weights_only=False)
+    if tuple(payload["classes"]) != CLASSES:
+        raise ValueError("Checkpoint class mapping mismatch")
+    model = build_model(payload["model_name"], len(CLASSES), pretrained=False)
+    model.load_state_dict(payload["model_state"])
+    model.to(selected).eval()
+
+    # build_loaders exposes train + valid ONLY (test is never loaded).
+    _, valid_loader = build_loaders(
+        dataset, payload["image_size"], batch_size=32, workers=0,
+        augmentation="conservative", weighted_sampler=False,
+    )
+    logits_all, labels_all = [], []
+    with torch.no_grad():
+        for images, labels in valid_loader:
+            logits_all.append(model(images.to(selected)).cpu().numpy())
+            labels_all.extend(labels.tolist())
+    return np.concatenate(logits_all, axis=0), np.asarray(labels_all)
+
+
+def calibrate_checkpoint(checkpoint: str | Path, dataset: str | Path,
+                         output: str | Path, device: str = "auto") -> dict:
+    """Fit temperature scaling on the VALIDATION split and persist it.
+
+    Writes calibration.json to `output`, and stamps the checkpoint in place with
+    `temperature` and `calibration_status="temperature_scaled"` so that
+    predict_image applies it automatically. Never uses the test split.
+    """
+    import torch  # lazy
+
+    logits, labels = collect_validation_logits(checkpoint, dataset, device)
+    result = fit_temperature(logits, labels)
+
+    out_dir = Path(output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    save_calibration(result, out_dir / "calibration.json")
+
+    # Stamp the checkpoint so inference is calibrated by default.
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    payload["temperature"] = result["temperature"]
+    payload["calibration_status"] = "temperature_scaled"
+    payload["calibration"] = result
+    torch.save(payload, checkpoint)
+
+    result["checkpoint"] = str(checkpoint)
+    result["applied_to_checkpoint"] = True
+    return result

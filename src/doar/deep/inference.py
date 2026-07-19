@@ -11,6 +11,13 @@ from .augmentations import build_transforms
 from .registry import build_model
 
 
+def _softmax(logits: np.ndarray, temperature: float = 1.0) -> np.ndarray:
+    scaled = logits / max(temperature, 1e-6)
+    scaled = scaled - scaled.max()
+    exp = np.exp(scaled)
+    return exp / exp.sum()
+
+
 def predict_image(image: str, checkpoint: str, device: str = "auto") -> dict:
     try:
         import torch
@@ -27,8 +34,13 @@ def predict_image(image: str, checkpoint: str, device: str = "auto") -> dict:
     model.load_state_dict(payload["model_state"])
     model.to(selected).eval()
     tensor = build_transforms(payload["image_size"], False)(Image.open(image).convert("RGB"))
+    # Apply validation-fitted temperature scaling when available (D1). T=1.0 is
+    # a no-op, so uncalibrated checkpoints behave exactly as before.
+    temperature = float(payload.get("temperature", 1.0))
     with torch.no_grad():
-        probabilities = torch.softmax(model(tensor[None].to(selected)), 1)[0].cpu().numpy()
+        logits = model(tensor[None].to(selected))[0].cpu().numpy()
+    raw_probabilities = _softmax(logits, 1.0)
+    probabilities = _softmax(logits, temperature)
     order = np.argsort(probabilities)[::-1]
     entropy = float(-(probabilities * np.log(np.maximum(probabilities, 1e-12))).sum())
     return {
@@ -39,6 +51,8 @@ def predict_image(image: str, checkpoint: str, device: str = "auto") -> dict:
         "top_two_margin": float(probabilities[order[0]] - probabilities[order[1]]),
         "entropy": entropy,
         "uncertainty": "high" if probabilities[order[0]] < .5 else "moderate",
+        "temperature": temperature,
+        "raw_probabilities": {name: float(raw_probabilities[i]) for i, name in enumerate(CLASSES)},
         "calibration_status": payload.get("calibration_status", "uncalibrated"),
         "model_name": payload["model_name"],
         "model_family": "deep_image",
