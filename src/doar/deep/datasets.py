@@ -8,7 +8,7 @@ from .augmentations import build_transforms
 
 def build_loaders(
     dataset: str | Path, image_size: int, batch_size: int, workers: int,
-    augmentation: str, weighted_sampler: bool = False,
+    augmentation: str, weighted_sampler: bool = False, preprocessing_spec: dict | None = None,
 ):
     try:
         import torch
@@ -17,8 +17,19 @@ def build_loaders(
     except ImportError as exc:
         raise RuntimeError('Install PyTorch support with: pip install -e ".[deep]"') from exc
     root = Path(dataset)
-    train = ImageFolder(root / "train", build_transforms(image_size, True, augmentation))
-    valid = ImageFolder(root / "valid", build_transforms(image_size, False))
+    # Item 1: when a resolved preprocessing spec is supplied, BOTH loaders use it
+    # (validation uses build_eval_transform(spec) exactly; training uses the same
+    # geometry + normalization with augmentation inserted). Fall back to the
+    # generic transform only when no spec is given (backward compatible).
+    if preprocessing_spec is not None:
+        from .preprocessing import build_eval_transform, build_train_transform
+        train_tf = build_train_transform(preprocessing_spec, augmentation)
+        valid_tf = build_eval_transform(preprocessing_spec)
+    else:
+        train_tf = build_transforms(image_size, True, augmentation)
+        valid_tf = build_transforms(image_size, False)
+    train = ImageFolder(root / "train", train_tf)
+    valid = ImageFolder(root / "valid", valid_tf)
     expected = {name: index for index, name in enumerate(CLASSES)}
     if train.class_to_idx != expected or valid.class_to_idx != expected:
         raise ValueError(f"Class mapping must be {expected}; got {train.class_to_idx}")

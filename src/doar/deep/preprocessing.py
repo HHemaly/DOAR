@@ -142,6 +142,30 @@ def build_eval_transform(spec: dict):
     return transforms.Compose(steps)
 
 
+def build_train_transform(spec: dict, profile: str = "conservative"):
+    """Training transform with the SAME resize/crop/interpolation/normalization as
+    the eval transform, with the drawing-safe augmentation profile inserted before
+    tensor conversion + normalization (Item 1). Returns None for openclip (its own
+    preprocess is used)."""
+    if spec["family"] == "openclip":
+        return None
+    try:
+        from torchvision import transforms
+    except ImportError as exc:  # pragma: no cover - needs [deep]
+        raise RuntimeError('Install PyTorch support with: pip install -e ".[deep]"') from exc
+    from .augmentations import augmentation_ops
+    interp = {"bilinear": transforms.InterpolationMode.BILINEAR,
+              "bicubic": transforms.InterpolationMode.BICUBIC}.get(
+                  spec.get("interpolation"), transforms.InterpolationMode.BILINEAR)
+    steps = [transforms.Resize(spec["resize"], interpolation=interp)]
+    if spec.get("crop"):
+        steps.append(transforms.CenterCrop(spec["crop"]))
+    steps.extend(augmentation_ops(profile))                 # PIL-space augmentation
+    steps.append(transforms.ToTensor())
+    steps.append(transforms.Normalize(spec["mean"], spec["std"]))
+    return transforms.Compose(steps)
+
+
 def assert_preprocessing_compatible(checkpoint_hash: str | None,
                                     applied_spec: dict) -> None:
     """Fail inference when the checkpoint's stored preprocessing hash does not

@@ -102,16 +102,18 @@ def train_image_model(
     weights_spec = pretrained_weights if pretrained else "none"
     _weights_obj, _resolved_weights_id = resolve_weights(model_name, weights_spec)
     use_pretrained = _weights_obj is not None
-    train_loader, valid_loader = build_loaders(
-        dataset, image_size, batch_size, workers, augmentation
-    )
-    # Preprocessing spec + hash recorded so inference can verify compatibility
-    # (Item 6). Derive from the resolved weights object when available (A4) so
-    # recorded and actual preprocessing cannot drift.
+    # Item 1: resolve weights + preprocessing spec BEFORE building the loaders so
+    # the SAME resolved spec drives training and validation transforms (derived
+    # from the weights object where available so recorded == executed).
     from .preprocessing import resolve_preprocessing, preprocessing_hash
     _pp_spec = resolve_preprocessing(model_name, image_size, weights_object=_weights_obj)
     _pp_spec["resolved_weights_id"] = _resolved_weights_id
+    _pp_spec["augmentation_profile"] = augmentation
     _pp_hash = preprocessing_hash(_pp_spec)
+    train_loader, valid_loader = build_loaders(
+        dataset, image_size, batch_size, workers, augmentation,
+        preprocessing_spec=_pp_spec,
+    )
     model = build_model(model_name, len(CLASSES), weights_spec).to(selected_device)
     if freeze_epochs and model_name != "small_cnn":
         freeze_backbone(model)
