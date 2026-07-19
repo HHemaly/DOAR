@@ -21,20 +21,39 @@ DISCLAIMER = (
 )
 
 
+# Grad-CAM needs convolutional feature maps; ViT has none -> unsupported.
+_CAM_UNSUPPORTED = {"vit_b_16"}
+
+
 def target_layer_name(model_name: str) -> str:
-    """Name of the conv layer to hook per architecture (pure, CPU-testable)."""
+    """Name of the conv container to hook per architecture (pure, CPU-testable)."""
+    if model_name in _CAM_UNSUPPORTED:
+        raise ValueError(
+            f"Grad-CAM is not supported for {model_name!r}: it has no convolutional "
+            f"feature maps. Use an attention-based explanation for ViT instead.")
     return {
         "resnet18": "layer4", "resnet50": "layer4",
         "mobilenet_v3_small": "features", "mobilenet_v3_large": "features",
         "efficientnet_b0": "features", "convnext_tiny": "features",
-        "small_cnn": "features",
+        "small_cnn": "<sequential>",
     }.get(model_name, "features")
 
 
 def _resolve_layer(model, model_name):
-    import torch.nn as nn  # noqa
+    import torch.nn as nn
+    if model_name in _CAM_UNSUPPORTED:
+        raise ValueError(
+            f"Grad-CAM is not supported for {model_name!r} (no conv feature maps).")
+    if model_name == "small_cnn":
+        # Plain nn.Sequential with no .features: hook the LAST Conv2d module.
+        convs = [m for m in model if isinstance(m, nn.Conv2d)]
+        if not convs:
+            raise ValueError("small_cnn has no Conv2d layer to hook for Grad-CAM.")
+        return convs[-1]
     name = target_layer_name(model_name)
-    module = getattr(model, name)
+    module = getattr(model, name, None)
+    if module is None:
+        raise ValueError(f"Model {model_name!r} has no attribute {name!r} for Grad-CAM.")
     # For sequential feature stacks, hook the last conv-bearing block.
     if hasattr(module, "__getitem__"):
         try:
@@ -55,6 +74,7 @@ def generate_gradcam(image_path, checkpoint, output_dir, device="auto",
     from ..dataset import CLASSES
     from ..deep.registry import build_model
     from ..deep.augmentations import build_transforms
+    from ..deep.preprocessing import resolve_preprocessing, build_eval_transform
 
     selected = "cuda" if device == "auto" and torch.cuda.is_available() else (
         "cpu" if device == "auto" else device)
@@ -69,7 +89,10 @@ def generate_gradcam(image_path, checkpoint, output_dir, device="auto",
     h1 = layer.register_forward_hook(lambda m, i, o: activations.__setitem__("v", o.detach()))
     h2 = layer.register_full_backward_hook(lambda m, gi, go: gradients.__setitem__("v", go[0].detach()))
 
-    tf = build_transforms(payload["image_size"], False)
+    # A5: same canonical preprocessing as training/inference.
+    spec = payload.get("preprocessing_spec") or resolve_preprocessing(
+        model_name, payload["image_size"])
+    tf = build_eval_transform(spec) or build_transforms(payload["image_size"], False)
     pil = Image.open(image_path).convert("RGB")
     x = tf(pil).unsqueeze(0).to(selected)
 

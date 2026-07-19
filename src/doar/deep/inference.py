@@ -35,10 +35,15 @@ def predict_image(image: str, checkpoint: str, device: str = "auto") -> dict:
     model.to(selected).eval()
     # Item 6: fail if the checkpoint's preprocessing is incompatible with the
     # transform we are about to apply.
-    from .preprocessing import (resolve_preprocessing, assert_preprocessing_compatible)
-    applied_spec = resolve_preprocessing(payload["model_name"], payload["image_size"])
+    from .preprocessing import (resolve_preprocessing, assert_preprocessing_compatible,
+                                build_eval_transform)
+    # A5: prefer the checkpoint's stored preprocessing_spec so the exact transform
+    # used at training is reproduced; validate the stored hash where present.
+    applied_spec = payload.get("preprocessing_spec") or resolve_preprocessing(
+        payload["model_name"], payload["image_size"])
     assert_preprocessing_compatible(payload.get("preprocessing_hash"), applied_spec)
-    tensor = build_transforms(payload["image_size"], False)(Image.open(image).convert("RGB"))
+    transform = build_eval_transform(applied_spec) or build_transforms(payload["image_size"], False)
+    tensor = transform(Image.open(image).convert("RGB"))
     # Apply validation-fitted temperature scaling when available (D1). T=1.0 is
     # a no-op, so uncalibrated checkpoints behave exactly as before.
     temperature = float(payload.get("temperature", 1.0))

@@ -61,6 +61,30 @@ def load_master(path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
+def form_to_rows(case_id: str, reviewer_id: str, ratings: dict, comments: dict,
+                 timestamp: str, is_synthetic: bool = False) -> list[dict]:
+    """Convert a structured review form to master rows (UI-independent, C2).
+
+    `ratings`/`comments` are {item: value} over REVIEW_ITEMS. Requires a
+    reviewer_id and a stable case_id. Skips items left unrated. Rows are validated
+    by append_reviews before being written."""
+    if not (reviewer_id and str(reviewer_id).strip()):
+        raise ValueError("reviewer_id is required")
+    if not (case_id and str(case_id).strip()):
+        raise ValueError("case_id is required")
+    rows = []
+    for item in REVIEW_ITEMS:
+        rating = ratings.get(item)
+        if rating in (None, ""):
+            continue
+        rows.append({
+            "case_id": str(case_id), "item": item, "reviewer_id": str(reviewer_id).strip(),
+            "rating": rating, "comment": comments.get(item, ""),
+            "timestamp": timestamp, "is_synthetic": "true" if is_synthetic else "false",
+        })
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Kappa (ported from legacy)
 # ---------------------------------------------------------------------------

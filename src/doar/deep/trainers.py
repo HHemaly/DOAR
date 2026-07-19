@@ -35,6 +35,23 @@ def _macro_f1(truth, predictions) -> float:
     return float(np.mean(scores))
 
 
+_HEAD_NAMES = ("fc", "classifier", "heads")
+
+
+def _build_param_groups(model, head_lr: float, backbone_lr: float):
+    """Head vs backbone parameter groups over CURRENTLY-trainable params.
+    Reused at init and after unfreeze so differential LRs survive (A3)."""
+    head_params, backbone_params = [], []
+    for pname, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        (head_params if pname.split(".")[0] in _HEAD_NAMES else backbone_params).append(param)
+    groups = [{"params": head_params, "lr": head_lr}]
+    if backbone_params:
+        groups.append({"params": backbone_params, "lr": backbone_lr})
+    return groups
+
+
 def _build_optimizer(name: str, param_groups):
     import torch
     name = (name or "adamw").lower()
@@ -79,16 +96,23 @@ def train_image_model(
     selected_device = "cuda" if device == "auto" and torch.cuda.is_available() else (
         "cpu" if device == "auto" else device
     )
-    # pretrained_weights: "DEFAULT"/"IMAGENET*" => pretrained; "none"/"" => scratch
-    use_pretrained = pretrained and str(pretrained_weights).lower() not in ("none", "", "scratch")
+    # A4: resolve the exact torchvision weights (or scratch). `pretrained=False`
+    # forces scratch; otherwise the pretrained_weights spec is honoured.
+    from .registry import resolve_weights
+    weights_spec = pretrained_weights if pretrained else "none"
+    _weights_obj, _resolved_weights_id = resolve_weights(model_name, weights_spec)
+    use_pretrained = _weights_obj is not None
     train_loader, valid_loader = build_loaders(
         dataset, image_size, batch_size, workers, augmentation
     )
-    # Preprocessing spec + hash recorded so inference can verify compatibility (Item 6).
+    # Preprocessing spec + hash recorded so inference can verify compatibility
+    # (Item 6). Derive from the resolved weights object when available (A4) so
+    # recorded and actual preprocessing cannot drift.
     from .preprocessing import resolve_preprocessing, preprocessing_hash
-    _pp_spec = resolve_preprocessing(model_name, image_size)
+    _pp_spec = resolve_preprocessing(model_name, image_size, weights_object=_weights_obj)
+    _pp_spec["resolved_weights_id"] = _resolved_weights_id
     _pp_hash = preprocessing_hash(_pp_spec)
-    model = build_model(model_name, len(CLASSES), use_pretrained).to(selected_device)
+    model = build_model(model_name, len(CLASSES), weights_spec).to(selected_device)
     if freeze_epochs and model_name != "small_cnn":
         freeze_backbone(model)
     if class_weighting:
@@ -112,18 +136,19 @@ def train_image_model(
     # Differential learning rates: classification head vs backbone. Params are
     # matched by the same attribute names used by freeze_backbone (fc/classifier/
     # heads); everything else is the backbone.
-    head_names = ("fc", "classifier", "heads")
-    head_params, backbone_params = [], []
-    for pname, param in model.named_parameters():
-        if not param.requires_grad:
-            continue
-        (head_params if pname.split(".")[0] in head_names else backbone_params).append(param)
-    param_groups = [{"params": head_params, "lr": head_learning_rate}]
-    if backbone_params:
-        param_groups.append({"params": backbone_params, "lr": backbone_learning_rate})
+    param_groups = _build_param_groups(model, head_learning_rate, backbone_learning_rate)
     optimizer = _build_optimizer(optimizer_name, param_groups)
     scheduler, scheduler_mode = _build_scheduler(scheduler_name, optimizer)
-    scaler = torch.amp.GradScaler("cuda", enabled=selected_device.startswith("cuda"))
+    # Gradient accumulation (A2): validate and record the effective batch size.
+    if grad_accum_steps < 1:
+        raise ValueError("grad_accum_steps must be >= 1")
+    effective_batch_size = batch_size * grad_accum_steps
+    optimizer_step_count = 0
+    _use_amp = selected_device.startswith("cuda")
+    try:  # torch >= 2.4
+        scaler = torch.amp.GradScaler("cuda", enabled=_use_amp)
+    except (AttributeError, TypeError):  # torch 2.2/2.3
+        scaler = torch.cuda.amp.GradScaler(enabled=_use_amp)
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     history, best, stale = [], -1.0, 0
@@ -140,26 +165,37 @@ def train_image_model(
     started = time.perf_counter()
     for epoch in range(start_epoch, epochs):
         if epoch == freeze_epochs and model_name != "small_cnn" and start_epoch <= freeze_epochs:
+            # A3: after unfreezing, rebuild param groups and PRESERVE the
+            # requested optimizer, differential LRs and scheduler (previously the
+            # transition hardcoded AdamW + ReduceLROnPlateau).
             unfreeze_all(model)
-            optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="max", patience=2, factor=.3
-            )
+            param_groups = _build_param_groups(model, head_learning_rate, backbone_learning_rate)
+            optimizer = _build_optimizer(optimizer_name, param_groups)
+            scheduler, scheduler_mode = _build_scheduler(scheduler_name, optimizer)
         model.train()
         train_loss = 0.0
-        for images, labels in train_loader:
+        n_batches = len(train_loader)
+        # A2: one zero_grad before each accumulation cycle; step only at the
+        # configured interval; handle the final incomplete interval; unscale +
+        # clip only before a step; report the true (unscaled) epoch loss.
+        optimizer.zero_grad(set_to_none=True)
+        for i, (images, labels) in enumerate(train_loader):
             images, labels = images.to(selected_device), labels.to(selected_device)
-            optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=selected_device.split(":")[0],
                                 enabled=selected_device.startswith("cuda")):
                 logits = model(images)
                 loss = criterion(logits, labels)
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
-            train_loss += float(loss.detach()) * len(labels)
+            # Divide by accumulation count so summed grads match a large batch.
+            scaler.scale(loss / grad_accum_steps).backward()
+            train_loss += float(loss.detach()) * len(labels)   # unscaled per-sample loss
+            is_step = ((i + 1) % grad_accum_steps == 0) or ((i + 1) == n_batches)
+            if is_step:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
+                optimizer_step_count += 1
         model.eval()
         truth, predictions = [], []
         with torch.no_grad():
@@ -186,6 +222,7 @@ def train_image_model(
             "seed": seed, "image_size": image_size,
             "preprocessing_version": _pp_spec["preprocessing_version"],
             "preprocessing_hash": _pp_hash, "preprocessing_spec": _pp_spec,
+            "resolved_weights_id": _resolved_weights_id,
             "model_version": "doar_deep_v1", "calibration_status": "uncalibrated",
             "validation": record,
             "history": history,
@@ -214,7 +251,11 @@ def train_image_model(
         "scheduler": scheduler_name, "calibration": calibration,
         "grad_accum_steps": grad_accum_steps, "pretrained": use_pretrained,
         "pretrained_weights": pretrained_weights,
+        "resolved_weights_id": _resolved_weights_id,
         "early_stopping_patience": patience,
+        "physical_batch_size": batch_size,
+        "effective_batch_size": effective_batch_size,
+        "optimizer_step_count": optimizer_step_count,
     }
     (output / "executed_config.json").write_text(
         json.dumps(executed_config, indent=2), encoding="utf-8")

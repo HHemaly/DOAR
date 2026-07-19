@@ -44,10 +44,14 @@ def _finetuned_extractor(checkpoint: str, device: str):
     model = build_model(model_name, len(CLASSES), pretrained=False)
     model.load_state_dict(payload["model_state"])
     # Replace the final head with Identity to expose penultimate features.
-    if model_name in ("resnet18", "resnet50"):
+    if model_name == "small_cnn":
+        # small_cnn is a plain nn.Sequential; the last module is the classifier
+        # Linear. Replace it directly (A5 — it has no .classifier attribute).
+        model[-1] = nn.Identity()
+    elif model_name in ("resnet18", "resnet50"):
         model.fc = nn.Identity()
     elif model_name in ("mobilenet_v3_small", "mobilenet_v3_large", "efficientnet_b0",
-                        "convnext_tiny", "small_cnn"):
+                        "convnext_tiny"):
         model.classifier[-1] = nn.Identity()
     elif model_name == "vit_b_16":
         model.heads.head = nn.Identity()
@@ -174,6 +178,16 @@ def extract_embeddings(
         "splits": sorted(set(splits)), "classes": list(CLASSES),
         **finetuned_meta,
     }
+    # B5: artifact provenance so features/embeddings can be verified as coming
+    # from the same manifest with matching sample-ID sets.
+    from ..provenance import build_embedding_provenance
+    metadata["provenance"] = build_embedding_provenance(
+        manifest, ids, class_order=list(CLASSES),
+        extraction_config_hash=fingerprint, backbone=backbone,
+        revision=pp_spec.get("revision", "unknown"),
+        checkpoint_hash=finetuned_meta.get("checkpoint_hash"),
+        preprocessing_hash=preprocessing_hash(pp_spec),
+        embedding_dimension=int(matrix.shape[1]) if matrix.size else 0)
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return metadata
 
@@ -188,7 +202,13 @@ def embed_image(image: str | Path, backbone: str, device: str = "auto") -> np.nd
         "cpu" if device == "auto" else device
     )
     extractor, image_size = _extractor(backbone, selected)
-    transform = extractor[1] if backbone.startswith("openclip:") else build_transforms(image_size, False)
+    # A5: use the SAME canonical preprocessing resolver as batch extraction.
+    from .preprocessing import resolve_preprocessing, build_eval_transform
+    _ckpt_meta = None
+    if backbone.startswith("finetuned:"):
+        _, _, _ckpt_meta = _finetuned_extractor(backbone.split(":", 1)[1], selected)
+    pp_spec = resolve_preprocessing(backbone, image_size, _ckpt_meta)
+    transform = extractor[1] if backbone.startswith("openclip:") else build_eval_transform(pp_spec)
     tensor = transform(Image.open(image).convert("RGB"))[None].to(selected)
     with torch.no_grad():
         if backbone.startswith("openclip:"):

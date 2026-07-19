@@ -23,9 +23,42 @@ class PreprocessingMismatch(RuntimeError):
     """Raised when a checkpoint's preprocessing is incompatible with inference."""
 
 
+def _spec_from_weights(backbone: str, image_size: int, weights_object) -> dict | None:
+    """Derive a preprocessing spec from a torchvision weights object so recorded
+    and actual preprocessing cannot drift (A4). Returns None if not derivable."""
+    try:
+        tf = weights_object.transforms()   # ImageClassification transform
+        crop = getattr(tf, "crop_size", None)
+        resize = getattr(tf, "resize_size", None)
+        mean = list(getattr(tf, "mean", IMAGENET_MEAN))
+        std = list(getattr(tf, "std", IMAGENET_STD))
+        interp = getattr(tf, "interpolation", None)
+        interp_name = getattr(interp, "value", str(interp)).lower() if interp is not None else "bilinear"
+        crop_v = crop[0] if isinstance(crop, (list, tuple)) else crop
+        resize_v = resize[0] if isinstance(resize, (list, tuple)) else resize
+        return {
+            "family": "torchvision",
+            "model_name": backbone,
+            "weights_id": getattr(weights_object, "name", "DEFAULT"),
+            "revision": "torchvision_weights_transform",
+            "preprocessing_version": "torchvision_weights_derived",
+            "resize": resize_v, "crop": crop_v, "mean": mean, "std": std,
+            "interpolation": interp_name,
+            "transform_source": "torchvision_weights.transforms()",
+        }
+    except Exception:
+        return None
+
+
 def resolve_preprocessing(backbone: str, image_size: int = 224,
-                          checkpoint_meta: dict | None = None) -> dict:
-    """Return the canonical preprocessing spec for a backbone/checkpoint."""
+                          checkpoint_meta: dict | None = None,
+                          weights_object=None) -> dict:
+    """Return the canonical preprocessing spec for a backbone/checkpoint.
+    When a torchvision weights object is supplied, derive the spec from it (A4)."""
+    if weights_object is not None:
+        derived = _spec_from_weights(backbone, image_size, weights_object)
+        if derived is not None:
+            return derived
     if backbone.startswith("openclip:"):
         name = backbone.split(":", 1)[1]
         return {

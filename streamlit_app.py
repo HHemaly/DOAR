@@ -72,23 +72,38 @@ with tabs[12]:
 with tabs[13]:
     st.json(judges)
 with tabs[14]:
-    reviewer = st.text_input("Reviewer ID or anonymized code")
-    mask_rating = st.selectbox("Segmentation mask", ["uncertain", "approve", "reject"])
-    rule_comment = st.text_area("Rule/detection/concern corrections (Arabic or English)")
-    uncertainty = st.checkbox("Mark review as uncertain", value=True)
-    if st.button("Append review"):
-        event = {
-            "reviewer_id": reviewer or "anonymous",
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "mask_rating": mask_rating,
-            "comment": rule_comment,
-            "uncertain": uncertainty,
-        }
-        review.setdefault("history", []).append(event)
-        review["status"] = "submitted"
-        review["ai_output_preserved"] = True
-        review_path.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
-        st.success("Review appended. Original AI output was not overwritten.")
+    from doar.review import (REVIEW_ITEMS, RATINGS, form_to_rows, append_reviews,
+                             compute_agreement)
+    st.caption("Structured psychologist review — appended to the shared review-master CSV. "
+               "Original AI output is never modified.")
+    reviewer = st.text_input("Reviewer ID (required)")
+    is_synth = st.checkbox("Mark as synthetic / demo review", value=False)
+    ratings, comments = {}, {}
+    for item in REVIEW_ITEMS:
+        cols = st.columns([2, 3])
+        ratings[item] = cols[0].selectbox(item, ["(skip)"] + RATINGS, key=f"rate_{item}")
+        comments[item] = cols[1].text_input(f"comment: {item}", key=f"com_{item}")
+        if ratings[item] == "(skip)":
+            ratings[item] = None
+    review_master = case.parent / "review_master.csv"
+    if st.button("Submit structured review"):
+        if not reviewer.strip():
+            st.error("Reviewer ID is required.")
+        else:
+            rows = form_to_rows(case.name, reviewer,
+                                {k: v for k, v in ratings.items() if v},
+                                comments, datetime.now(timezone.utc).isoformat(),
+                                is_synthetic=is_synth)
+            if not rows:
+                st.warning("No items were rated.")
+            else:
+                append_reviews(str(review_master), rows)   # append-only, shared CSV
+                st.success(f"Appended {len(rows)} item ratings to {review_master.name}. "
+                           "AI output unchanged.")
+    if review_master.exists():
+        st.subheader("Agreement (real reviews only)")
+        st.json(compute_agreement(str(review_master)))
+    st.caption("Legacy per-case AI review record (unchanged):")
     st.json(review)
 with tabs[15]:
     for report in sorted((case / "reports").glob("*.html")):

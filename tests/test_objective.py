@@ -229,7 +229,10 @@ class ObjectiveTests(unittest.TestCase):
             self.assertEqual(report["decoded_test_images"], 0)
             hardware = check_training_readiness(root, output / "hardware")
             self.assertTrue(hardware["checks"]["valid_split_name"])
-            self.assertTrue(hardware["checks"]["test_locked"])
+            # C4: test_locked is no longer hardcoded; the enforced final-test guard
+            # is reported instead, with the list of protected commands.
+            self.assertEqual(hardware["final_test_guard"]["status"], "enforced")
+            self.assertIn("evaluate", hardware["final_test_guard"]["protected_commands"])
 
     def test_fusion_bundle_requires_analysis_context(self):
         from doar.emotion import predict

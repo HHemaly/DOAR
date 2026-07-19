@@ -102,12 +102,33 @@ def main() -> None:
     ingest.add_argument("--pdf", required=True)
     ingest.add_argument("--output", required=True)
     ingest.add_argument("--source-id", default=None)
+    def _add_test_guard_args(parser):
+        parser.add_argument("--unlock-test", action="store_true")
+        parser.add_argument("--confirm-final-evaluation", action="store_true")
+        parser.add_argument("--initiated-by", default=None)
+
     export_probs = commands.add_parser("export-probabilities")
-    export_probs.add_argument("--model", required=True, help="A .joblib model bundle")
-    export_probs.add_argument("--features", required=True)
+    export_probs.add_argument("--model", required=True, help=".joblib bundle or .pt/.pth checkpoint")
+    export_probs.add_argument("--features", default=None, help="Features CSV (sklearn models)")
     export_probs.add_argument("--embeddings", default=None, help="Embeddings .npz (fusion models)")
+    export_probs.add_argument("--manifest", default=None, help="Manifest CSV (deep checkpoints)")
+    export_probs.add_argument("--device", default="auto")
     export_probs.add_argument("--output", required=True, help="Output export .json path")
     export_probs.add_argument("--splits", default="train,valid", help="Comma splits to export")
+    _add_test_guard_args(export_probs)
+
+    smoke = commands.add_parser("run-smoke-experiment")
+    smoke.add_argument("--dataset", required=True)
+    smoke.add_argument("--output", required=True)
+    smoke.add_argument("--max-samples-per-class", type=int, default=5)
+    smoke.add_argument("--device", default="auto")
+
+    oof = commands.add_parser("generate-oof-probabilities")
+    oof.add_argument("--features", required=True)
+    oof.add_argument("--output", required=True)
+    oof.add_argument("--model", default="logistic_regression")
+    oof.add_argument("--n-folds", type=int, default=5)
+    oof.add_argument("--seed", type=int, default=42)
 
     late_fusion = commands.add_parser("train-late-fusion")
     late_fusion.add_argument("--base", nargs="+", required=True,
@@ -123,6 +144,7 @@ def main() -> None:
     apply_late.add_argument("--base", nargs="+", required=True)
     apply_late.add_argument("--split", default="valid")
     apply_late.add_argument("--output", required=True)
+    _add_test_guard_args(apply_late)
     thesis_cmd = commands.add_parser("generate-thesis-outputs")
     thesis_cmd.add_argument("--output", required=True, help="Output root containing experiment artifacts")
 
@@ -176,6 +198,7 @@ def main() -> None:
     eval_preds.add_argument("--export", required=True, help="A probability export JSON")
     eval_preds.add_argument("--split", default="valid")
     eval_preds.add_argument("--output", required=True)
+    _add_test_guard_args(eval_preds)
     gpu_smoke = commands.add_parser("gpu-smoke")
     gpu_smoke.add_argument("--output", default=None)
     gpu_smoke.add_argument("--device", default="auto")
@@ -218,11 +241,17 @@ def main() -> None:
         if token.startswith("--")
     }
 
-    def _gate(source: str) -> None:
+    def _gate(source: str, resolved_output=None) -> None:
         """Enforce the leakage gate before any extraction/training. Blocks unless
-        clean or explicitly overridden with a written, audit-logged justification."""
+        clean or explicitly overridden with a written, audit-logged justification.
+
+        `resolved_output` must be passed for config-driven commands where
+        args.output may be None (A1). Falls back to args.output for direct CLI."""
         from doar.leakage import enforce_leakage_gate
-        gate_out = Path(args.output) / "leakage_gate"
+        base = resolved_output if resolved_output is not None else getattr(args, "output", None)
+        if base is None:
+            raise ValueError("Leakage gate requires an output directory (config or --output).")
+        gate_out = Path(base) / "leakage_gate"
         report = enforce_leakage_gate(
             source, gate_out, subject_key=getattr(args, "subject_key", "subject_id"),
             allow_override=getattr(args, "allow_leakage_override", False),
@@ -266,7 +295,7 @@ def main() -> None:
             "data": {"dataset", "validation_split"},
             "training": {"model", "pretrained_weights", "seed", "image_size", "batch_size",
                          "epochs", "device", "workers", "augmentation", "freeze_epochs",
-                         "class_weighting", "early_stopping_patience"},
+                         "class_weighting", "early_stopping_patience", "grad_accum_steps"},
             "optimization": {"optimizer", "head_learning_rate", "backbone_learning_rate",
                              "scheduler"},
             "output": {"directory", "calibration"},
@@ -289,13 +318,14 @@ def main() -> None:
             "head_learning_rate": ("optimization", "head_learning_rate"),
             "backbone_learning_rate": ("optimization", "backbone_learning_rate"),
             "scheduler": ("optimization", "scheduler"),
+            "grad_accum_steps": ("training", "grad_accum_steps"),
             "output": ("output", "directory"), "calibration": ("output", "calibration"),
         }
         assert_all_config_consumed(config, mapping)
         values = resolve(vars(args), config, mapping, supplied)
         if not all(values.get(name) for name in ("dataset", "model", "output")):
             raise ValueError("train-image-model requires dataset, model, and output via CLI or config")
-        _gate(values["dataset"])
+        _gate(values["dataset"], values["output"])
         config_hash = save_run_metadata(values["output"], args.command, vars(args), values)
 
         def _opt(name, cast, default):
@@ -336,10 +366,26 @@ def main() -> None:
                           "output": args.output}, ensure_ascii=False, indent=2))
     elif args.command == "export-probabilities":
         from doar.probability_export import export_probabilities
+        from doar.test_guard import require_test_access
+        req_splits = [s.strip() for s in args.splits.split(",")]
+        if "test" in req_splits:
+            require_test_access(
+                "test", unlock_test=args.unlock_test,
+                confirm_final_evaluation=args.confirm_final_evaluation,
+                initiated_by=args.initiated_by, command="export-probabilities",
+                audit_dir=Path(args.output).parent, model=args.model, splits=req_splits)
         print(json.dumps(export_probabilities(
             args.model, args.features, args.embeddings, args.output,
-            splits=[s.strip() for s in args.splits.split(",")],
+            splits=req_splits, manifest=args.manifest, device=args.device,
         ), indent=2))
+    elif args.command == "run-smoke-experiment":
+        from doar.smoke import run_smoke_experiment
+        print(json.dumps(run_smoke_experiment(
+            args.dataset, args.output, args.max_samples_per_class, args.device), indent=2))
+    elif args.command == "generate-oof-probabilities":
+        from doar.fusion.oof import generate_oof
+        print(json.dumps(generate_oof(
+            args.features, args.output, args.model, args.n_folds, args.seed), indent=2))
     elif args.command == "train-late-fusion":
         from doar.fusion.late import train_late_fusion
         print(json.dumps(train_late_fusion(
@@ -348,6 +394,13 @@ def main() -> None:
     elif args.command == "apply-late-fusion":
         import numpy as _np
         from doar.fusion.late import load_late_fusion, apply_late_fusion
+        from doar.test_guard import require_test_access
+        if args.split == "test":
+            require_test_access(
+                "test", unlock_test=args.unlock_test,
+                confirm_final_evaluation=args.confirm_final_evaluation,
+                initiated_by=args.initiated_by, command="apply-late-fusion",
+                audit_dir=args.output, model=args.model)
         model_meta = load_late_fusion(args.model)
         ids, fused = apply_late_fusion(model_meta, args.base, args.split)
         out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
@@ -409,7 +462,7 @@ def main() -> None:
         ), indent=2))
     elif args.command == "compare-deep-models":
         from doar.deep.compare import run_deep_comparison, DEFAULT_MODELS
-        _gate(args.dataset)
+        _gate(args.dataset, args.output)
         models = [m.strip() for m in args.models.split(",")] if args.models else DEFAULT_MODELS
         seeds = tuple(int(s) for s in args.seeds.split(","))
         print(json.dumps(run_deep_comparison(
@@ -422,6 +475,13 @@ def main() -> None:
         import numpy as _np
         from doar.evaluation import (load_probability_export, compute_metrics,
                                      write_metrics_csv, CLASS_ORDER)
+        from doar.test_guard import require_test_access
+        if args.split == "test":
+            require_test_access(
+                "test", unlock_test=args.unlock_test,
+                confirm_final_evaluation=args.confirm_final_evaluation,
+                initiated_by=args.initiated_by, command="evaluate-predictions",
+                audit_dir=args.output, export=args.export)
         exp = load_probability_export(args.export)
         rows = [r for r in exp["predictions"] if r["split"] == args.split]
         if not rows:
@@ -457,7 +517,7 @@ def main() -> None:
         }, supplied)
         if not all(values.get(name) for name in ("manifest", "backbone", "output")):
             raise ValueError("extract-embeddings requires manifest, backbone, and output")
-        _gate(values["manifest"])
+        _gate(values["manifest"], values["output"])
         config_hash = save_resolved(values["output"], args.command, values)
         print(json.dumps(extract_embeddings(
             values["manifest"], values["output"], values["backbone"], values["device"],
@@ -465,26 +525,46 @@ def main() -> None:
         ), indent=2))
     elif args.command == "train-fusion-model":
         from doar.fusion.trainer import train_primary_fusion
+        from doar.config import assert_all_config_consumed, save_run_metadata
         config = load_config(args.config, {
             "inputs": {"features", "embeddings"},
             "experiment": {"methods", "seeds", "selection_split", "primary_metric",
                            "psychologist_rules_used", "concern_profiles_used"},
             "output": {"directory", "calibration"},
         })
-        values = resolve(vars(args), config, {
+        # B4: map EVERY accepted field -> consume, and assert none is unused.
+        mapping = {
             "features": ("inputs", "features"), "embeddings": ("inputs", "embeddings"),
-            "output": ("output", "directory"), "methods": ("experiment", "methods"),
-            "seeds": ("experiment", "seeds"),
-        }, supplied)
+            "methods": ("experiment", "methods"), "seeds": ("experiment", "seeds"),
+            "selection_split": ("experiment", "selection_split"),
+            "primary_metric": ("experiment", "primary_metric"),
+            "psychologist_rules_used": ("experiment", "psychologist_rules_used"),
+            "concern_profiles_used": ("experiment", "concern_profiles_used"),
+            "output": ("output", "directory"), "calibration": ("output", "calibration"),
+        }
+        assert_all_config_consumed(config, mapping)
+        values = resolve(vars(args), config, mapping, supplied)
         if not all(values.get(name) for name in ("features", "embeddings", "output")):
             raise ValueError("train-fusion-model requires features, embeddings, and output")
-        methods = values["methods"] if isinstance(values["methods"], list) else values["methods"].split(",")
-        seeds = values["seeds"] if isinstance(values["seeds"], list) else values["seeds"].split(",")
-        config_hash = save_resolved(values["output"], args.command, values)
+        # B4: enforce the mandatory scientific-separation constraints.
+        sel = values.get("selection_split") or "valid"
+        pm = values.get("primary_metric") or "macro_f1"
+        if sel != "valid":
+            raise ValueError(f"selection_split must be 'valid' (got {sel!r})")
+        if pm not in ("macro_f1", "mean_macro_f1"):
+            raise ValueError(f"primary_metric must be 'macro_f1' (got {pm!r})")
+        for flag in ("psychologist_rules_used", "concern_profiles_used"):
+            v = values.get(flag)
+            if v not in (None, False, "false", "False"):
+                raise ValueError(f"{flag} must be false; the clinical layer never feeds the classifier")
+        methods = values["methods"] if isinstance(values["methods"], list) else str(values["methods"]).split(",")
+        seeds = values["seeds"] if isinstance(values["seeds"], list) else str(values["seeds"]).split(",")
+        config_hash = save_run_metadata(values["output"], args.command, vars(args), values)
         print(json.dumps(train_primary_fusion(
             values["features"], values["embeddings"], values["output"],
             [str(item).strip() for item in methods if str(item).strip()],
             tuple(int(item) for item in seeds), configuration_hash=config_hash,
+            calibration=values.get("calibration"),
         ), indent=2))
     elif args.command == "validate-dataset":
         from doar.readiness import validate_dataset

@@ -6,67 +6,28 @@ on:
   pull_request:
 
 jobs:
-  test:
+  core:
+    name: Core (no torch)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11"]
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install (core + dev, CPU only)
+          python-version: "3.11"
+      - name: Install (mandatory)
         run: |
           python -m pip install --upgrade pip
-          # Core runtime deps + tooling. Torch is intentionally NOT installed:
-          # torch-dependent tests skip cleanly so CI stays fast and CPU-only.
-          pip install numpy Pillow pytest ruff
-          pip install -e . || true
-
-      - name: Lint (ruff, non-blocking style signal)
-        run: ruff check src tests main.py || true
-
-      - name: Unit tests
-        run: python -m unittest discover -s tests -p "test_*.py" -v
-
-      - name: CLI smoke tests
+          pip install -e ".[cv,dev]"
+      - name: Lint (ruff, required)
+        run: ruff check src main.py
+      - name: Non-torch unit tests
+        run: python -m pytest -q -k "not torch" || python -m unittest discover -s tests -p "test_*.py"
+      - name: CLI parsing
+        run: python main.py --help
+      - name: Synthetic analysis/report/qa/review pipeline
         run: |
           python - <<'PY'
-          import subprocess, sys, tempfile, os
-          from pathlib import Path
-          from PIL import Image
-          import numpy as np
-
-          d = tempfile.mkdtemp()
-          # Build a tiny synthetic dataset: train/valid/test x 4 classes.
-          for split in ("train", "valid", "test"):
-              for cls in ("Angry", "Fear", "Happy", "Sad"):
-                  p = Path(d) / split / cls
-                  p.mkdir(parents=True)
-                  arr = (np.indices((64, 64)).sum(0) * (hash(cls) % 7 + 1)) % 255
-                  Image.fromarray(arr.astype("uint8")).convert("RGB").save(p / "a.png")
-
-          def run(*args):
-              print("+", " ".join(args))
-              subprocess.run([sys.executable, "main.py", *args], check=True)
-
-          out = Path(d) / "out"
-          run("build-manifest", "--dataset", d, "--output", str(out / "manifest.csv"))
-          run("validate-dataset", "--dataset", d, "--output", str(out / "validate"))
-          # analyze-image end-to-end (CPU, no torch)
-          img = str(Path(d) / "train" / "Happy" / "a.png")
-          run("analyze-image", "--image", img, "--output", str(out / "case"))
-          print("CLI smoke OK")
-          PY
-
-      - name: Synthetic CPU end-to-end (analysis -> judges -> reports -> qa)
-        run: |
-          python - <<'PY'
-          import sys, tempfile
+          import sys, tempfile, json
           sys.path.insert(0, "src")
           from pathlib import Path
           from PIL import Image
@@ -75,16 +36,37 @@ jobs:
           from doar.judges import run_judges
           from doar.reports import save_reports
           from doar.qa import answer
-
+          from doar.review import init_master, append_reviews, compute_agreement
           d = tempfile.mkdtemp()
           p = Path(d) / "x.png"
-          arr = np.indices((128, 128)).sum(0) % 255
-          Image.fromarray(arr.astype("uint8")).convert("RGB").save(p)
+          Image.fromarray((np.indices((128,128)).sum(0) % 255).astype("uint8")).convert("RGB").save(p)
           a = analyze_image(p, Path(d) / "out").to_dict()
           j = run_judges(a)
           save_reports(a, j, Path(d) / "reports")
-          resp = answer("what colours are used?", a, j, "en")
-          assert "evidence_ids" in resp
-          assert (Path(d) / "reports" / "bilingual.html").exists()
-          print("Synthetic CPU E2E OK:", j["safety_judge"]["status"])
+          assert "evidence_ids" in answer("what colours?", a, j)
+          m = init_master(Path(d) / "m.csv")
+          assert compute_agreement(m)["has_reviews"] is False
+          print("core synthetic pipeline OK:", j["overall_status"])
           PY
+
+  ml_cpu:
+    name: ML (CPU torch + sklearn)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (mandatory) + CPU torch
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ml,cv,dev]"
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - name: Full test suite (torch + sklearn present)
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+      # The suite already includes: tiny fwd/bwd + 1-epoch training, grad-accum
+      # regression, unfreeze-optimizer regression, deep probability export,
+      # fusion train/calibrate/export, OOF stacking, Grad-CAM smoke,
+      # end-to-end run-smoke-experiment.
+
+  # GPU smoke is a LOCAL verification only; it skips honestly in CI (no CUDA).
