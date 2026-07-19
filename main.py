@@ -123,6 +123,11 @@ def main() -> None:
     apply_late.add_argument("--base", nargs="+", required=True)
     apply_late.add_argument("--split", default="valid")
     apply_late.add_argument("--output", required=True)
+    ablation = commands.add_parser("run-ablation")
+    ablation.add_argument("--features", required=True)
+    ablation.add_argument("--output", required=True)
+    ablation.add_argument("--seeds", default="42,123,2026")
+
     review_agree = commands.add_parser("review-agreement")
     review_agree.add_argument("--master", required=True, help="review-master CSV")
     review_agree.add_argument("--output", required=True)
@@ -349,6 +354,10 @@ def main() -> None:
         (out / f"fused_{args.split}.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
         print(json.dumps({"split": args.split, "count": len(ids),
                           "output": str(out / f"fused_{args.split}.json")}, indent=2))
+    elif args.command == "run-ablation":
+        from doar.ablation import run_feature_ablation
+        seeds = tuple(int(s) for s in args.seeds.split(","))
+        print(json.dumps(run_feature_ablation(args.features, args.output, seeds), indent=2))
     elif args.command == "review-agreement":
         from doar.review import compute_agreement
         result = compute_agreement(args.master, exclude_synthetic=not args.include_synthetic)
