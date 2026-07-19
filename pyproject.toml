@@ -1,0 +1,13 @@
+[project]
+name = "doar-v3"
+version = "0.1.0"
+requires-python = ">=3.11,<3.13"
+dependencies = ["numpy>=1.26,<3", "Pillow>=10,<12"]
+
+[project.optional-dependencies]
+ml = ["torch>=2.2", "torchvision>=0.17", "scikit-learn>=1.4", "pandas>=2.2"]
+cv = ["opencv-python-headless>=4.9"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+ui = ["streamlit>=1.36,<2"]
+deep = ["torch>=2.2,<3", "torchvision>=0.17,<1"]
+embeddings = ["open-clip-torch>=2.26,<3"]

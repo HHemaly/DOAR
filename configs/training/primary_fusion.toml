@@ -1,0 +1,15 @@
+[inputs]
+features = "outputs/features/v3_1/features.csv"
+embeddings = "outputs/embeddings/resnet18/embeddings.npz"
+
+[experiment]
+methods = ["early_scaled_concat", "pca_early_fusion", "mlp_early_fusion"]
+seeds = [42, 123, 2026]
+selection_split = "valid"
+primary_metric = "mean_macro_f1"
+psychologist_rules_used = false
+concern_profiles_used = false
+
+[output]
+directory = "outputs/experiments/primary_fusion_resnet18"
+calibration = "temperature_scaling"

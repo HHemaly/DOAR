@@ -1,252 +1,218 @@
-"""
-main.py — unified DOAR command-line interface.
-
-Subcommands:
-    inspect          inspect the dataset -> CSVs, JSON, figures
-    split            build a leak-safe train/val/test split from the inspection
-    train            train a classifier (baseline | transfer | mobilenet | efficientnet)
-    evaluate         evaluate a checkpoint on the untouched test split
-    analyze-image    run the interpretation pipeline on one drawing
-    analyze-dataset  run the interpretation pipeline on a folder of drawings
-    thesis           collate thesis figures/tables from existing outputs
-
-Examples (Windows / VS Code, from the DOAR folder):
-    python main.py inspect  --data "C:\\Users\\Ahmed\\Downloads\\Combined_Drawing\\Combined_Drawing"
-    python main.py split    --out outputs
-    python main.py train    --out outputs --model transfer --epochs 25
-    python main.py evaluate --out outputs --checkpoint outputs\\training\\best_model.pt
-    python main.py analyze-image   --input "path\\to\\drawing.jpg"
-    python main.py analyze-dataset --data "C:\\...\\Combined_Drawing" --max 5
-    python main.py thesis   --out outputs
-
-All paths use pathlib; nothing is hardcoded to Colab.
-"""
-
 from __future__ import annotations
-import os
-import sys
+
 import argparse
-from datetime import datetime
+import json
+import sys
 from pathlib import Path
 
-# Make 'src' importable as a package (src.models.train etc.)
 ROOT = Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-if str(ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "src"))
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
-# Default dataset path — edit here or pass --data on the CLI.
-DEFAULT_DATASET = os.environ.get(
-    "DOAR_DATASET",
-    r"C:\Users\Ahmed\Downloads\Combined_Drawing\Combined_Drawing",
-)
-DEFAULT_OUT = os.environ.get("DOAR_OUTPUT", str(ROOT / "outputs"))
-
-
-def _ts() -> str:
-    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+from doar.analysis import analyze_image
+from doar.dataset import build_manifest
+from doar.extract import extract_features
+from doar.experiments import run_feature_experiment
+from doar.qa import answer
+from doar.models import evaluate_model, train_model
+from doar.config import load_config, resolve, save_resolved
 
 
-# ---------------------------------------------------------------------------
-# Subcommand handlers
-# ---------------------------------------------------------------------------
-
-def cmd_inspect(args):
-    from src.data.inspect_dataset import inspect_dataset
-    inspect_dataset(args.data, args.out, near_dup_threshold=args.near_dup)
-
-
-def cmd_split(args):
-    from src.data.split import make_split
-    summary = Path(args.out) / "dataset_analysis" / "dataset_summary.csv"
-    if not summary.exists():
-        print(f"ERROR: {summary} not found. Run 'inspect' first.")
-        sys.exit(1)
-    make_split(str(summary), args.out, seed=args.seed, near_dup_threshold=args.near_dup)
-
-
-def cmd_train(args):
-    from src.models.train import train_model
-    split_csv = Path(args.out) / "splits" / "split.csv"
-    if not split_csv.exists():
-        print(f"ERROR: {split_csv} not found. Run 'split' first.")
-        sys.exit(1)
-    train_model(str(split_csv), args.out, _ts(), model_name=args.model,
-                epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
-                seed=args.seed)
-
-
-def cmd_train_compare(args):
-    from src.models.compare import run_comparison, DEFAULT_MODELS
-    split_csv = Path(args.out) / "splits" / "split.csv"
-    if not split_csv.exists():
-        print(f"ERROR: {split_csv} not found. Run 'split' first.")
-        sys.exit(1)
-    models = args.models.split(",") if args.models else DEFAULT_MODELS
-    run_comparison(str(split_csv), args.out, _ts(), models=models,
-                   epochs=args.epochs, batch_size=args.batch_size,
-                   lr=args.lr, seed=args.seed)
-
-
-def cmd_evaluate(args):
-    from src.models.evaluate import evaluate_model
-    split_csv = Path(args.out) / "splits" / "split.csv"
-    ckpt = args.checkpoint or str(Path(args.out) / "training" / "best_model.pt")
-    if not Path(ckpt).exists():
-        print(f"ERROR: checkpoint {ckpt} not found. Run 'train' first.")
-        sys.exit(1)
-    evaluate_model(str(split_csv), ckpt, args.out, _ts(), batch_size=args.batch_size)
-
-
-def cmd_analyze_image(args):
-    from pipeline import run_full_pipeline_v2
-    from src.data.inspect_dataset import SUPPORTED_EXT  # noqa
-    out = Path(args.out) / _ts()
-    out.mkdir(parents=True, exist_ok=True)
-    result = run_full_pipeline_v2(args.input, parent_question=args.question,
-                                  run_ocr=not args.no_ocr,
-                                  run_arabic=not args.no_arabic,
-                                  session_dir=str(out))
-    print("\n── Parent answer ──")
-    print(result["parent_facing_output"].get("parent_answer", ""))
-    print(f"\n── Judge: {result['final_judgment'].get('final_answer_status')} ──")
-    if result.get("saved_paths"):
-        print(f"Saved: {list(result['saved_paths'].values())}")
-
-
-def cmd_analyze_dataset(args):
-    from pipeline import run_dataset
-    run_dataset(dataset_root=args.data, output_dir=args.out,
-                max_per_class=(args.max if args.max > 0 else None),
-                run_arabic=not args.no_arabic, run_ocr=not args.no_ocr)
-
-
-def cmd_reports(args):
-    """Generate per-image report folders. With --synthetic, uses a clearly-
-    labelled placeholder record to demonstrate the report structure without a
-    dataset or model."""
-    from src.reports.per_image import generate_batch
-    out = args.out
-    if args.synthetic:
-        from src.reports.synthetic_example import make_synthetic_image, build_synthetic_record
-        img = make_synthetic_image(os.path.join(out, "_synthetic", "syn.png"))
-        records = [build_synthetic_record(img)]
-        print("[reports] Using SYNTHETIC placeholder record (clearly labelled).")
-    else:
-        # Build records from a folder of real drawings via the interpretation pipeline
-        from pipeline import run_full_pipeline_v2
-        from src.reports.schema import build_analysis_record
-        from src.data.inspect_dataset import discover_images
-        recs = []
-        imgs = discover_images(args.data)[: (args.max if args.max > 0 else None)]
-        for r in imgs:
-            res = run_full_pipeline_v2(r["path"], run_ocr=not args.no_ocr,
-                                       run_arabic=not args.no_arabic)
-            doc = res["internal_technical_json"]
-            doc["_validated_claims"] = res.get("validated_claims", [])
-            recs.append(build_analysis_record(
-                doc, res["parent_facing_output"], res["final_judgment"],
-                parent_ar=res.get("parent_facing_output_ar")))
-        records = recs
-    ckpt = args.checkpoint or None
-    generate_batch(records, out, checkpoint=ckpt)
-
-
-def cmd_thesis(args):
-    """Collate whatever thesis-ready artefacts already exist into thesis/."""
-    from src.reports.thesis_collate import collate_thesis
-    collate_thesis(args.out)
-
-
-# ---------------------------------------------------------------------------
-# Argument parser
-# ---------------------------------------------------------------------------
-
-def build_parser():
-    p = argparse.ArgumentParser(prog="doar", description="DOAR unified CLI")
-    sub = p.add_subparsers(dest="command", required=True)
-
-    def add_common(sp):
-        sp.add_argument("--out", default=DEFAULT_OUT, help="Output root folder")
-
-    sp = sub.add_parser("inspect", help="Inspect the dataset")
-    add_common(sp)
-    sp.add_argument("--data", default=DEFAULT_DATASET)
-    sp.add_argument("--near-dup", type=int, default=5, dest="near_dup")
-    sp.set_defaults(func=cmd_inspect)
-
-    sp = sub.add_parser("split", help="Build leak-safe split")
-    add_common(sp)
-    sp.add_argument("--seed", type=int, default=42)
-    sp.add_argument("--near-dup", type=int, default=5, dest="near_dup")
-    sp.set_defaults(func=cmd_split)
-
-    sp = sub.add_parser("train", help="Train classifier")
-    add_common(sp)
-    sp.add_argument("--model", default="transfer",
-                    choices=["baseline", "transfer", "resnet18", "mobilenet", "efficientnet"])
-    sp.add_argument("--epochs", type=int, default=25)
-    sp.add_argument("--batch-size", type=int, default=32, dest="batch_size")
-    sp.add_argument("--lr", type=float, default=1e-3)
-    sp.add_argument("--seed", type=int, default=42)
-    sp.set_defaults(func=cmd_train)
-
-    sp = sub.add_parser("train-compare",
-                        help="Train baseline + 2 transfer models, pick winner on val, test winner once")
-    add_common(sp)
-    sp.add_argument("--models", default=None,
-                    help="Comma list (default: baseline,mobilenet,resnet18)")
-    sp.add_argument("--epochs", type=int, default=25)
-    sp.add_argument("--batch-size", type=int, default=32, dest="batch_size")
-    sp.add_argument("--lr", type=float, default=1e-3)
-    sp.add_argument("--seed", type=int, default=42)
-    sp.set_defaults(func=cmd_train_compare)
-
-    sp = sub.add_parser("evaluate", help="Evaluate checkpoint on test split")
-    add_common(sp)
-    sp.add_argument("--checkpoint", default=None)
-    sp.add_argument("--batch-size", type=int, default=32, dest="batch_size")
-    sp.set_defaults(func=cmd_evaluate)
-
-    sp = sub.add_parser("analyze-image", help="Interpretation pipeline on one image")
-    add_common(sp)
-    sp.add_argument("--input", required=True)
-    sp.add_argument("--question", default="")
-    sp.add_argument("--no-ocr", action="store_true")
-    sp.add_argument("--no-arabic", action="store_true")
-    sp.set_defaults(func=cmd_analyze_image)
-
-    sp = sub.add_parser("analyze-dataset", help="Interpretation pipeline on a folder")
-    add_common(sp)
-    sp.add_argument("--data", default=DEFAULT_DATASET)
-    sp.add_argument("--max", type=int, default=5, help="Max per class; 0 = all")
-    sp.add_argument("--no-ocr", action="store_true")
-    sp.add_argument("--no-arabic", action="store_true")
-    sp.set_defaults(func=cmd_analyze_dataset)
-
-    sp = sub.add_parser("reports", help="Generate per-image report folders")
-    add_common(sp)
-    sp.add_argument("--data", default=DEFAULT_DATASET)
-    sp.add_argument("--max", type=int, default=5, help="Max images; 0 = all")
-    sp.add_argument("--checkpoint", default=None, help="Enable Grad-CAM with this checkpoint")
-    sp.add_argument("--synthetic", action="store_true",
-                    help="Use a clearly-labelled synthetic record (no dataset/model needed)")
-    sp.add_argument("--no-ocr", action="store_true")
-    sp.add_argument("--no-arabic", action="store_true")
-    sp.set_defaults(func=cmd_reports)
-
-    sp = sub.add_parser("thesis", help="Collate thesis figures/tables")
-    add_common(sp)
-    sp.set_defaults(func=cmd_thesis)
-
-    return p
-
-
-def main():
-    parser = build_parser()
+def main() -> None:
+    parser = argparse.ArgumentParser(description="DOAR v3 research pipeline")
+    commands = parser.add_subparsers(dest="command", required=True)
+    analyze = commands.add_parser("analyze-image")
+    analyze.add_argument("--image", required=True)
+    analyze.add_argument("--output", required=True)
+    analyze.add_argument("--emotion-checkpoint")
+    manifest = commands.add_parser("build-manifest")
+    manifest.add_argument("--dataset", required=True)
+    manifest.add_argument("--output", required=True)
+    extract = commands.add_parser("extract-features")
+    extract.add_argument("--manifest", required=True)
+    extract.add_argument("--output", required=True)
+    train = commands.add_parser("train")
+    train.add_argument("--manifest", required=True)
+    train.add_argument("--output", required=True)
+    train.add_argument("--seed", type=int, default=42)
+    evaluate = commands.add_parser("evaluate")
+    evaluate.add_argument("--manifest", required=True)
+    evaluate.add_argument("--checkpoint", required=True)
+    evaluate.add_argument("--output", required=True)
+    evaluate.add_argument("--split", choices=("valid", "test"), default="valid")
+    evaluate.add_argument("--unlock-test", action="store_true")
+    evaluate.add_argument("--confirm-final-evaluation", action="store_true")
+    evaluate.add_argument("--initiated-by")
+    feature_model = commands.add_parser("train-feature-model")
+    feature_model.add_argument("--features", required=True)
+    feature_model.add_argument("--output", required=True)
+    feature_model.add_argument("--models", default="")
+    feature_model.add_argument("--seeds", default="42,123,2026")
+    compare = commands.add_parser("compare-models")
+    compare.add_argument("--features", required=True)
+    compare.add_argument("--output", required=True)
+    compare.add_argument("--models", default="")
+    compare.add_argument("--seeds", default="42,123,2026")
+    qa = commands.add_parser("qa")
+    qa.add_argument("--analysis", required=True)
+    qa.add_argument("--question", required=True)
+    qa.add_argument("--language", choices=("en", "ar"), default="en")
+    image_train = commands.add_parser("train-image-model")
+    image_train.add_argument("--config")
+    image_train.add_argument("--dataset")
+    image_train.add_argument("--model")
+    image_train.add_argument("--output")
+    image_train.add_argument("--seed", type=int, default=42)
+    image_train.add_argument("--epochs", type=int, default=30)
+    image_train.add_argument("--batch-size", type=int, default=16)
+    image_train.add_argument("--image-size", type=int, default=224)
+    image_train.add_argument("--device", default="auto")
+    image_train.add_argument("--augmentation", default="conservative")
+    image_train.add_argument("--resume")
+    image_predict = commands.add_parser("predict-image")
+    image_predict.add_argument("--image", required=True)
+    image_predict.add_argument("--checkpoint", required=True)
+    image_predict.add_argument("--device", default="auto")
+    embedding = commands.add_parser("extract-embeddings")
+    embedding.add_argument("--config")
+    embedding.add_argument("--manifest")
+    embedding.add_argument("--output")
+    embedding.add_argument("--backbone")
+    embedding.add_argument("--device", default="auto")
+    embedding.add_argument("--batch-size", type=int, default=16)
+    embedding.add_argument("--force", action="store_true")
+    fusion = commands.add_parser("train-fusion-model")
+    fusion.add_argument("--config")
+    fusion.add_argument("--features")
+    fusion.add_argument("--embeddings")
+    fusion.add_argument("--output")
+    fusion.add_argument(
+        "--methods", default="early_scaled_concat,pca_early_fusion,mlp_early_fusion"
+    )
+    fusion.add_argument("--seeds", default="42,123,2026")
+    validate = commands.add_parser("validate-dataset")
+    validate.add_argument("--dataset", required=True)
+    validate.add_argument("--output", required=True)
+    readiness = commands.add_parser("check-training-readiness")
+    readiness.add_argument("--dataset")
+    readiness.add_argument("--output", required=True)
+    readiness.add_argument("--manifest")
+    readiness.add_argument("--features")
+    readiness.add_argument("--embeddings")
     args = parser.parse_args()
-    args.func(args)
+    supplied = {
+        token[2:].replace("-", "_") for token in sys.argv[1:]
+        if token.startswith("--")
+    }
+    if args.command == "analyze-image":
+        result = analyze_image(args.image, args.output, args.emotion_checkpoint)
+        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+    elif args.command == "build-manifest":
+        print(json.dumps(build_manifest(args.dataset, args.output), indent=2))
+    elif args.command == "extract-features":
+        print(json.dumps(extract_features(args.manifest, args.output), indent=2))
+    elif args.command == "train":
+        print(json.dumps(train_model(args.manifest, args.output, args.seed), indent=2))
+    elif args.command == "evaluate":
+        print(json.dumps(evaluate_model(
+            args.manifest, args.checkpoint, args.output, args.split, args.unlock_test,
+            args.confirm_final_evaluation, args.initiated_by,
+        ), indent=2))
+    elif args.command in ("train-feature-model", "compare-models"):
+        models = [value.strip() for value in args.models.split(",") if value.strip()] or None
+        seeds = tuple(int(value) for value in args.seeds.split(","))
+        print(json.dumps(run_feature_experiment(
+            args.features, args.output, models=models, seeds=seeds
+        ), indent=2))
+    elif args.command == "qa":
+        analysis = json.loads(Path(args.analysis).read_text(encoding="utf-8"))
+        judges_path = Path(args.analysis).with_name("judges.json")
+        judges = json.loads(judges_path.read_text(encoding="utf-8"))
+        print(json.dumps(answer(args.question, analysis, judges, args.language),
+                         ensure_ascii=False, indent=2))
+    elif args.command == "train-image-model":
+        from doar.deep.trainers import train_image_model
+        config = load_config(args.config, {
+            "data": {"dataset", "validation_split"},
+            "training": {"model", "pretrained_weights", "seed", "image_size", "batch_size",
+                         "epochs", "device", "workers", "augmentation", "freeze_epochs",
+                         "class_weighting", "early_stopping_patience"},
+            "optimization": {"optimizer", "head_learning_rate", "backbone_learning_rate",
+                             "scheduler"},
+            "output": {"directory", "calibration"},
+        })
+        values = resolve(vars(args), config, {
+            "dataset": ("data", "dataset"), "model": ("training", "model"),
+            "output": ("output", "directory"), "seed": ("training", "seed"),
+            "epochs": ("training", "epochs"), "batch_size": ("training", "batch_size"),
+            "image_size": ("training", "image_size"), "device": ("training", "device"),
+            "augmentation": ("training", "augmentation"),
+        }, supplied)
+        if not all(values.get(name) for name in ("dataset", "model", "output")):
+            raise ValueError("train-image-model requires dataset, model, and output via CLI or config")
+        config_hash = save_resolved(values["output"], args.command, values)
+        print(json.dumps(train_image_model(
+            values["dataset"], values["model"], values["output"], seed=int(values["seed"]),
+            epochs=int(values["epochs"]), batch_size=int(values["batch_size"]),
+            image_size=int(values["image_size"]), device=values["device"],
+            augmentation=values["augmentation"], resume=args.resume,
+            configuration_hash=config_hash,
+        ), indent=2))
+    elif args.command == "predict-image":
+        from doar.deep.inference import predict_image
+        print(json.dumps(predict_image(
+            args.image, args.checkpoint, args.device
+        ), ensure_ascii=False, indent=2))
+    elif args.command == "extract-embeddings":
+        from doar.deep.embeddings import extract_embeddings
+        config = load_config(args.config, {
+            "input": {"manifest"}, "embedding": {"backbone", "device", "batch_size"},
+            "output": {"directory"},
+        })
+        values = resolve(vars(args), config, {
+            "manifest": ("input", "manifest"), "backbone": ("embedding", "backbone"),
+            "device": ("embedding", "device"), "batch_size": ("embedding", "batch_size"),
+            "output": ("output", "directory"),
+        }, supplied)
+        if not all(values.get(name) for name in ("manifest", "backbone", "output")):
+            raise ValueError("extract-embeddings requires manifest, backbone, and output")
+        config_hash = save_resolved(values["output"], args.command, values)
+        print(json.dumps(extract_embeddings(
+            values["manifest"], values["output"], values["backbone"], values["device"],
+            int(values["batch_size"]), args.force,
+        ), indent=2))
+    elif args.command == "train-fusion-model":
+        from doar.fusion.trainer import train_primary_fusion
+        config = load_config(args.config, {
+            "inputs": {"features", "embeddings"},
+            "experiment": {"methods", "seeds", "selection_split", "primary_metric",
+                           "psychologist_rules_used", "concern_profiles_used"},
+            "output": {"directory", "calibration"},
+        })
+        values = resolve(vars(args), config, {
+            "features": ("inputs", "features"), "embeddings": ("inputs", "embeddings"),
+            "output": ("output", "directory"), "methods": ("experiment", "methods"),
+            "seeds": ("experiment", "seeds"),
+        }, supplied)
+        if not all(values.get(name) for name in ("features", "embeddings", "output")):
+            raise ValueError("train-fusion-model requires features, embeddings, and output")
+        methods = values["methods"] if isinstance(values["methods"], list) else values["methods"].split(",")
+        seeds = values["seeds"] if isinstance(values["seeds"], list) else values["seeds"].split(",")
+        config_hash = save_resolved(values["output"], args.command, values)
+        print(json.dumps(train_primary_fusion(
+            values["features"], values["embeddings"], values["output"],
+            [str(item).strip() for item in methods if str(item).strip()],
+            tuple(int(item) for item in seeds), configuration_hash=config_hash,
+        ), indent=2))
+    elif args.command == "validate-dataset":
+        from doar.readiness import validate_dataset
+        print(json.dumps(validate_dataset(args.dataset, args.output), indent=2))
+    elif args.command == "check-training-readiness":
+        from doar.readiness import check_training_readiness
+        print(json.dumps(check_training_readiness(
+            args.dataset, args.output, args.manifest, args.features, args.embeddings
+        ), indent=2))
 
 
 if __name__ == "__main__":
