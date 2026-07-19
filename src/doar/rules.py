@@ -30,8 +30,11 @@ def _status_for(rule: dict, composition: dict) -> tuple[str, list[str], list[str
         matched = wanted in composition["placement"]
         return ("weak_support" if matched else "not_matched",
                 ["ev_centroid"] if matched else [], [])
-    # Object/figure detectors do not exist in this release; never activate.
-    return "not_evaluated", [], [f"detection:{key}"]
+    # Object/figure/eye/animal detectors do not exist in this release. This is
+    # "missing_detector" (no capability), distinct from "not_evaluated" (a
+    # detector exists but could not run, e.g. blank page). Missing evidence is
+    # NOT negative evidence, so this never becomes "not_matched".
+    return "missing_detector", [], [f"detector_absent:{key}"]
 
 
 # Nominal confidence assigned to a weak-support match BEFORE the per-rule ceiling

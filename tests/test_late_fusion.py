@@ -1,4 +1,9 @@
-"""D2 — runnable late-fusion / stacking arm (validation-only selection)."""
+"""Item 8 — late fusion + stacking over common-format exports (CPU).
+
+Uses the common probability export format (evaluation.save_probability_export).
+equal / validation_weighted paths are pure-numpy; stacking needs sklearn (skipped
+if absent). All alignment is by sample_id.
+"""
 
 from __future__ import annotations
 import sys
@@ -12,65 +17,87 @@ sys.path.insert(0, str(ROOT / "src"))
 import numpy as np  # noqa: E402
 
 
-def _write_base(path, rng, n_valid=40, n_train=60, signal=3.0):
-    """Synthetic base-model export: labels correlate with argmax so fusion works."""
-    n = n_valid + n_train
-    labels = rng.randint(0, 4, size=n)
-    logits = rng.randn(n, 4)
-    logits[np.arange(n), labels] += signal
-    probs = np.exp(logits) / np.exp(logits).sum(1, keepdims=True)
-    splits = np.array(["valid"] * n_valid + ["train"] * n_train)
-    np.savez(path, probabilities=probs, labels=labels, splits=splits,
-             sample_ids=np.array([f"s{i}" for i in range(n)]),
-             fold_ids=(np.arange(n) % 3))
-    return labels
+def _make_export(path, model_id, ids, splits, labels, seed, signal=3.0, folds=None):
+    from doar.evaluation import save_probability_export
+    rng = np.random.RandomState(seed)
+    logits = rng.randn(len(ids), 4)
+    for i, lab in enumerate(labels):
+        logits[i, lab] += signal
+    proba = np.exp(logits) / np.exp(logits).sum(1, keepdims=True)
+    return save_probability_export(
+        path, sample_ids=ids, splits=splits, y_true=labels, proba=proba,
+        model_id=model_id, checkpoint_hash=f"hash_{model_id}",
+        calibration_status="uncalibrated", fold_ids=folds)
 
 
 class LateFusionTests(unittest.TestCase):
-    def _two_bases(self, d):
-        rng = np.random.RandomState(0)
-        # identical labels across models (aligned exports)
-        n_valid, n_train = 40, 60
-        n = n_valid + n_train
-        labels = rng.randint(0, 4, size=n)
-        splits = np.array(["valid"] * n_valid + ["train"] * n_train)
+    def _two(self, d, with_train=False, folds=False):
+        n_valid = 30
+        rng = np.random.RandomState(7)
+        vids = [f"v{i}" for i in range(n_valid)]
+        vlab = rng.randint(0, 4, n_valid).tolist()
         paths = []
         for k in range(2):
-            r = np.random.RandomState(k + 1)
-            logits = r.randn(n, 4)
-            logits[np.arange(n), labels] += 3.0
-            probs = np.exp(logits) / np.exp(logits).sum(1, keepdims=True)
-            p = Path(d) / f"base{k}.npz"
-            np.savez(p, probabilities=probs, labels=labels, splits=splits,
-                     sample_ids=np.array([f"s{i}" for i in range(n)]),
-                     fold_ids=(np.arange(n) % 3))
-            paths.append(str(p))
+            ids, splits, labels = list(vids), ["valid"] * n_valid, list(vlab)
+            fold_arg = None
+            if with_train:
+                n_train = 40
+                tids = [f"t{i}" for i in range(n_train)]
+                tlab = rng.randint(0, 4, n_train).tolist()
+                ids = tids + vids
+                splits = ["train"] * n_train + ["valid"] * n_valid
+                labels = tlab + vlab
+                if folds:
+                    fold_arg = [(i % 3) for i in range(n_train)] + [None] * n_valid
+            p = str(Path(d) / f"m{k}.json")
+            _make_export(p, f"m{k}", ids, splits, labels, seed=k + 1, folds=fold_arg)
+            paths.append(p)
         return paths
 
-    def test_equal_late_fusion_runs_and_locks_test(self):
+    def test_equal_fusion_runs_and_saves_model(self):
         from doar.fusion.late import train_late_fusion
         with tempfile.TemporaryDirectory() as d:
-            base = self._two_bases(d)
+            base = self._two(d)
             res = train_late_fusion(base, Path(d) / "out", method="equal_late_fusion")
             self.assertFalse(res["test_used"])
             self.assertEqual(res["selection_split"], "valid")
-            self.assertGreater(res["validation_macro_f1"], 0.5)
-            self.assertIn("ensemble_uncertainty", res)
-            self.assertTrue((Path(d) / "out" / "late_fusion_result.json").exists())
+            self.assertIn("validation_metrics", res)
+            self.assertTrue((Path(d) / "out" / "late_fusion_model.json").exists())
+            self.assertTrue((Path(d) / "out" / "per_sample_uncertainty.json").exists())
 
-    def test_validation_weighted_fusion_selects_weights(self):
-        from doar.fusion.late import train_late_fusion
+    def test_validation_weighted_saves_weights_and_applies(self):
+        from doar.fusion.late import train_late_fusion, load_late_fusion, apply_late_fusion
         with tempfile.TemporaryDirectory() as d:
-            base = self._two_bases(d)
+            base = self._two(d)
             res = train_late_fusion(base, Path(d) / "out",
                                     method="validation_weighted_late_fusion")
             self.assertEqual(len(res["weights"]), 2)
-            self.assertAlmostEqual(sum(res["weights"]), 1.0, places=6)
+            model = load_late_fusion(str(Path(d) / "out" / "late_fusion_model.json"))
+            ids, fused = apply_late_fusion(model, base, "valid")
+            self.assertEqual(len(ids), 30)
+            np.testing.assert_allclose(fused.sum(1), np.ones(30), atol=1e-6)
 
-    def test_requires_two_bases(self):
+    def test_stacking_requires_oof_folds(self):
         from doar.fusion.late import train_late_fusion
         with tempfile.TemporaryDirectory() as d:
-            base = self._two_bases(d)
+            base = self._two(d, with_train=True, folds=False)  # train present but no folds
+            with self.assertRaises(Exception):  # ValueError (no OOF) before sklearn import
+                train_late_fusion(base, Path(d) / "out", method="logistic_probability_meta")
+
+    def test_per_sample_uncertainty_is_per_sample(self):
+        from doar.fusion.late import train_late_fusion
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            base = self._two(d)
+            train_late_fusion(base, Path(d) / "out", method="equal_late_fusion")
+            us = json.loads((Path(d) / "out" / "per_sample_uncertainty.json").read_text())
+            self.assertEqual(len(us), 30)                 # one entry per sample_id
+            self.assertTrue(all("entropy" in v for v in us.values()))
+
+    def test_requires_two_exports(self):
+        from doar.fusion.late import train_late_fusion
+        with tempfile.TemporaryDirectory() as d:
+            base = self._two(d)
             with self.assertRaises(ValueError):
                 train_late_fusion(base[:1], Path(d) / "out")
 

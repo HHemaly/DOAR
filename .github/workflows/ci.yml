@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**", "feature/**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install (core + dev, CPU only)
+        run: |
+          python -m pip install --upgrade pip
+          # Core runtime deps + tooling. Torch is intentionally NOT installed:
+          # torch-dependent tests skip cleanly so CI stays fast and CPU-only.
+          pip install numpy Pillow pytest ruff
+          pip install -e . || true
+
+      - name: Lint (ruff, non-blocking style signal)
+        run: ruff check src tests main.py || true
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: CLI smoke tests
+        run: |
+          python - <<'PY'
+          import subprocess, sys, tempfile, os
+          from pathlib import Path
+          from PIL import Image
+          import numpy as np
+
+          d = tempfile.mkdtemp()
+          # Build a tiny synthetic dataset: train/valid/test x 4 classes.
+          for split in ("train", "valid", "test"):
+              for cls in ("Angry", "Fear", "Happy", "Sad"):
+                  p = Path(d) / split / cls
+                  p.mkdir(parents=True)
+                  arr = (np.indices((64, 64)).sum(0) * (hash(cls) % 7 + 1)) % 255
+                  Image.fromarray(arr.astype("uint8")).convert("RGB").save(p / "a.png")
+
+          def run(*args):
+              print("+", " ".join(args))
+              subprocess.run([sys.executable, "main.py", *args], check=True)
+
+          out = Path(d) / "out"
+          run("build-manifest", "--dataset", d, "--output", str(out / "manifest.csv"))
+          run("validate-dataset", "--dataset", d, "--output", str(out / "validate"))
+          # analyze-image end-to-end (CPU, no torch)
+          img = str(Path(d) / "train" / "Happy" / "a.png")
+          run("analyze-image", "--image", img, "--output", str(out / "case"))
+          print("CLI smoke OK")
+          PY
+
+      - name: Synthetic CPU end-to-end (analysis -> judges -> reports -> qa)
+        run: |
+          python - <<'PY'
+          import sys, tempfile
+          sys.path.insert(0, "src")
+          from pathlib import Path
+          from PIL import Image
+          import numpy as np
+          from doar.analysis import analyze_image
+          from doar.judges import run_judges
+          from doar.reports import save_reports
+          from doar.qa import answer
+
+          d = tempfile.mkdtemp()
+          p = Path(d) / "x.png"
+          arr = np.indices((128, 128)).sum(0) % 255
+          Image.fromarray(arr.astype("uint8")).convert("RGB").save(p)
+          a = analyze_image(p, Path(d) / "out").to_dict()
+          j = run_judges(a)
+          save_reports(a, j, Path(d) / "reports")
+          resp = answer("what colours are used?", a, j, "en")
+          assert "evidence_ids" in resp
+          assert (Path(d) / "reports" / "bilingual.html").exists()
+          print("Synthetic CPU E2E OK:", j["safety_judge"]["status"])
+          PY

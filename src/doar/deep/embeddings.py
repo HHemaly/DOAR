@@ -29,6 +29,41 @@ def _torchvision_extractor(backbone: str, device: str):
     return create_feature_extractor(model, return_nodes={node: "embedding"}), 224
 
 
+def _finetuned_extractor(checkpoint: str, device: str):
+    """Penultimate-layer embeddings from a trained emotion checkpoint (Item 5).
+
+    Rebuilds the checkpoint's model and replaces its final classification head
+    with nn.Identity, so a forward pass returns the penultimate representation.
+    Returns (model, image_size, extraction_meta)."""
+    import torch
+    import torch.nn as nn
+    from .registry import build_model
+    payload = torch.load(checkpoint, map_location=device, weights_only=False)
+    model_name = payload["model_name"]
+    image_size = int(payload.get("image_size", 224))
+    model = build_model(model_name, len(CLASSES), pretrained=False)
+    model.load_state_dict(payload["model_state"])
+    # Replace the final head with Identity to expose penultimate features.
+    if model_name in ("resnet18", "resnet50"):
+        model.fc = nn.Identity()
+    elif model_name in ("mobilenet_v3_small", "mobilenet_v3_large", "efficientnet_b0",
+                        "convnext_tiny", "small_cnn"):
+        model.classifier[-1] = nn.Identity()
+    elif model_name == "vit_b_16":
+        model.heads.head = nn.Identity()
+    else:
+        raise ValueError(f"No penultimate mapping for model: {model_name}")
+    model = model.to(device).eval()
+    meta = {
+        "extraction_layer": "penultimate_head_identity",
+        "source_checkpoint": checkpoint,
+        "source_model_name": model_name,
+        "checkpoint_hash": hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest(),
+        "preprocessing_version": payload.get("preprocessing_version", "imagenet_v1"),
+    }
+    return model, image_size, meta
+
+
 def _extractor(backbone: str, device: str):
     if backbone in ("resnet18", "efficientnet_b0", "convnext_tiny", "vit_b_16"):
         return _torchvision_extractor(backbone, device)
@@ -41,6 +76,9 @@ def _extractor(backbone: str, device: str):
         name = backbone.split(":", 1)[1]
         model, _, preprocess = open_clip.create_model_and_transforms(name, pretrained="laion2b_s34b_b79k")
         return (model.to(device).eval(), preprocess), 224
+    if backbone.startswith("finetuned:"):
+        model, image_size, _meta = _finetuned_extractor(backbone.split(":", 1)[1], device)
+        return model, image_size
     raise ValueError(f"Unsupported embedding backbone: {backbone}")
 
 
@@ -70,7 +108,18 @@ def extract_embeddings(
         "cpu" if device == "auto" else device
     )
     extractor, image_size = _extractor(backbone, selected)
-    transform = extractor[1] if backbone.startswith("openclip:") else build_transforms(image_size, False)
+    # Preprocessing spec is the single source of truth (Item 6): it drives BOTH
+    # the transform below and the recorded metadata, so they cannot drift. DINOv2
+    # now gets its real resize-256 -> center-crop-224 transform.
+    from .preprocessing import resolve_preprocessing, build_eval_transform, preprocessing_hash
+    _ckpt_meta = None
+    if backbone.startswith("finetuned:"):
+        _, _, _ckpt_meta = _finetuned_extractor(backbone.split(":", 1)[1], selected)
+    pp_spec = resolve_preprocessing(backbone, image_size, _ckpt_meta)
+    if backbone.startswith("openclip:"):
+        transform = extractor[1]                       # open_clip's own preprocess
+    else:
+        transform = build_eval_transform(pp_spec)
     with manifest.open(newline="", encoding="utf-8") as handle:
         rows = [row for row in csv.DictReader(handle)
                 if row.get("readable", "").lower() in ("true", "1")]
@@ -110,20 +159,20 @@ def extract_embeddings(
     # Record the TRUE preprocessing per backbone family (D5). CLIP and DINOv2 use
     # their own transforms, not the ImageNet pipeline — labelling them
     # "imagenet_v1" was a reproducibility-metadata bug.
-    if backbone.startswith("openclip:"):
-        preprocessing_version = "openclip_native_preprocess"
-    elif backbone.startswith("dinov2"):
-        preprocessing_version = "dinov2_native_preprocess"
-    else:
-        preprocessing_version = "imagenet_v1"
+    finetuned_meta = _ckpt_meta or {}
+    model_version = ("finetuned_emotion_checkpoint" if backbone.startswith("finetuned:")
+                     else "official_pretrained")
     metadata = {
-        "status": "available", "backbone": backbone, "model_version": "official_pretrained",
-        "preprocessing_version": preprocessing_version, "preprocessing_hash": hashlib.sha256(
-            f"{backbone}:{image_size}:{preprocessing_version}".encode()).hexdigest(),
+        "status": "available", "backbone": backbone, "model_version": model_version,
+        # Item 6: version, hash and full transform params come from ONE spec.
+        "preprocessing_version": pp_spec["preprocessing_version"],
+        "preprocessing_hash": preprocessing_hash(pp_spec),
+        "preprocessing_spec": pp_spec,
         "embedding_dimension": int(matrix.shape[1]) if matrix.size else 0,
         "images": len(ids), "failures": len(failures), "device": selected,
         "cache_fingerprint": fingerprint, "cache_hit": False,
         "splits": sorted(set(splits)), "classes": list(CLASSES),
+        **finetuned_meta,
     }
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return metadata

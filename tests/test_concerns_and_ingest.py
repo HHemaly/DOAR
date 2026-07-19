@@ -18,7 +18,20 @@ class ConcernConvergenceTests(unittest.TestCase):
             {"status": "weak_support", "matched_evidence_ids": ["ev_centroid"],
              "source_type": "psychologist_supplied_hypothesis", "confidence_ceiling": 0.2},
         ]
-        # Both are clinician_symbolic -> only one source type -> no concern.
+        # Both are clinician_symbolic -> only one source type -> no concern
+        # (even when the engine is enabled).
+        self.assertEqual(derive_concerns(rules, enabled=True), [])
+
+    def test_concerns_disabled_by_default(self):
+        from doar.concerns import derive_concerns, CONCERNS_ENABLED
+        self.assertFalse(CONCERNS_ENABLED)   # Item 11: disabled until a taxonomy exists
+        rules = [
+            {"status": "weak_support", "matched_evidence_ids": ["ev_bbox_coverage"],
+             "source_type": "objective_feature", "confidence_ceiling": 0.25},
+            {"status": "weak_support", "matched_evidence_ids": ["ev_emotion_prediction"],
+             "source_type": "model_prediction", "confidence_ceiling": 0.15},
+        ]
+        # Even converging evidence yields nothing while disabled.
         self.assertEqual(derive_concerns(rules), [])
 
     def test_converging_independent_sources_raise_capped_concern(self):
@@ -29,7 +42,7 @@ class ConcernConvergenceTests(unittest.TestCase):
             {"status": "weak_support", "matched_evidence_ids": ["ev_emotion_prediction"],
              "source_type": "model_prediction", "confidence_ceiling": 0.15},
         ]
-        concerns = derive_concerns(rules)
+        concerns = derive_concerns(rules, enabled=True)
         self.assertEqual(len(concerns), 1)
         c = concerns[0]
         self.assertGreaterEqual(c["source_diversity"], 2)

@@ -58,7 +58,12 @@ class QualityGateTests(unittest.TestCase):
             Image.new("RGB", (40, 40), "white").save(p)
             a = analyze_image(p, Path(d) / "out")
             judges = run_judges(a.to_dict())
-            self.assertEqual(judges["quality_judge"]["status"], "requires_review")
+            # 40x40 white is UNSUPPORTED (resolution) -> quality_judge fails and
+            # clinical modules are suppressed.
+            self.assertEqual(judges["quality_judge"]["status"], "fail")
+            self.assertIn("emotion_model", a.module_execution["suppressed"])
+            # Clinical output is safely suppressed -> overall requires human review.
+            self.assertEqual(judges["overall_status"], "requires_review")
 
 
 if __name__ == "__main__":

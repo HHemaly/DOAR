@@ -84,42 +84,6 @@ def _model(name: str, seed: int, d: dict):
     raise ValueError(f"Unknown objective-feature model: {name}")
 
 
-def _ece(y: np.ndarray, probabilities: np.ndarray, bins: int = 10) -> float:
-    confidence = probabilities.max(axis=1)
-    correct = probabilities.argmax(axis=1) == y
-    total = len(y)
-    value = 0.0
-    for low in np.linspace(0, 1, bins, endpoint=False):
-        selected = (confidence >= low) & (confidence < low + 1 / bins)
-        if selected.any():
-            value += selected.sum() / total * abs(correct[selected].mean() - confidence[selected].mean())
-    return float(value)
-
-
-def _metrics(y, pred, proba, d):
-    result = {
-        "accuracy": float(d["accuracy_score"](y, pred)),
-        "macro_f1": float(d["f1_score"](y, pred, average="macro")),
-        "weighted_f1": float(d["f1_score"](y, pred, average="weighted")),
-        "balanced_accuracy": float(d["balanced_accuracy_score"](y, pred)),
-        "log_loss": float(d["log_loss"](y, proba, labels=list(range(len(CLASSES))))),
-        "multiclass_brier": float(np.mean(np.sum((proba - np.eye(len(CLASSES))[y]) ** 2, axis=1))),
-        "ece": _ece(y, proba),
-        "confusion_matrix": d["confusion_matrix"](y, pred, labels=list(range(len(CLASSES)))).tolist(),
-        "classification_report": d["classification_report"](
-            y, pred, labels=list(range(len(CLASSES))), target_names=CLASSES, output_dict=True,
-            zero_division=0,
-        ),
-    }
-    try:
-        result["macro_ovr_roc_auc"] = float(d["roc_auc_score"](
-            y, proba, labels=list(range(len(CLASSES))), multi_class="ovr", average="macro"
-        ))
-    except ValueError:
-        result["macro_ovr_roc_auc"] = None
-    return result
-
-
 def run_feature_experiment(
     features_csv: str | Path,
     output: str | Path,
@@ -143,7 +107,8 @@ def run_feature_experiment(
             elapsed = time.perf_counter() - started
             probabilities = estimator.predict_proba(x_valid)
             predictions = probabilities.argmax(axis=1)
-            metrics = _metrics(y_valid, predictions, probabilities, d)
+            from .evaluation import compute_metrics
+            metrics = compute_metrics(y_valid, predictions, probabilities)
             run_dir = output / "runs" / f"{name}_seed_{seed}"
             run_dir.mkdir(parents=True, exist_ok=True)
             checkpoint = run_dir / "model.joblib"

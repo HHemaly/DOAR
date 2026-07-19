@@ -55,32 +55,81 @@ def run_judges(analysis: dict) -> dict:
         phrase in disclaimer_text
         for phrase in ("not a diagnosis", "not diagnostic", "غير تشخيصي", "ليس تشخيص")
     ) or "غير تشخيصي" in analysis["safety_disclaimer"]
-    return {
+    # ── Quality judge (3-state, from the real quality gate) ──────────────────
+    quality_status = analysis["quality"].get(
+        "quality_status", "supported" if analysis["quality"].get("supported") else "unsupported")
+    quality_judge_status = {"supported": "pass", "requires_review": "requires_review",
+                            "unsupported": "fail"}.get(quality_status, "requires_review")
+
+    # ── Segmentation judge — status reflects ALL critical checks (Item 12) ───
+    coverage_complementary = abs(coverage + empty - 1) < 1e-6
+    not_implausibly_full = coverage < 0.90
+    segmentation_pass = coverage_complementary and not_implausibly_full
+
+    # ── Feature judge — real checks, not hardcoded pass (Item 12) ────────────
+    blank_has_no_centroid = not (
+        coverage == 0 and analysis["composition"].get("centroid_normalized") is not None)
+    bbox_evidence_present = "ev_bbox_coverage" in evidence_ids
+    feature_pass = blank_has_no_centroid and bbox_evidence_present
+
+    # ── Emotion judge — did a model actually run successfully? (Item 12) ─────
+    emotion_status = analysis.get("emotion", {}).get("status", "unavailable")
+    emotion_ran = emotion_status == "available"
+
+    # ── Concern provenance — computed, not hardcoded (Item 12) ───────────────
+    concerns = analysis.get("concerns", [])
+    single_symbol_concern = any(
+        len(c.get("supporting_evidence", [])) < 2 or c.get("source_diversity", 0) < 2
+        for c in concerns
+    )
+
+    # ── Module availability — detected from the analysis (Item 12) ───────────
+    module_exec = analysis.get("module_execution", {})
+    suppressed = set(module_exec.get("suppressed", []))
+    module_availability = {
+        "detection": "unavailable",
+        "ocr": "unavailable",
+        "emotion_model": ("suppressed_low_quality" if "emotion_model" in suppressed
+                          else ("available" if emotion_ran else emotion_status)),
+        "psychologist_rules": "suppressed_low_quality" if "psychologist_rules" in suppressed else "available",
+        "clinician_review": "not_submitted",
+    }
+
+    judges = {
         "quality_judge": {
-            "status": "pass" if analysis["quality"]["supported"] else "requires_review",
-            "checks": {"supported_file": analysis["quality"]["supported"]},
+            "status": quality_judge_status,
+            "quality_status": quality_status,
+            "checks": {
+                "resolution_ok": analysis["quality"].get("resolution_ok"),
+                "blur_ok": analysis["quality"].get("blur_ok"),
+                "contrast_ok": analysis["quality"].get("contrast_ok"),
+            },
+            "reasons": analysis["quality"].get("unsupported_reasons", []),
         },
         "segmentation_judge": {
-            "status": "pass" if abs(coverage + empty - 1) < 1e-6 else "fail",
+            "status": "pass" if segmentation_pass else "fail",
             "checks": {
-                "coverage_complementary": abs(coverage + empty - 1) < 1e-6,
-                "not_implausibly_full": coverage < 0.90,
-                "candidate_disagreement": analysis["segmentation"]["candidate_disagreement"],
+                "coverage_complementary": coverage_complementary,
+                "not_implausibly_full": not_implausibly_full,
+                "candidate_disagreement": analysis["segmentation"].get("candidate_disagreement"),
             },
         },
         "feature_judge": {
-            "status": "pass",
+            "status": "pass" if feature_pass else "requires_review",
             "checks": {
-                "blank_has_no_centroid": not (
-                    coverage == 0 and analysis["composition"]["centroid_normalized"] is not None
-                ),
-                "bbox_evidence_present": "ev_bbox_coverage" in evidence_ids,
+                "blank_has_no_centroid": blank_has_no_centroid,
+                "bbox_evidence_present": bbox_evidence_present,
             },
+        },
+        "emotion_judge": {
+            "status": "pass" if emotion_ran else ("suppressed" if emotion_status == "suppressed" else "unavailable"),
+            "emotion_model_ran": emotion_ran,
+            "emotion_status": emotion_status,
         },
         "rule_judge": {
             "status": "pass" if not rule_errors else "fail",
             "unsupported_evidence_references": rule_errors,
-            "active_concerns_from_single_symbol": False,
+            "active_concerns_from_single_symbol": single_symbol_concern,
         },
         "safety_judge": {
             "status": "pass" if (not diagnostic_found and disclaimer_present) else "fail",
@@ -88,10 +137,21 @@ def run_judges(analysis: dict) -> dict:
             "disclaimer_present": disclaimer_present,
             "scanned_languages": ["en", "ar"],
         },
-        "module_availability": {
-            "detection": "unavailable",
-            "ocr": "unavailable",
-            "emotion_model": "unavailable",
-            "clinician_review": "not_submitted",
-        },
+        "module_availability": module_availability,
     }
+
+    # ── Overall case status (Item 12) ───────────────────────────────────────
+    statuses = [j.get("status") for j in judges.values() if isinstance(j, dict)]
+    hard_fail = (judges["safety_judge"]["status"] == "fail"
+                 or judges["rule_judge"]["status"] == "fail"
+                 or judges["segmentation_judge"]["status"] == "fail"
+                 or single_symbol_concern)
+    if hard_fail:
+        overall = "fail"
+    elif "requires_review" in statuses or quality_status != "supported" or not emotion_ran:
+        overall = "requires_review"
+    else:
+        overall = "pass"
+    judges["overall_status"] = overall
+    judges["clinical_output_suppressed"] = judges["safety_judge"]["status"] == "fail"
+    return judges

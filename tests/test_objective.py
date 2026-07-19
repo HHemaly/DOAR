@@ -65,7 +65,9 @@ class ObjectiveTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         fox = next(item for item in result.rule_evaluations
                    if item["rule_id"] == "PSY_AR_ANIMAL_FOX_005")
-        self.assertEqual(fox["status"], "not_evaluated")
+        # Detector does not exist -> missing_detector (not not_matched: missing
+        # evidence is never treated as negative evidence).
+        self.assertEqual(fox["status"], "missing_detector")
         self.assertEqual(result.concerns, [])
 
     def test_tiny_noise_not_dominant(self):
@@ -149,7 +151,8 @@ class ObjectiveTests(unittest.TestCase):
             "The required visual condition was not observed. No psychological interpretation was produced.",
             report,
         )
-        self.assertIn("required module or evidence is missing", report)
+        # Symbol rules now report missing_detector (distinct from not_evaluated):
+        self.assertIn("No detector exists for this feature", report)
 
     def test_deep_registry_is_complete_without_importing_torch(self):
         from doar.deep import MODEL_NAMES
