@@ -74,6 +74,14 @@ def main() -> None:
     image_predict.add_argument("--image", required=True)
     image_predict.add_argument("--checkpoint", required=True)
     image_predict.add_argument("--device", default="auto")
+    late_fusion = commands.add_parser("train-late-fusion")
+    late_fusion.add_argument("--base", nargs="+", required=True,
+                             help="Two or more exported base-model probability .npz files")
+    late_fusion.add_argument("--output", required=True)
+    late_fusion.add_argument("--method", default="validation_weighted_late_fusion",
+                             choices=["equal_late_fusion", "validation_weighted_late_fusion",
+                                      "logistic_probability_meta"])
+    late_fusion.add_argument("--calibrated", action="store_true")
     calibrate = commands.add_parser("calibrate")
     calibrate.add_argument("--checkpoint", required=True)
     calibrate.add_argument("--dataset", required=True)
@@ -169,6 +177,11 @@ def main() -> None:
         print(json.dumps(predict_image(
             args.image, args.checkpoint, args.device
         ), ensure_ascii=False, indent=2))
+    elif args.command == "train-late-fusion":
+        from doar.fusion.late import train_late_fusion
+        print(json.dumps(train_late_fusion(
+            args.base, args.output, args.method, args.calibrated
+        ), ensure_ascii=False, indent=2, default=float))
     elif args.command == "calibrate":
         from doar.deep.calibration import calibrate_checkpoint
         print(json.dumps(calibrate_checkpoint(
