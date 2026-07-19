@@ -28,6 +28,15 @@ def _rule_rows(analysis: dict, language: str) -> str:
                 if language == "ar"
                 else f"Not evaluated because the required module or evidence is missing: {missing}."
             )
+        elif rule["status"] == "missing_detector":
+            missing = ", ".join(rule["missing_evidence"])
+            reasoning = (
+                f"لا يوجد كاشف لهذه السمة في هذا الإصدار؛ لا يُعامل غياب الدليل كدليل سلبي. ({missing})"
+                if language == "ar"
+                else (f"No detector exists for this feature in this release, so the "
+                      f"rule was not evaluated. Missing evidence is not treated as "
+                      f"negative evidence. ({missing})")
+            )
         else:
             reasoning = rule.get("parent_safe_wording") or ""
         rows.append(

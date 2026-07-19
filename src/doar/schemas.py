@@ -28,6 +28,7 @@ class Analysis:
     concerns: list[dict[str, Any]]
     safety_disclaimer: str
     artifacts: dict[str, str]
+    module_execution: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

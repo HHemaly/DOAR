@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 from .schemas import Analysis, Evidence
+from .dataset import CLASSES
 from .rules import evaluate_rules
 from .case_output import finalize_case
 from .emotion import predict as predict_emotion
@@ -231,7 +232,6 @@ def _quality(image) -> dict:
     resolution_ok = min_dimension >= MIN_DIMENSION_PX
     blur_ok = blur_variance >= MIN_BLUR_VARIANCE
     contrast_ok = contrast_std >= MIN_CONTRAST_STD
-    supported = resolution_ok and blur_ok and contrast_ok
 
     reasons = []
     if not resolution_ok:
@@ -240,6 +240,18 @@ def _quality(image) -> dict:
         reasons.append(f"low sharpness (blur_variance={blur_variance:.1f} < {MIN_BLUR_VARIANCE})")
     if not contrast_ok:
         reasons.append(f"low contrast (contrast_std={contrast_std:.1f} < {MIN_CONTRAST_STD})")
+
+    # Three-state gate (Item 9). Resolution failure is a hard unsupported; a
+    # single soft failure (blur OR contrast) is requires_review; both soft
+    # failures is unsupported; all-pass is supported.
+    soft_failures = int(not blur_ok) + int(not contrast_ok)
+    if not resolution_ok or soft_failures >= 2:
+        quality_status = "unsupported"
+    elif soft_failures == 1:
+        quality_status = "requires_review"
+    else:
+        quality_status = "supported"
+    supported = quality_status == "supported"
 
     return {
         "width": image.width,
@@ -251,7 +263,9 @@ def _quality(image) -> dict:
         "blur_ok": blur_ok,
         "contrast_ok": contrast_ok,
         "supported": supported,
+        "quality_status": quality_status,
         "unsupported_reasons": reasons,
+        "thresholds_validated_on_real_dataset": False,
         "gate_thresholds": {
             "min_dimension_px": MIN_DIMENSION_PX,
             "min_blur_variance": MIN_BLUR_VARIANCE,
@@ -292,14 +306,42 @@ def analyze_image(
         "composition": composition,
         "colour": colour,
     }
-    emotion = predict_emotion(image_path, emotion_checkpoint, analysis_context)
-    if emotion["status"] == "available":
-        evidence.append(Evidence(
-            "ev_emotion_prediction", "model_prediction", emotion["probabilities"],
-            emotion["model_name"], emotion["confidence"],
-            ["Model probabilities are not psychological or diagnostic confidence."],
-        ))
-    rule_evaluations, concerns = evaluate_rules(composition, colour, evidence)
+    # Item 9 — enforce quality gating: when the image is UNSUPPORTED, suppress
+    # emotion classification, psychologist rules and concern profiles, and record
+    # which modules executed vs were suppressed and why.
+    quality_status = quality.get("quality_status", "supported")
+    executed_modules, suppressed_modules = ["quality", "segmentation", "composition", "colour"], []
+
+    if quality_status == "unsupported":
+        reason = "image quality unsupported: " + "; ".join(quality.get("unsupported_reasons", []))
+        emotion = {
+            "status": "suppressed", "reason": reason,
+            "probabilities": {name: None for name in CLASSES},
+            "model_family": "suppressed_low_quality",
+        }
+        rule_evaluations, concerns = [], []
+        suppressed_modules = ["emotion_model", "psychologist_rules", "concern_profiles"]
+    else:
+        executed_modules.append("emotion_model")
+        emotion = predict_emotion(image_path, emotion_checkpoint, analysis_context)
+        if emotion["status"] == "available":
+            evidence.append(Evidence(
+                "ev_emotion_prediction", "model_prediction", emotion["probabilities"],
+                emotion["model_name"], emotion["confidence"],
+                ["Model probabilities are not psychological or diagnostic confidence."],
+            ))
+        rule_evaluations, concerns = evaluate_rules(composition, colour, evidence)
+        executed_modules += ["psychologist_rules", "concern_profiles"]
+
+    module_execution = {
+        "quality_status": quality_status,
+        "executed": executed_modules,
+        "suppressed": suppressed_modules,
+        "suppression_reason": (
+            "; ".join(quality.get("unsupported_reasons", []))
+            if quality_status == "unsupported" else None
+        ),
+    }
     result = Analysis(
         schema_version="3.0.0",
         image_path=str(Path(image_path).resolve()),
@@ -316,6 +358,7 @@ def analyze_image(
         concerns=concerns,
         safety_disclaimer=DISCLAIMER,
         artifacts=artifacts,
+        module_execution=module_execution,
     )
     output.mkdir(parents=True, exist_ok=True)
     portable = result.to_dict()
