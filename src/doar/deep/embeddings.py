@@ -108,7 +108,18 @@ def extract_embeddings(
         "cpu" if device == "auto" else device
     )
     extractor, image_size = _extractor(backbone, selected)
-    transform = extractor[1] if backbone.startswith("openclip:") else build_transforms(image_size, False)
+    # Preprocessing spec is the single source of truth (Item 6): it drives BOTH
+    # the transform below and the recorded metadata, so they cannot drift. DINOv2
+    # now gets its real resize-256 -> center-crop-224 transform.
+    from .preprocessing import resolve_preprocessing, build_eval_transform, preprocessing_hash
+    _ckpt_meta = None
+    if backbone.startswith("finetuned:"):
+        _, _, _ckpt_meta = _finetuned_extractor(backbone.split(":", 1)[1], selected)
+    pp_spec = resolve_preprocessing(backbone, image_size, _ckpt_meta)
+    if backbone.startswith("openclip:"):
+        transform = extractor[1]                       # open_clip's own preprocess
+    else:
+        transform = build_eval_transform(pp_spec)
     with manifest.open(newline="", encoding="utf-8") as handle:
         rows = [row for row in csv.DictReader(handle)
                 if row.get("readable", "").lower() in ("true", "1")]
@@ -148,25 +159,15 @@ def extract_embeddings(
     # Record the TRUE preprocessing per backbone family (D5). CLIP and DINOv2 use
     # their own transforms, not the ImageNet pipeline — labelling them
     # "imagenet_v1" was a reproducibility-metadata bug.
-    finetuned_meta = {}
-    if backbone.startswith("openclip:"):
-        preprocessing_version = "openclip_native_preprocess"
-        model_version = "official_pretrained"
-    elif backbone.startswith("dinov2"):
-        preprocessing_version = "dinov2_native_preprocess"
-        model_version = "official_pretrained"
-    elif backbone.startswith("finetuned:"):
-        # Re-derive the checkpoint metadata for provenance (Item 5).
-        _, _, finetuned_meta = _finetuned_extractor(backbone.split(":", 1)[1], selected)
-        preprocessing_version = finetuned_meta["preprocessing_version"]
-        model_version = "finetuned_emotion_checkpoint"
-    else:
-        preprocessing_version = "imagenet_v1"
-        model_version = "official_pretrained"
+    finetuned_meta = _ckpt_meta or {}
+    model_version = ("finetuned_emotion_checkpoint" if backbone.startswith("finetuned:")
+                     else "official_pretrained")
     metadata = {
         "status": "available", "backbone": backbone, "model_version": model_version,
-        "preprocessing_version": preprocessing_version, "preprocessing_hash": hashlib.sha256(
-            f"{backbone}:{image_size}:{preprocessing_version}".encode()).hexdigest(),
+        # Item 6: version, hash and full transform params come from ONE spec.
+        "preprocessing_version": pp_spec["preprocessing_version"],
+        "preprocessing_hash": preprocessing_hash(pp_spec),
+        "preprocessing_spec": pp_spec,
         "embedding_dimension": int(matrix.shape[1]) if matrix.size else 0,
         "images": len(ids), "failures": len(failures), "device": selected,
         "cache_fingerprint": fingerprint, "cache_hit": False,

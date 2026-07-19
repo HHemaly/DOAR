@@ -84,6 +84,10 @@ def train_image_model(
     train_loader, valid_loader = build_loaders(
         dataset, image_size, batch_size, workers, augmentation
     )
+    # Preprocessing spec + hash recorded so inference can verify compatibility (Item 6).
+    from .preprocessing import resolve_preprocessing, preprocessing_hash
+    _pp_spec = resolve_preprocessing(model_name, image_size)
+    _pp_hash = preprocessing_hash(_pp_spec)
     model = build_model(model_name, len(CLASSES), use_pretrained).to(selected_device)
     if freeze_epochs and model_name != "small_cnn":
         freeze_backbone(model)
@@ -179,7 +183,9 @@ def train_image_model(
             "scheduler_state": scheduler.state_dict() if scheduler is not None else None,
             "scaler_state": scaler.state_dict(),
             "epoch": epoch, "model_name": model_name, "classes": CLASSES,
-            "seed": seed, "image_size": image_size, "preprocessing_version": "imagenet_v1",
+            "seed": seed, "image_size": image_size,
+            "preprocessing_version": _pp_spec["preprocessing_version"],
+            "preprocessing_hash": _pp_hash, "preprocessing_spec": _pp_spec,
             "model_version": "doar_deep_v1", "calibration_status": "uncalibrated",
             "validation": record,
             "history": history,
