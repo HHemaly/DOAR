@@ -123,6 +123,9 @@ def main() -> None:
     apply_late.add_argument("--base", nargs="+", required=True)
     apply_late.add_argument("--split", default="valid")
     apply_late.add_argument("--output", required=True)
+    thesis_cmd = commands.add_parser("generate-thesis-outputs")
+    thesis_cmd.add_argument("--output", required=True, help="Output root containing experiment artifacts")
+
     ablation = commands.add_parser("run-ablation")
     ablation.add_argument("--features", required=True)
     ablation.add_argument("--output", required=True)
@@ -354,6 +357,9 @@ def main() -> None:
         (out / f"fused_{args.split}.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
         print(json.dumps({"split": args.split, "count": len(ids),
                           "output": str(out / f"fused_{args.split}.json")}, indent=2))
+    elif args.command == "generate-thesis-outputs":
+        from doar.thesis import generate_thesis_outputs
+        print(json.dumps(generate_thesis_outputs(args.output), indent=2))
     elif args.command == "run-ablation":
         from doar.ablation import run_feature_ablation
         seeds = tuple(int(s) for s in args.seeds.split(","))
