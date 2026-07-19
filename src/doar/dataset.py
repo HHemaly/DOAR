@@ -20,10 +20,11 @@ NEAR_DUP_THRESHOLD = 5
 def _average_hash(path: Path) -> str | None:
     """Dependency-light perceptual average-hash for near-duplicate detection."""
     try:
+        import numpy as np
         with Image.open(path) as image:
             small = image.convert("L").resize((_PHASH_SIZE, _PHASH_SIZE), Image.BILINEAR)
-            pixels = list(small.getdata())
-        avg = sum(pixels) / len(pixels)
+            pixels = np.asarray(small, dtype=np.float64).flatten()
+        avg = pixels.mean()
         bits = "".join("1" if p > avg else "0" for p in pixels)
         return f"{int(bits, 2):016x}"
     except Exception:

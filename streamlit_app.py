@@ -94,6 +94,18 @@ with tabs[15]:
     for report in sorted((case / "reports").glob("*.html")):
         st.download_button(report.name, report.read_bytes(), file_name=report.name)
 with tabs[16]:
-    st.code("python main.py qa --analysis CASE\\analysis.json --question \"...\" --language en")
+    st.caption("Answers are grounded ONLY in this case's saved evidence and cite evidence IDs.")
+    qa_language = st.selectbox("Language", ["en", "ar"], key="qa_lang")
+    qa_question = st.text_input("Question about this case", key="qa_question")
+    if qa_question:
+        from doar.qa import answer as _qa_answer
+        try:
+            response = _qa_answer(qa_question, analysis, judges, qa_language)
+            st.json(response)
+        except Exception as exc:  # pragma: no cover - UI guard
+            st.error(f"Could not answer from saved evidence: {exc}")
+    st.divider()
+    st.caption("Equivalent CLI:")
+    st.code('python main.py qa --analysis CASE/analysis.json --question "..." --language en')
 with tabs[17]:
     st.info("Load validation_leaderboard.json after local model experiments.")

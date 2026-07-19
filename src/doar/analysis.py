@@ -202,6 +202,64 @@ def _save_artifacts(
     }
 
 
+# Quality-gate thresholds (D9). Justified, conservative defaults; below these a
+# drawing lacks the detail/sharpness/contrast for reliable objective analysis.
+MIN_DIMENSION_PX = 100          # below this, detail is insufficient
+MIN_BLUR_VARIANCE = 15.0        # Laplacian variance; lower => blurred/defocused
+MIN_CONTRAST_STD = 8.0          # near-flat scans carry little signal
+
+
+def _laplacian_variance(gray: np.ndarray) -> float:
+    """Variance of a discrete Laplacian — a standard sharpness/blur proxy.
+    Pure-numpy (no OpenCV): 4-neighbour Laplacian on the interior."""
+    g = gray.astype(np.float64)
+    lap = (
+        -4 * g[1:-1, 1:-1]
+        + g[:-2, 1:-1] + g[2:, 1:-1] + g[1:-1, :-2] + g[1:-1, 2:]
+    )
+    return float(lap.var()) if lap.size else 0.0
+
+
+def _quality(image) -> dict:
+    """Real quality gating (D9): resolution, blur (Laplacian variance), contrast.
+    `supported` is now derived, not hardcoded."""
+    gray = np.asarray(image.convert("L"))
+    contrast_std = float(gray.std())
+    blur_variance = _laplacian_variance(gray)
+    min_dimension = int(min(image.width, image.height))
+
+    resolution_ok = min_dimension >= MIN_DIMENSION_PX
+    blur_ok = blur_variance >= MIN_BLUR_VARIANCE
+    contrast_ok = contrast_std >= MIN_CONTRAST_STD
+    supported = resolution_ok and blur_ok and contrast_ok
+
+    reasons = []
+    if not resolution_ok:
+        reasons.append(f"resolution below {MIN_DIMENSION_PX}px (min_dimension={min_dimension})")
+    if not blur_ok:
+        reasons.append(f"low sharpness (blur_variance={blur_variance:.1f} < {MIN_BLUR_VARIANCE})")
+    if not contrast_ok:
+        reasons.append(f"low contrast (contrast_std={contrast_std:.1f} < {MIN_CONTRAST_STD})")
+
+    return {
+        "width": image.width,
+        "height": image.height,
+        "min_dimension": min_dimension,
+        "contrast_std": round(contrast_std, 3),
+        "blur_variance": round(blur_variance, 3),
+        "resolution_ok": resolution_ok,
+        "blur_ok": blur_ok,
+        "contrast_ok": contrast_ok,
+        "supported": supported,
+        "unsupported_reasons": reasons,
+        "gate_thresholds": {
+            "min_dimension_px": MIN_DIMENSION_PX,
+            "min_blur_variance": MIN_BLUR_VARIANCE,
+            "min_contrast_std": MIN_CONTRAST_STD,
+        },
+    }
+
+
 def analyze_image(
     image_path: str | Path, output_dir: str | Path, emotion_checkpoint: str | Path | None = None
 ) -> Analysis:
@@ -212,12 +270,7 @@ def analyze_image(
     colour = _colour(rgb, mask, background)
     output = Path(output_dir)
     artifacts = _save_artifacts(image, mask, composition, candidates, output / "artifacts")
-    quality = {
-        "width": image.width,
-        "height": image.height,
-        "contrast_std": float(np.asarray(image.convert("L")).std()),
-        "supported": True,
-    }
+    quality = _quality(image)
     evidence = [
         Evidence("ev_seg_coverage", "objective_feature", composition["foreground_coverage"],
                  "border_colour_distance_v1", seg_conf),

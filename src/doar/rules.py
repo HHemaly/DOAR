@@ -34,6 +34,12 @@ def _status_for(rule: dict, composition: dict) -> tuple[str, list[str], list[str
     return "not_evaluated", [], [f"detection:{key}"]
 
 
+# Nominal confidence assigned to a weak-support match BEFORE the per-rule ceiling
+# is applied. The registry ceilings (0.05-0.25) always bind, so the emitted
+# confidence is min(base, ceiling) — the ceiling is now numerically enforced.
+_WEAK_SUPPORT_BASE = 0.5
+
+
 def evaluate_rules(
     composition: dict, colour: dict, evidence: list[Evidence]
 ) -> tuple[list[dict], list[dict]]:
@@ -42,6 +48,10 @@ def evaluate_rules(
     evaluations = []
     for rule in rules["rules"]:
         status, matched, missing = _status_for(rule, composition)
+        ceiling = float(rule["confidence_ceiling"])
+        # Enforce the ceiling: only weak-support matches carry any confidence,
+        # and it can never exceed the registry ceiling for that rule.
+        rule_confidence = round(min(_WEAK_SUPPORT_BASE, ceiling), 4) if status == "weak_support" else 0.0
         evaluations.append({
             "rule_id": rule["rule_id"],
             "status": status,
@@ -49,7 +59,9 @@ def evaluate_rules(
             "missing_evidence": missing,
             "source_type": "psychologist_supplied_hypothesis",
             "scientific_support": rule["scientific_support"],
-            "confidence_ceiling": rule["confidence_ceiling"],
+            "confidence_ceiling": ceiling,
+            "rule_confidence": rule_confidence,
+            "confidence_ceiling_enforced": True,
             "professional_reasoning": rule["professional_reasoning"] if status == "weak_support" else None,
             "parent_safe_wording": rule["parent_safe_wording"] if status == "weak_support" else None,
             "original_arabic": rule["arabic"],
