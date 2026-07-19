@@ -102,12 +102,20 @@ def main() -> None:
     ingest.add_argument("--pdf", required=True)
     ingest.add_argument("--output", required=True)
     ingest.add_argument("--source-id", default=None)
+    def _add_test_guard_args(parser):
+        parser.add_argument("--unlock-test", action="store_true")
+        parser.add_argument("--confirm-final-evaluation", action="store_true")
+        parser.add_argument("--initiated-by", default=None)
+
     export_probs = commands.add_parser("export-probabilities")
-    export_probs.add_argument("--model", required=True, help="A .joblib model bundle")
-    export_probs.add_argument("--features", required=True)
+    export_probs.add_argument("--model", required=True, help=".joblib bundle or .pt/.pth checkpoint")
+    export_probs.add_argument("--features", default=None, help="Features CSV (sklearn models)")
     export_probs.add_argument("--embeddings", default=None, help="Embeddings .npz (fusion models)")
+    export_probs.add_argument("--manifest", default=None, help="Manifest CSV (deep checkpoints)")
+    export_probs.add_argument("--device", default="auto")
     export_probs.add_argument("--output", required=True, help="Output export .json path")
     export_probs.add_argument("--splits", default="train,valid", help="Comma splits to export")
+    _add_test_guard_args(export_probs)
 
     late_fusion = commands.add_parser("train-late-fusion")
     late_fusion.add_argument("--base", nargs="+", required=True,
@@ -123,6 +131,7 @@ def main() -> None:
     apply_late.add_argument("--base", nargs="+", required=True)
     apply_late.add_argument("--split", default="valid")
     apply_late.add_argument("--output", required=True)
+    _add_test_guard_args(apply_late)
     thesis_cmd = commands.add_parser("generate-thesis-outputs")
     thesis_cmd.add_argument("--output", required=True, help="Output root containing experiment artifacts")
 
@@ -176,6 +185,7 @@ def main() -> None:
     eval_preds.add_argument("--export", required=True, help="A probability export JSON")
     eval_preds.add_argument("--split", default="valid")
     eval_preds.add_argument("--output", required=True)
+    _add_test_guard_args(eval_preds)
     gpu_smoke = commands.add_parser("gpu-smoke")
     gpu_smoke.add_argument("--output", default=None)
     gpu_smoke.add_argument("--device", default="auto")
@@ -343,9 +353,17 @@ def main() -> None:
                           "output": args.output}, ensure_ascii=False, indent=2))
     elif args.command == "export-probabilities":
         from doar.probability_export import export_probabilities
+        from doar.test_guard import require_test_access
+        req_splits = [s.strip() for s in args.splits.split(",")]
+        if "test" in req_splits:
+            require_test_access(
+                "test", unlock_test=args.unlock_test,
+                confirm_final_evaluation=args.confirm_final_evaluation,
+                initiated_by=args.initiated_by, command="export-probabilities",
+                audit_dir=Path(args.output).parent, model=args.model, splits=req_splits)
         print(json.dumps(export_probabilities(
             args.model, args.features, args.embeddings, args.output,
-            splits=[s.strip() for s in args.splits.split(",")],
+            splits=req_splits, manifest=args.manifest, device=args.device,
         ), indent=2))
     elif args.command == "train-late-fusion":
         from doar.fusion.late import train_late_fusion
@@ -355,6 +373,13 @@ def main() -> None:
     elif args.command == "apply-late-fusion":
         import numpy as _np
         from doar.fusion.late import load_late_fusion, apply_late_fusion
+        from doar.test_guard import require_test_access
+        if args.split == "test":
+            require_test_access(
+                "test", unlock_test=args.unlock_test,
+                confirm_final_evaluation=args.confirm_final_evaluation,
+                initiated_by=args.initiated_by, command="apply-late-fusion",
+                audit_dir=args.output, model=args.model)
         model_meta = load_late_fusion(args.model)
         ids, fused = apply_late_fusion(model_meta, args.base, args.split)
         out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
@@ -429,6 +454,13 @@ def main() -> None:
         import numpy as _np
         from doar.evaluation import (load_probability_export, compute_metrics,
                                      write_metrics_csv, CLASS_ORDER)
+        from doar.test_guard import require_test_access
+        if args.split == "test":
+            require_test_access(
+                "test", unlock_test=args.unlock_test,
+                confirm_final_evaluation=args.confirm_final_evaluation,
+                initiated_by=args.initiated_by, command="evaluate-predictions",
+                audit_dir=args.output, export=args.export)
         exp = load_probability_export(args.export)
         rows = [r for r in exp["predictions"] if r["split"] == args.split]
         if not rows:

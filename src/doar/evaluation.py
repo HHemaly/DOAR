@@ -124,25 +124,30 @@ EXPORT_FIELDS = ["sample_id", "split", "true_label", "predicted_label",
 
 def save_probability_export(path, *, sample_ids, splits, y_true, proba,
                             model_id, checkpoint_hash, calibration_status,
-                            class_order=None, fold_ids=None) -> str:
-    """Write a probability export (.json) in the common format (Item 8).
+                            class_order=None, fold_ids=None, raw_proba=None,
+                            temperature=None) -> str:
+    """Write a probability export (.json) in the common format (Item 8 / B1).
 
-    Contains per-sample: sample_id, split, true_label, class probabilities,
-    plus a header with class_order, checkpoint_hash, calibration_status, model_id
-    and (for OOF stacking) fold_id. Aligned by sample_id — never row order.
+    `proba` is the probability actually used downstream (calibrated when a
+    temperature is applied). `raw_proba` (optional) carries the pre-calibration
+    probabilities. Per-sample: sample_id, split, true_label, probabilities,
+    raw_probabilities, predicted_label, confidence, fold_id. Aligned by sample_id.
     """
     class_order = class_order or CLASS_ORDER
     proba = np.asarray(proba, dtype=float)
+    raw = np.asarray(raw_proba, dtype=float) if raw_proba is not None else None
     n = len(sample_ids)
     if not (len(splits) == n == len(y_true) == proba.shape[0]):
         raise ValueError("save_probability_export: length mismatch across inputs")
+    if raw is not None and raw.shape != proba.shape:
+        raise ValueError("save_probability_export: raw_proba shape mismatch")
     if len(set(sample_ids)) != n:
         raise ValueError("save_probability_export: duplicate sample_id values")
 
     rows = []
     for i, sid in enumerate(sample_ids):
         pred = int(proba[i].argmax())
-        rows.append({
+        row = {
             "sample_id": str(sid),
             "split": splits[i],
             "true_label": class_order[int(y_true[i])] if y_true[i] is not None else None,
@@ -150,12 +155,16 @@ def save_probability_export(path, *, sample_ids, splits, y_true, proba,
             "predicted_label": class_order[pred],
             "confidence": float(proba[i][pred]),
             "fold_id": (int(fold_ids[i]) if fold_ids is not None else None),
-        })
+        }
+        if raw is not None:
+            row["raw_probabilities"] = {c: float(raw[i][j]) for j, c in enumerate(class_order)}
+        rows.append(row)
     payload = {
         "format": "doar_probability_export_v1",
         "model_id": model_id,
         "checkpoint_hash": checkpoint_hash,
         "calibration_status": calibration_status,
+        "temperature": temperature,
         "class_order": list(class_order),
         "count": n,
         "predictions": rows,
