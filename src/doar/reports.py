@@ -3,11 +3,14 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
+from .localization import localize_mapping
 
-def _rows(mapping: dict) -> str:
+
+def _rows(mapping: dict, language: str = "en") -> str:
+    localized = localize_mapping(mapping, language)
     return "".join(
         f"<tr><th>{html.escape(str(key))}</th><td>{html.escape(str(value))}</td></tr>"
-        for key, value in mapping.items()
+        for key, value in localized.items()
     )
 
 
@@ -101,13 +104,13 @@ def _report_inner(analysis: dict, judges: dict, language: str = "en", parent: bo
     emotion = analysis["emotion"]
     return f"""<section lang="{language}" dir="{direction}">
     <h1>{title}</h1><div class="warning">{html.escape(disclaimer)}</div>
-    <h2>{"جودة الصورة" if ar else "Image quality"}</h2><table>{_rows(analysis["quality"])}</table>
-    <h2>{"التقسيم والخلفية" if ar else "Segmentation"}</h2><table>{_rows(analysis["segmentation"])}</table>
-    <h2>{"التكوين المكاني" if ar else "Composition"}</h2><table>{_rows(analysis["composition"])}</table>
-    <h2>{"الألوان" if ar else "Colours"}</h2><table>{_rows(analysis["colour"])}</table>
-    <h2>{"نموذج الانفعال" if ar else "Emotion model"}</h2><table>{_rows(emotion)}</table>
+    <h2>{"جودة الصورة" if ar else "Image quality"}</h2><table>{_rows(analysis["quality"], language)}</table>
+    <h2>{"التقسيم والخلفية" if ar else "Segmentation"}</h2><table>{_rows(analysis["segmentation"], language)}</table>
+    <h2>{"التكوين المكاني" if ar else "Composition"}</h2><table>{_rows(analysis["composition"], language)}</table>
+    <h2>{"الألوان" if ar else "Colours"}</h2><table>{_rows(analysis["colour"], language)}</table>
+    <h2>{"نموذج الانفعال" if ar else "Emotion model"}</h2><table>{_rows(emotion, language)}</table>
     {rule_section}
-    <h2>{"المراجعات الآلية" if ar else "Deterministic judges"}</h2><table>{_rows({k:v.get("status",v) if isinstance(v,dict) else v for k,v in judges.items()})}</table>
+    <h2>{"المراجعات الآلية" if ar else "Deterministic judges"}</h2><table>{_rows({k:v.get("status",v) if isinstance(v,dict) else v for k,v in judges.items()}, language)}</table>
     <p>{html.escape(disclaimer)}</p></section>"""
 
 
