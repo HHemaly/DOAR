@@ -26,6 +26,14 @@ from __future__ import annotations
 MIN_EVIDENCE = 2      # at least two independent evidence IDs
 MIN_SOURCES = 2       # from at least two distinct source types
 
+# Item 11 — the generic converged concern lacks a real, clinician-authored
+# taxonomy (eligible evidence, contradicting evidence, per-concern wording and
+# approval). Until concern-specific profiles AND independent detectors exist,
+# concerns are DISABLED by default rather than emitting a generic concern. The
+# convergence logic below is retained and unit-tested for when it is enabled with
+# a proper taxonomy. Never enable this without concern-specific profiles.
+CONCERNS_ENABLED = False
+
 
 # Which evidence IDs count as which independent "source type". Clinician-supplied
 # symbolic rules are all ONE source type, so several of them alone never converge.
@@ -45,9 +53,16 @@ def _source_type(evidence_id: str, rule: dict) -> str:
     return "other"
 
 
-def derive_concerns(rule_evaluations: list[dict]) -> list[dict]:
-    """Return concern profiles that satisfy multi-source convergence. Usually
-    empty in the current release (no independent detectors)."""
+def derive_concerns(rule_evaluations: list[dict], *, enabled: bool | None = None) -> list[dict]:
+    """Return concern profiles that satisfy multi-source convergence.
+
+    DISABLED by default (Item 11): returns [] unless explicitly enabled with a
+    real taxonomy in place. The convergence logic is retained for that future
+    state and is exercised by unit tests via `enabled=True`."""
+    if enabled is None:
+        enabled = CONCERNS_ENABLED
+    if not enabled:
+        return []
     # Collect supporting evidence grouped by the theme (observable family).
     supporting = []  # (evidence_id, source_type, rule)
     for rule in rule_evaluations:
