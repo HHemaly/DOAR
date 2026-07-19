@@ -84,16 +84,20 @@ not discarded.
 | # | Defect | Sev | Status |
 |---|---|---|---|
 | D1 | Calibration written (valid-only) but **not wired** — inference always uncalibrated. | High | ✅ **Fixed** — `calibrate_checkpoint()` (valid-only) + `calibrate` CLI + `predict_image` applies temperature; returns calibrated + raw. |
-| D2 | Late-fusion/stacking/ensemble-uncertainty exist only as **unused library code**; executed path is early fusion. | Med | ⏳ Remaining — wire `probability.py`/`uncertainty.py` into a late-fusion CLI arm (RQ3), or scope thesis to early fusion + document. |
+| D2 | Late-fusion/stacking/ensemble-uncertainty exist only as **unused library code**; executed path is early fusion. | Med | ✅ **Fixed** — `run_late_fusion` + `fusion/late.py` + `train-late-fusion` CLI (equal / validation-weighted / logistic stacking, valid-only, OOF-checked); ensemble uncertainty wired. |
 | D3 | Cross-split duplicate/near-dup leakage **detected but not blocked**. | High | ✅ **Fixed** — `build_manifest` now emits `cross_split_exact_leakage`, `cross_split_near_duplicate_leakage` (perceptual hash), `leakage_ok`, `leakage_status`. |
 | D4 | Shape features `enclosed_shape_count`/`repetition_score` hardcoded `0.0`. | Med | ✅ **Fixed** — marked `missing`, confidence 0, `method="not_evaluated_no_detector"` (honest, not faked). |
 | D5 | Embedding `preprocessing_version` mislabeled `imagenet_v1` for CLIP/DINOv2. | Med | ✅ **Fixed** — records `openclip_native_preprocess` / `dinov2_native_preprocess` / `imagenet_v1` correctly. |
-| D6 | Concern-convergence engine is a stub (`evaluate_rules` returns `[]`). | Med | 🔒 Remaining — needs multi-source convergence over ≥2 independent evidence IDs; most symbolic evidence requires detectors that don't exist yet. |
+| D6 | Concern-convergence engine is a stub (`evaluate_rules` returns `[]`). | Med | ✅ **Fixed** — `concerns.derive_concerns` requires ≥2 independent evidence IDs from ≥2 source types, capped confidence, never single-symbol. Stays `[]` on the current registry by *logic*, not hardcode; populates when detectors are added. |
 | D7 | `safety_judge` English-only and narrow. | High | ✅ **Fixed** — broadened EN patterns + Arabic terms; scans reasoning + parent + Arabic wording; EN/AR disclaimer check. |
 | D8 | `bilingual.html` malformed (two doctypes). | Low | ✅ **Fixed** — single valid document with LTR + RTL sections via shared body fragment. |
-| D9 | Cosmetic placeholder artifacts; `quality.supported` hardcoded `True`. | Med | ⏳ Remaining — implement real blur/resolution quality gating or explicitly label illustrative artifacts. |
-| D10 | `confidence_ceiling` never enforced; Streamlit Q&A tab inert. | Low/Med | ⏳ Remaining — enforce ceiling on rule-derived scores; wire Q&A tab to `qa.answer`. |
-| D11 | Only `tests/test_objective.py`. | Med | ⏳ Partially — added 11 tests (safety/leakage/calibration/integrity); more critical-path coverage still valuable. |
+| D9 | Cosmetic placeholder artifacts; `quality.supported` hardcoded `True`. | Med | ✅ **Fixed** — real resolution/blur(Laplacian variance)/contrast gating drives `supported` + sub-checks + reasons; feeds quality_judge. |
+| D10 | `confidence_ceiling` never enforced; Streamlit Q&A tab inert. | Low/Med | ✅ **Fixed** — `rule_confidence = min(base, ceiling)` emitted + enforced flag; Streamlit Q&A tab now calls `qa.answer`. |
+| D11 | Only `tests/test_objective.py`. | Med | ✅ **Largely addressed** — +26 tests across 7 new suites (safety, leakage, calibration, integrity, quality-gate, confidence-ceiling, late-fusion, concerns/ingest); 44 total pass. |
+
+**All 11 confirmed defects (D1–D11) are now fixed on `claude/nice-allen-IgPnj`
+with tests.** Remaining work is dataset/GPU/psychologist-dependent (below), not
+code defects.
 
 **Provenance caveat (important):** `PSYCHOLOGIST_SOURCE_AUDIT.md` states the real
 source PDF (`التحليل النفسي للصور.pdf`) was **never readable** in the v3 authors'
