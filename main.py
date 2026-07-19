@@ -504,26 +504,46 @@ def main() -> None:
         ), indent=2))
     elif args.command == "train-fusion-model":
         from doar.fusion.trainer import train_primary_fusion
+        from doar.config import assert_all_config_consumed, save_run_metadata
         config = load_config(args.config, {
             "inputs": {"features", "embeddings"},
             "experiment": {"methods", "seeds", "selection_split", "primary_metric",
                            "psychologist_rules_used", "concern_profiles_used"},
             "output": {"directory", "calibration"},
         })
-        values = resolve(vars(args), config, {
+        # B4: map EVERY accepted field -> consume, and assert none is unused.
+        mapping = {
             "features": ("inputs", "features"), "embeddings": ("inputs", "embeddings"),
-            "output": ("output", "directory"), "methods": ("experiment", "methods"),
-            "seeds": ("experiment", "seeds"),
-        }, supplied)
+            "methods": ("experiment", "methods"), "seeds": ("experiment", "seeds"),
+            "selection_split": ("experiment", "selection_split"),
+            "primary_metric": ("experiment", "primary_metric"),
+            "psychologist_rules_used": ("experiment", "psychologist_rules_used"),
+            "concern_profiles_used": ("experiment", "concern_profiles_used"),
+            "output": ("output", "directory"), "calibration": ("output", "calibration"),
+        }
+        assert_all_config_consumed(config, mapping)
+        values = resolve(vars(args), config, mapping, supplied)
         if not all(values.get(name) for name in ("features", "embeddings", "output")):
             raise ValueError("train-fusion-model requires features, embeddings, and output")
-        methods = values["methods"] if isinstance(values["methods"], list) else values["methods"].split(",")
-        seeds = values["seeds"] if isinstance(values["seeds"], list) else values["seeds"].split(",")
-        config_hash = save_resolved(values["output"], args.command, values)
+        # B4: enforce the mandatory scientific-separation constraints.
+        sel = values.get("selection_split") or "valid"
+        pm = values.get("primary_metric") or "macro_f1"
+        if sel != "valid":
+            raise ValueError(f"selection_split must be 'valid' (got {sel!r})")
+        if pm not in ("macro_f1", "mean_macro_f1"):
+            raise ValueError(f"primary_metric must be 'macro_f1' (got {pm!r})")
+        for flag in ("psychologist_rules_used", "concern_profiles_used"):
+            v = values.get(flag)
+            if v not in (None, False, "false", "False"):
+                raise ValueError(f"{flag} must be false; the clinical layer never feeds the classifier")
+        methods = values["methods"] if isinstance(values["methods"], list) else str(values["methods"]).split(",")
+        seeds = values["seeds"] if isinstance(values["seeds"], list) else str(values["seeds"]).split(",")
+        config_hash = save_run_metadata(values["output"], args.command, vars(args), values)
         print(json.dumps(train_primary_fusion(
             values["features"], values["embeddings"], values["output"],
             [str(item).strip() for item in methods if str(item).strip()],
             tuple(int(item) for item in seeds), configuration_hash=config_hash,
+            calibration=values.get("calibration"),
         ), indent=2))
     elif args.command == "validate-dataset":
         from doar.readiness import validate_dataset

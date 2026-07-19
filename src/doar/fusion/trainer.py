@@ -86,13 +86,21 @@ def _model(method: str, seed: int, objective_dim: int, embedding_dim: int, d: di
 def train_primary_fusion(
     features_csv: str | Path, embeddings_npz: str | Path, output: str | Path,
     methods: list[str] | None = None, seeds: tuple[int, ...] = (42, 123, 2026),
-    configuration_hash: str | None = None,
+    configuration_hash: str | None = None, calibration: str | None = None,
 ) -> dict:
     d = _deps()
     embedding_metadata_path = Path(embeddings_npz).with_name("embedding_metadata.json")
     if not embedding_metadata_path.exists():
         raise ValueError("Embedding metadata is required beside embeddings.npz")
     embedding_metadata = json.loads(embedding_metadata_path.read_text(encoding="utf-8"))
+    # B5: verify features + embeddings share a manifest, sample-IDs and acceptable
+    # leakage status before training (reject mismatches, don't silently intersect).
+    from ..provenance import verify_artifacts
+    feature_meta_path = Path(features_csv).with_name("extraction_metadata.json")
+    if feature_meta_path.exists():
+        feature_prov = json.loads(feature_meta_path.read_text(encoding="utf-8")).get("provenance")
+        verify_artifacts(feature_prov, embedding_metadata.get("provenance"),
+                         audit_dir=Path(output))
     methods = methods or list(PRIMARY_METHODS)
     feature_names, joined = _load(features_csv, embeddings_npz)
     objective_dim = len(feature_names)
@@ -182,4 +190,29 @@ def train_primary_fusion(
         writer = csv.DictWriter(handle, fieldnames=list(leaderboard[0]))
         writer.writeheader()
         writer.writerows(leaderboard)
+
+    # B4: select the winning configuration on VALIDATION only, then (optionally)
+    # calibrate the winning bundle on validation, preserving the raw bundle.
+    winner_method = leaderboard[0]["method"] if leaderboard else None
+    winner_runs = [r for r in runs if r["method"] == winner_method]
+    winner_best = max(winner_runs, key=lambda r: r["metrics"]["macro_f1"]) if winner_runs else None
+    summary["winner"] = {"method": winner_method,
+                         "checkpoint": winner_best["checkpoint"] if winner_best else None,
+                         "selection_split": "valid", "test_used": False}
+    calibration_result = None
+    if calibration and str(calibration).lower() in ("temperature_scaling", "temperature") and winner_best:
+        try:
+            from .calibrate import calibrate_fusion_bundle
+            calibration_result = calibrate_fusion_bundle(
+                winner_best["checkpoint"], features_csv, embeddings_npz,
+                output / "winner_calibration")
+        except Exception as exc:  # pragma: no cover - needs data
+            calibration_result = {"status": "failed", "error": str(exc)}
+    summary["winner_calibration"] = calibration_result
+
+    executed = {"methods": methods, "seeds": list(seeds), "selection_split": "valid",
+                "primary_metric": "macro_f1", "calibration": calibration,
+                "psychologist_rules_used": False, "concern_profiles_used": False,
+                "winner_method": winner_method}
+    (output / "executed_config.json").write_text(json.dumps(executed, indent=2), encoding="utf-8")
     return summary

@@ -6,7 +6,7 @@ embeddings = "outputs/embeddings/resnet18/embeddings.npz"
 methods = ["early_scaled_concat", "pca_early_fusion", "mlp_early_fusion"]
 seeds = [42, 123, 2026]
 selection_split = "valid"
-primary_metric = "mean_macro_f1"
+primary_metric = "macro_f1"
 psychologist_rules_used = false
 concern_profiles_used = false
 

@@ -178,6 +178,16 @@ def extract_embeddings(
         "splits": sorted(set(splits)), "classes": list(CLASSES),
         **finetuned_meta,
     }
+    # B5: artifact provenance so features/embeddings can be verified as coming
+    # from the same manifest with matching sample-ID sets.
+    from ..provenance import build_embedding_provenance
+    metadata["provenance"] = build_embedding_provenance(
+        manifest, ids, class_order=list(CLASSES),
+        extraction_config_hash=fingerprint, backbone=backbone,
+        revision=pp_spec.get("revision", "unknown"),
+        checkpoint_hash=finetuned_meta.get("checkpoint_hash"),
+        preprocessing_hash=preprocessing_hash(pp_spec),
+        embedding_dimension=int(matrix.shape[1]) if matrix.size else 0)
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return metadata
 

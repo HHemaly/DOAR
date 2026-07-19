@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import traceback
 from pathlib import Path
 
 from .analysis import analyze_image
+from .dataset import CLASSES
 from .features import objective_feature_row, serialize_feature_row
 
 
@@ -59,6 +61,16 @@ def extract_features(manifest: str | Path, output: str | Path) -> dict:
         name: sum(not str(row.get(name, "")).strip() or str(row.get(name)).lower() == "nan" for row in flat_rows)
         for name in schema
     }
+    # B5: artifact provenance.
+    from .provenance import build_feature_provenance
+    ordered_ids = [row["image_id"] for row in flat_rows]
+    extraction_config_hash = hashlib.sha256(
+        json.dumps({"fields": sorted(schema), "n": len(flat_rows)}, sort_keys=True).encode()
+    ).hexdigest()
+    provenance = build_feature_provenance(
+        manifest, ordered_ids, class_order=list(CLASSES),
+        extraction_config_hash=extraction_config_hash,
+        feature_schema_version="objective_features_v3_1")
     summary = {
         "manifest": str(Path(manifest).resolve()),
         "processed": len(flat_rows),
@@ -67,6 +79,7 @@ def extract_features(manifest: str | Path, output: str | Path) -> dict:
         "splits": sorted({row["split"] for row in flat_rows}),
         "test_features_extracted_but_never_used_for_training": True,
         "missing_values": missing,
+        "provenance": provenance,
     }
     (output / "extraction_metadata.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
