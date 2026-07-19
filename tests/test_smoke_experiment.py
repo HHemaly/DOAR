@@ -40,7 +40,8 @@ class SmokeExperimentTests(unittest.TestCase):
     def test_limited_subset_and_no_test(self):
         from doar.smoke import run_smoke_experiment
         with tempfile.TemporaryDirectory() as d:
-            data = Path(d) / "data"; _synthetic_dataset(data, per_class=6)
+            data = Path(d) / "data"
+            _synthetic_dataset(data, per_class=6)
             out = Path(d) / "out"
             s = run_smoke_experiment(str(data), str(out), max_samples_per_class=2,
                                      device="cpu", skip_deep=True)
@@ -61,7 +62,8 @@ class SmokeExperimentTests(unittest.TestCase):
     def test_skip_deep_is_warn_not_fail(self):
         from doar.smoke import run_smoke_experiment
         with tempfile.TemporaryDirectory() as d:
-            data = Path(d) / "data"; _synthetic_dataset(data, per_class=4)
+            data = Path(d) / "data"
+            _synthetic_dataset(data, per_class=4)
             s = run_smoke_experiment(str(data), str(Path(d) / "out"),
                                      max_samples_per_class=2, device="cpu", skip_deep=True)
             self.assertIn("small_cnn", s["skipped_steps"])
@@ -71,7 +73,8 @@ class SmokeExperimentTests(unittest.TestCase):
     def test_require_deep_runs_cnn_on_limited_subset_and_passes(self):
         from doar.smoke import run_smoke_experiment
         with tempfile.TemporaryDirectory() as d:
-            data = Path(d) / "data"; _synthetic_dataset(data, per_class=5)
+            data = Path(d) / "data"
+            _synthetic_dataset(data, per_class=5)
             out = Path(d) / "out"
             s = run_smoke_experiment(str(data), str(out), max_samples_per_class=2,
                                      device="cpu", require_deep=True)

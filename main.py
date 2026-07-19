@@ -410,7 +410,8 @@ def main() -> None:
                 audit_dir=args.output, model=args.model)
         model_meta = load_late_fusion(args.model)
         ids, fused = apply_late_fusion(model_meta, args.base, args.split)
-        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        out = Path(args.output)
+        out.mkdir(parents=True, exist_ok=True)
         order = model_meta["class_order"]
         rows = [{"sample_id": sid, **{order[j]: float(fused[i][j]) for j in range(len(order))}}
                 for i, sid in enumerate(ids)]
@@ -427,7 +428,8 @@ def main() -> None:
     elif args.command == "review-agreement":
         from doar.review import compute_agreement
         result = compute_agreement(args.master, exclude_synthetic=not args.include_synthetic)
-        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        out = Path(args.output)
+        out.mkdir(parents=True, exist_ok=True)
         (out / "agreement.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(json.dumps(result, indent=2))
     elif args.command == "explain-features":
@@ -435,7 +437,6 @@ def main() -> None:
         import joblib
         from doar.explain.feature_importance import permutation_importance
         from doar.fusion.embedding_comparison import load_features_indexed
-        from doar.dataset import CLASSES
         bundle = joblib.load(args.model)
         model = bundle["model"]
         feat = load_features_indexed(args.features)["valid"]
@@ -446,11 +447,13 @@ def main() -> None:
         result = permutation_importance(model.predict_proba, X, y,
                                         names or [f"f{i}" for i in range(X.shape[1])],
                                         n_repeats=args.n_repeats)
-        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        out = Path(args.output)
+        out.mkdir(parents=True, exist_ok=True)
         (out / "feature_importance.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         import csv as _csv
         with open(out / "feature_importance.csv", "w", newline="", encoding="utf-8") as h:
-            w = _csv.writer(h); w.writerow(["feature", "importance_mean", "importance_std"])
+            w = _csv.writer(h)
+            w.writerow(["feature", "importance_mean", "importance_std"])
             for r in result["importances"]:
                 w.writerow([r["feature"], r["importance_mean"], r["importance_std"]])
         print(json.dumps({"top": result["importances"][:5], "disclaimer": result["disclaimer"]}, indent=2))
@@ -481,7 +484,7 @@ def main() -> None:
     elif args.command == "evaluate-predictions":
         import numpy as _np
         from doar.evaluation import (load_probability_export, compute_metrics,
-                                     write_metrics_csv, CLASS_ORDER)
+                                     write_metrics_csv)
         from doar.test_guard import require_test_access
         if args.split == "test":
             require_test_access(
@@ -498,7 +501,8 @@ def main() -> None:
         proba = _np.array([[r["probabilities"][c] for c in order] for r in rows])
         y_pred = proba.argmax(1)
         metrics = compute_metrics(y_true, y_pred, proba, class_names=order)
-        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        out = Path(args.output)
+        out.mkdir(parents=True, exist_ok=True)
         (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
         write_metrics_csv(metrics, out / "per_class_metrics.csv")
         print(json.dumps({"split": args.split, "macro_f1": metrics["macro_f1"],

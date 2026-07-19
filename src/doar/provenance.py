@@ -15,7 +15,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .dataset import CLASSES
 
 ACCEPTABLE_LEAKAGE = {"PASS", "OVERRIDDEN"}
 
@@ -130,7 +129,8 @@ def verify_artifacts(feature_prov: dict, embedding_prov: dict, *,
         "issues": issues,
     }
     if audit_dir:
-        out = Path(audit_dir); out.mkdir(parents=True, exist_ok=True)
+        out = Path(audit_dir)
+        out.mkdir(parents=True, exist_ok=True)
         with open(out / "provenance_override_audit.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(event, ensure_ascii=False) + "\n")
     return {"ok": True, "overridden": True, "issues": issues}

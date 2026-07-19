@@ -86,7 +86,8 @@ def run_feature_ablation(features_csv, output, seeds=(42, 123, 2026)) -> dict:
     names, data = _load(features_csv)
     Xtr, ytr = data["train"]
     Xva, yva = data["valid"]
-    out = Path(output); out.mkdir(parents=True, exist_ok=True)
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
 
     results = []
     for cfg in ablation_configs():
@@ -101,7 +102,8 @@ def run_feature_ablation(features_csv, output, seeds=(42, 123, 2026)) -> dict:
             secs.append(time.perf_counter() - t0)
             proba = clf.predict_proba(Xva[:, keep])
             m = compute_metrics(yva, proba.argmax(1), proba)
-            f1s.append(m["macro_f1"]); eces.append(m["ece"])
+            f1s.append(m["macro_f1"])
+            eces.append(m["ece"])
         results.append({
             "configuration": cfg["name"], "dropped_families": cfg["drop_families"],
             "n_features": len(keep), "selection_split": "valid", "test_used": False,

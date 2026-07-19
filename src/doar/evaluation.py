@@ -74,7 +74,10 @@ def compute_metrics(y_true, y_pred, y_proba, class_names=None) -> dict:
         f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
         per_class[name] = {"precision": float(prec), "recall": float(rec),
                            "f1": float(f1), "support": support}
-        precisions.append(prec); recalls.append(rec); f1s.append(f1); supports.append(support)
+        precisions.append(prec)
+        recalls.append(rec)
+        f1s.append(f1)
+        supports.append(support)
 
     total = len(y_true)
     accuracy = float((y_true == y_pred).mean()) if total else 0.0

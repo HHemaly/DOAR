@@ -69,7 +69,8 @@ def generate_oof(features_csv, output, model_name: str = "logistic_regression",
     n = len(ids)
     oof = np.zeros((n, len(CLASSES)), dtype=float)
     predicted_mask = np.zeros(n, dtype=bool)
-    out = Path(output); out.mkdir(parents=True, exist_ok=True)
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
     fold_meta = []
 
     for k in range(n_folds):

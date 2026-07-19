@@ -1,7 +1,6 @@
 """Item 2 — the `ml` extra must NOT pull PyTorch; `deep` provides it."""
 
 from __future__ import annotations
-import sys
 import tomllib
 import unittest
 from pathlib import Path

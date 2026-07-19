@@ -20,8 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..evaluation import (load_probability_export, align_exports, compute_metrics,
-                          CLASS_ORDER)
+from ..evaluation import (load_probability_export, align_exports, compute_metrics)
 from .probability import (equal_late_fusion, validation_weighted_late_fusion,
                           probability_meta_features, validate_oof_folds)
 
@@ -84,7 +83,8 @@ def train_late_fusion(export_files: list[str], output, method="validation_weight
     metrics = compute_metrics(y_true, fused.argmax(1), fused, class_names=class_order)
     per_sample = _per_sample_uncertainty(base_mats, calibrated)
 
-    out = Path(output); out.mkdir(parents=True, exist_ok=True)
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
 
     # Save the fitted fusion model so it can be reloaded/applied later.
     model_meta = {k: v for k, v in model.items() if k != "_estimator"}

@@ -30,7 +30,8 @@ def _geometry(compose):
     resize = crop = interp = mean = std = None
     for t in compose.transforms:
         if isinstance(t, transforms.Resize):
-            resize = t.size; interp = t.interpolation
+            resize = t.size
+            interp = t.interpolation
         elif isinstance(t, transforms.CenterCrop):
             crop = t.size
         elif isinstance(t, transforms.Normalize):
@@ -79,7 +80,8 @@ class PreprocessingConsistencyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             for split in ("train", "valid"):
                 for cls in ("Angry", "Fear", "Happy", "Sad"):
-                    p = Path(d) / split / cls; p.mkdir(parents=True)
+                    p = Path(d) / split / cls
+                    p.mkdir(parents=True)
                     Image.fromarray((np.random.RandomState(1).rand(40, 40, 3) * 255)
                                     .astype("uint8")).save(p / "a.png")
             w, _ = resolve_weights("resnet18", "DEFAULT")
@@ -97,16 +99,17 @@ class PreprocessingConsistencyTests(unittest.TestCase):
         from doar.deep.trainers import train_image_model
         from doar.deep.preprocessing import preprocessing_hash
         from PIL import Image
-        import numpy as np, json
+        import numpy as np
         with tempfile.TemporaryDirectory() as d:
             for split in ("train", "valid"):
                 for ci, cls in enumerate(("Angry", "Fear", "Happy", "Sad")):
-                    p = Path(d) / "data" / split / cls; p.mkdir(parents=True)
+                    p = Path(d) / "data" / split / cls
+                    p.mkdir(parents=True)
                     for i in range(3):
                         Image.fromarray((np.random.RandomState(ci*10+i).rand(48, 48, 3)*255)
                                         .astype("uint8")).save(p / f"{i}.png")
             out = Path(d) / "out"
-            res = train_image_model(str(Path(d)/"data"), "resnet18", str(out), seed=0,
+            train_image_model(str(Path(d)/"data"), "resnet18", str(out), seed=0,
                                     epochs=1, batch_size=2, image_size=224, device="cpu",
                                     workers=0, freeze_epochs=0, pretrained_weights="none")
             ckpt = torch.load(out / "best.pt", map_location="cpu", weights_only=False)

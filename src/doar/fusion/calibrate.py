@@ -95,10 +95,14 @@ def _save_reliability_diagram(y, raw, calibrated, path) -> None:
         xs = [b["mean_confidence"] for b in bins if b["mean_confidence"] is not None]
         ys = [b["accuracy"] for b in bins if b["accuracy"] is not None]
         ax.plot(xs, ys, marker="o", label=label, color=colour)
-    ax.set_xlabel("mean predicted confidence"); ax.set_ylabel("empirical accuracy")
-    ax.set_title("Reliability diagram (validation)"); ax.legend()
-    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-    p = Path(path); p.parent.mkdir(parents=True, exist_ok=True)
+    ax.set_xlabel("mean predicted confidence")
+    ax.set_ylabel("empirical accuracy")
+    ax.set_title("Reliability diagram (validation)")
+    ax.legend()
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
     for ext in ("png", "svg"):
         fig.savefig(p.with_suffix(f".{ext}"), dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -131,7 +135,8 @@ def calibrate_fusion_bundle(bundle_path, features_csv, embeddings_npz, output) -
     result = fit_fusion_temperature(raw_proba, y_valid)
     calibrated_proba = apply_temperature(raw_proba, result["temperature"])
 
-    out = Path(output); out.mkdir(parents=True, exist_ok=True)
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
     (out / "calibration.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     _save_reliability_diagram(y_valid, raw_proba, calibrated_proba, out / "reliability_diagram")
 

@@ -90,8 +90,10 @@ def _export_sklearn(model_path, features_csv, embeddings_npz, output, splits):
             vec = np.concatenate((np.asarray(feats), embed_by_id[sid]))
         else:
             vec = np.asarray(feats)
-        sample_ids.append(row["image_id"]); split_list.append(row["split"])
-        y_true.append(CLASSES.index(row["class"])); X.append(vec)
+        sample_ids.append(row["image_id"])
+        split_list.append(row["split"])
+        y_true.append(CLASSES.index(row["class"]))
+        X.append(vec)
         if has_fold:
             fold_ids.append(int(row["fold_id"]))
     if is_fusion and missing_embeddings:
@@ -131,7 +133,8 @@ def _export_deep(checkpoint, manifest, output, splits, device="auto"):
     if tuple(payload["classes"]) != CLASSES:
         raise ValueError("Checkpoint class mapping mismatch")
     model = build_model(payload["model_name"], len(CLASSES), pretrained=False)
-    model.load_state_dict(payload["model_state"]); model.to(selected).eval()
+    model.load_state_dict(payload["model_state"])
+    model.to(selected).eval()
 
     spec = payload.get("preprocessing_spec") or resolve_preprocessing(
         payload["model_name"], payload["image_size"])
@@ -149,8 +152,10 @@ def _export_deep(checkpoint, manifest, output, splits, device="auto"):
             img = Image.open(r["path"]).convert("RGB")
         except Exception as exc:
             raise ValueError(f"Unreadable sample {r['image_id']} ({r['path']}): {exc}")
-        tensors.append(tf(img)); sample_ids.append(r["image_id"])
-        split_list.append(r["split"]); y_true.append(CLASSES.index(r["class"]))
+        tensors.append(tf(img))
+        sample_ids.append(r["image_id"])
+        split_list.append(r["split"])
+        y_true.append(CLASSES.index(r["class"]))
 
     probs = []
     with torch.no_grad():

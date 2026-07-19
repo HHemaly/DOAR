@@ -13,7 +13,6 @@ import csv
 import json
 import shutil
 import time
-from collections import defaultdict
 from pathlib import Path
 
 from .dataset import CLASSES
@@ -59,11 +58,13 @@ def run_smoke_experiment(dataset, output, max_samples_per_class: int = 5,
     from .analysis import analyze_image
 
     started = time.perf_counter()
-    out = Path(output); out.mkdir(parents=True, exist_ok=True)
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
     steps, failed, skipped = {}, [], []
 
     def _fail(step, exc):
-        failed.append(step); steps[step] = f"FAIL: {exc}"
+        failed.append(step)
+        steps[step] = f"FAIL: {exc}"
 
     # Build the limited dataset (train/valid only) — the SAME subset for all stages.
     limited_dir = out / "limited_dataset"
@@ -76,7 +77,8 @@ def run_smoke_experiment(dataset, output, max_samples_per_class: int = 5,
         from .readiness import validate_dataset
         steps["validate_dataset"] = validate_dataset(str(limited_dir), str(out / "validate")).get("status")
     except Exception as exc:
-        steps["validate_dataset"] = f"skipped: {exc}"; skipped.append("validate_dataset")
+        steps["validate_dataset"] = f"skipped: {exc}"
+        skipped.append("validate_dataset")
 
     # 2 manifest of the LIMITED dataset (contains no test rows).
     manifest = out / "manifest.csv"
@@ -110,7 +112,8 @@ def run_smoke_experiment(dataset, output, max_samples_per_class: int = 5,
     # 6 optional one-epoch small_cnn on the SAME limited dataset.
     device_used, cuda_used, checkpoint = None, False, None
     if skip_deep:
-        steps["small_cnn_one_epoch"] = "skipped (--skip-deep)"; skipped.append("small_cnn")
+        steps["small_cnn_one_epoch"] = "skipped (--skip-deep)"
+        skipped.append("small_cnn")
     else:
         try:
             import torch  # noqa
@@ -127,7 +130,8 @@ def run_smoke_experiment(dataset, output, max_samples_per_class: int = 5,
             if require_deep:
                 _fail("small_cnn_one_epoch", exc)      # required -> smoke fails
             else:
-                steps["small_cnn_one_epoch"] = f"skipped: {exc}"; skipped.append("small_cnn")
+                steps["small_cnn_one_epoch"] = f"skipped: {exc}"
+                skipped.append("small_cnn")
 
     # 7 validation probability export + 8 common metrics (VALID only).
     val_metrics = None
@@ -155,7 +159,8 @@ def run_smoke_experiment(dataset, output, max_samples_per_class: int = 5,
             analyze_image(first, out / "example_case")
             steps["example_case"] = "PASS"
     except Exception as exc:
-        steps["example_case"] = f"skipped: {exc}"; skipped.append("example_case")
+        steps["example_case"] = f"skipped: {exc}"
+        skipped.append("example_case")
 
     # ── status ───────────────────────────────────────────────────────────────
     if failed:

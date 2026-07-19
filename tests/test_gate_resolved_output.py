@@ -21,7 +21,8 @@ def _clean_manifest(path):
     ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["image_id", "path", "split", "class", "sha256", "phash"])
-        w.writeheader(); w.writerows(rows)
+        w.writeheader()
+        w.writerows(rows)
 
 
 class GateResolvedOutputTests(unittest.TestCase):

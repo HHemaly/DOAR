@@ -23,7 +23,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .dataset import _average_hash, _hamming, NEAR_DUP_THRESHOLD, build_manifest
+from .dataset import _hamming, NEAR_DUP_THRESHOLD, build_manifest
 
 
 class LeakageError(RuntimeError):

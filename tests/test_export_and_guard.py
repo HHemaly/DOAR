@@ -86,16 +86,19 @@ class CalibratedExportTests(unittest.TestCase):
             fp = Path(d) / "features.csv"
             rng = np.random.RandomState(0)
             with open(fp, "w", newline="") as h:
-                w = csv.writer(h); w.writerow(["image_id", "path", "split", "class", "f0", "f1"])
+                w = csv.writer(h)
+                w.writerow(["image_id", "path", "split", "class", "f0", "f1"])
                 for i in range(20):
                     cls = ["Angry", "Fear", "Happy", "Sad"][i % 4]
                     w.writerow([f"s{i}", "", "valid", cls, rng.randn(), rng.randn()])
-            X = rng.randn(20, 2); y = np.array([i % 4 for i in range(20)])
+            X = rng.randn(20, 2)
+            y = np.array([i % 4 for i in range(20)])
             clf = LogisticRegression(max_iter=500).fit(X, y)
             bundle = {"model": clf, "model_name": "objfeat",
                       "calibration": {"status": "calibrated", "temperature": 2.5,
                                       "method": "temperature_scaling"}}
-            mp = Path(d) / "m.joblib"; joblib.dump(bundle, mp)
+            mp = Path(d) / "m.joblib"
+            joblib.dump(bundle, mp)
             out = Path(d) / "exp.json"
             export_probabilities(str(mp), str(fp), None, str(out), splits=["valid"])
             data = json.loads(out.read_text())
@@ -109,13 +112,15 @@ class CalibratedExportTests(unittest.TestCase):
             self.assertNotAlmostEqual(used[0], raw[0], places=4)
 
     def test_fusion_missing_embedding_raises(self):
-        import joblib, csv
+        import joblib
+        import csv
         from sklearn.linear_model import LogisticRegression
         from doar.probability_export import export_probabilities
         with tempfile.TemporaryDirectory() as d:
             fp = Path(d) / "features.csv"
             with open(fp, "w", newline="") as h:
-                w = csv.writer(h); w.writerow(["image_id", "path", "split", "class", "f0"])
+                w = csv.writer(h)
+                w.writerow(["image_id", "path", "split", "class", "f0"])
                 for i in range(6):
                     w.writerow([f"s{i}", "", "valid", "Happy", 0.1 * i])
             # embeddings only for s0..s2 -> s3..s5 missing
@@ -126,7 +131,8 @@ class CalibratedExportTests(unittest.TestCase):
             clf = LogisticRegression(max_iter=200).fit(np.random.randn(6, 5),
                                                        np.array([0, 1, 2, 3, 0, 1]))
             bundle = {"model": clf, "checkpoint_type": "doar_fusion_bundle_v1"}
-            mp = Path(d) / "f.joblib"; joblib.dump(bundle, mp)
+            mp = Path(d) / "f.joblib"
+            joblib.dump(bundle, mp)
             with self.assertRaises(ValueError) as ctx:
                 export_probabilities(str(mp), str(fp), str(npz), str(Path(d) / "e.json"),
                                      splits=["valid"])

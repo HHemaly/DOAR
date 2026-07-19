@@ -92,13 +92,15 @@ def validate_dataset(dataset: str | Path, output: str | Path) -> dict:
     (output / "dataset_readiness.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     with (output / "failures.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["path", "split", "class", "reason"])
-        writer.writeheader(); writer.writerows(failures)
+        writer.writeheader()
+        writer.writerows(failures)
     for name, rows in (("class_distribution.csv", distribution),
                        ("dimension_distribution.csv", dimensions)):
         with (output / name).open("w", newline="", encoding="utf-8") as handle:
             fields = list(rows[0]) if rows else ["split", "class", "count"]
             writer = csv.DictWriter(handle, fieldnames=fields)
-            writer.writeheader(); writer.writerows(rows)
+            writer.writeheader()
+            writer.writerows(rows)
     html = (
         "<html><meta charset='utf-8'><body><h1>DOAR dataset readiness</h1>"
         f"<p>Status: <strong>{status}</strong></p><pre>{json.dumps(result, indent=2)}</pre>"

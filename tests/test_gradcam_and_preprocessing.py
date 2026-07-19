@@ -47,8 +47,10 @@ class GradCamSmokeTests(unittest.TestCase):
     def test_small_cnn_gradcam_produces_heatmap_and_overlay(self):
         from doar.explain.gradcam import generate_gradcam
         with tempfile.TemporaryDirectory() as d:
-            ckpt = Path(d) / "m.pt"; _tiny_checkpoint(ckpt)
-            img = Path(d) / "x.png"; _img(img)
+            ckpt = Path(d) / "m.pt"
+            _tiny_checkpoint(ckpt)
+            img = Path(d) / "x.png"
+            _img(img)
             res = generate_gradcam(str(img), str(ckpt), Path(d) / "cam", device="cpu")
             self.assertEqual(res["attribution_type"], "visual_classifier_attention")
             self.assertTrue(Path(res["raw_heatmap"]).exists())
@@ -68,7 +70,8 @@ class PreprocessingConsistencyTests(unittest.TestCase):
         # A5: small_cnn (nn.Sequential) must not use model.classifier[-1].
         from doar.deep.embeddings import _finetuned_extractor
         with tempfile.TemporaryDirectory() as d:
-            ckpt = Path(d) / "m.pt"; _tiny_checkpoint(ckpt, "small_cnn")
+            ckpt = Path(d) / "m.pt"
+            _tiny_checkpoint(ckpt, "small_cnn")
             model, image_size, meta = _finetuned_extractor(str(ckpt), "cpu")
             img = torch.randn(1, 3, 32, 32)
             out = model(img)

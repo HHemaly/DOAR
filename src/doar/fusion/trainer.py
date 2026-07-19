@@ -14,16 +14,16 @@ from . import PRIMARY_METHODS
 
 def _deps():
     try:
-        import joblib
-        import sklearn
-        from sklearn.compose import ColumnTransformer
-        from sklearn.decomposition import PCA
-        from sklearn.impute import SimpleImputer
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, log_loss
-        from sklearn.neural_network import MLPClassifier
-        from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import StandardScaler
+        import joblib  # noqa: F401 (used via locals())
+        import sklearn  # noqa: F401 (used via locals())
+        from sklearn.compose import ColumnTransformer  # noqa: F401 (used via locals())
+        from sklearn.decomposition import PCA  # noqa: F401 (used via locals())
+        from sklearn.impute import SimpleImputer  # noqa: F401 (used via locals())
+        from sklearn.linear_model import LogisticRegression  # noqa: F401 (used via locals())
+        from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, log_loss  # noqa: F401 (used via locals())
+        from sklearn.neural_network import MLPClassifier  # noqa: F401 (used via locals())
+        from sklearn.pipeline import make_pipeline  # noqa: F401 (used via locals())
+        from sklearn.preprocessing import StandardScaler  # noqa: F401 (used via locals())
     except ImportError as exc:
         raise RuntimeError('Install fusion dependencies with: pip install -e ".[ml]"') from exc
     return locals()
