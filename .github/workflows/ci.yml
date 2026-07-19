@@ -19,9 +19,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[cv,dev]"
       - name: Lint (ruff, required)
-        run: ruff check src main.py
-      - name: Non-torch unit tests
-        run: python -m pytest -q -k "not torch" || python -m unittest discover -s tests -p "test_*.py"
+        run: ruff check src tests main.py streamlit_app.py
+      - name: Unit tests (torch/sklearn tests self-skip without those deps)
+        run: python -m unittest discover -s tests -p "test_*.py"
       - name: CLI parsing
         run: python main.py --help
       - name: Synthetic analysis/report/qa/review pipeline
