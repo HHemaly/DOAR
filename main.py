@@ -110,6 +110,12 @@ def main() -> None:
                              choices=["equal_late_fusion", "validation_weighted_late_fusion",
                                       "logistic_probability_meta"])
     late_fusion.add_argument("--calibrated", action="store_true")
+    emb_compare = commands.add_parser("compare-embeddings")
+    emb_compare.add_argument("--features", required=True)
+    emb_compare.add_argument("--generic", required=True, help="Generic embeddings .npz")
+    emb_compare.add_argument("--finetuned", required=True, help="Fine-tuned embeddings .npz")
+    emb_compare.add_argument("--output", required=True)
+    emb_compare.add_argument("--seed", type=int, default=42)
     deep_compare = commands.add_parser("compare-deep-models")
     deep_compare.add_argument("--dataset", required=True)
     deep_compare.add_argument("--output", required=True)
@@ -290,6 +296,11 @@ def main() -> None:
         print(json.dumps(train_late_fusion(
             args.base, args.output, args.method, args.calibrated
         ), ensure_ascii=False, indent=2, default=float))
+    elif args.command == "compare-embeddings":
+        from doar.fusion.embedding_comparison import run_embedding_comparison
+        print(json.dumps(run_embedding_comparison(
+            args.features, args.generic, args.finetuned, args.output, seed=args.seed,
+        ), indent=2))
     elif args.command == "compare-deep-models":
         from doar.deep.compare import run_deep_comparison, DEFAULT_MODELS
         _gate(args.dataset)
