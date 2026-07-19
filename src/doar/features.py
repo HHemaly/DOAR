@@ -134,21 +134,26 @@ def objective_feature_row(image_path: str | Path, analysis: dict) -> dict[str, F
         "stroke.fragmentation": min(1.0, len(component_sizes) / max(1, total_fg / 50)),
         "stroke.intensity_proxy": float((255 - fg.mean()) / 255) if len(fg) else 0.0,
         "shape.contour_proxy_count": len(component_sizes),
-        "shape.enclosed_shape_count": 0.0,
-        "shape.repetition_score": 0.0,
+        # No true shape detector exists in this release. These are marked
+        # UNAVAILABLE (missing) rather than reported as fabricated zeros (D4).
+        "shape.enclosed_shape_count": float("nan"),
+        "shape.repetition_score": float("nan"),
     }
+    # Features with no real implementation yet — surfaced as missing, never faked.
+    UNAVAILABLE = {"shape.enclosed_shape_count", "shape.repetition_score"}
     result = {}
     for name, value in values.items():
         numeric = float(value)
+        is_unavailable = name in UNAVAILABLE
         evidence_id = "ev_bbox_coverage" if name == "segmentation.bounding_box_coverage" else f"ev_feature_{name.replace('.', '_')}"
         result[name] = FeatureValue(
             value=numeric,
             valid_min=None,
             valid_max=None,
-            confidence=conf if not name.startswith("quality.") else 1.0,
-            method="objective_features_v3_1",
+            confidence=0.0 if is_unavailable else (conf if not name.startswith("quality.") else 1.0),
+            method="not_evaluated_no_detector" if is_unavailable else "objective_features_v3_1",
             evidence_id=evidence_id,
-            missing=not math.isfinite(numeric),
+            missing=is_unavailable or not math.isfinite(numeric),
         )
     return result
 

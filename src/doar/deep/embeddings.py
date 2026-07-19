@@ -107,10 +107,19 @@ def extract_embeddings(
         writer = csv.DictWriter(handle, fieldnames=["image_id", "path", "error", "traceback"])
         writer.writeheader()
         writer.writerows(failures)
+    # Record the TRUE preprocessing per backbone family (D5). CLIP and DINOv2 use
+    # their own transforms, not the ImageNet pipeline — labelling them
+    # "imagenet_v1" was a reproducibility-metadata bug.
+    if backbone.startswith("openclip:"):
+        preprocessing_version = "openclip_native_preprocess"
+    elif backbone.startswith("dinov2"):
+        preprocessing_version = "dinov2_native_preprocess"
+    else:
+        preprocessing_version = "imagenet_v1"
     metadata = {
         "status": "available", "backbone": backbone, "model_version": "official_pretrained",
-        "preprocessing_version": "imagenet_v1", "preprocessing_hash": hashlib.sha256(
-            f"{backbone}:{image_size}:imagenet_v1".encode()).hexdigest(),
+        "preprocessing_version": preprocessing_version, "preprocessing_hash": hashlib.sha256(
+            f"{backbone}:{image_size}:{preprocessing_version}".encode()).hexdigest(),
         "embedding_dimension": int(matrix.shape[1]) if matrix.size else 0,
         "images": len(ids), "failures": len(failures), "device": selected,
         "cache_fingerprint": fingerprint, "cache_hit": False,
