@@ -110,6 +110,11 @@ def main() -> None:
                              choices=["equal_late_fusion", "validation_weighted_late_fusion",
                                       "logistic_probability_meta"])
     late_fusion.add_argument("--calibrated", action="store_true")
+    cal_fusion = commands.add_parser("calibrate-fusion")
+    cal_fusion.add_argument("--bundle", required=True, help="Fusion .joblib bundle")
+    cal_fusion.add_argument("--features", required=True)
+    cal_fusion.add_argument("--embeddings", required=True)
+    cal_fusion.add_argument("--output", required=True)
     emb_compare = commands.add_parser("compare-embeddings")
     emb_compare.add_argument("--features", required=True)
     emb_compare.add_argument("--generic", required=True, help="Generic embeddings .npz")
@@ -296,6 +301,10 @@ def main() -> None:
         print(json.dumps(train_late_fusion(
             args.base, args.output, args.method, args.calibrated
         ), ensure_ascii=False, indent=2, default=float))
+    elif args.command == "calibrate-fusion":
+        from doar.fusion.calibrate import calibrate_fusion_bundle
+        print(json.dumps(calibrate_fusion_bundle(
+            args.bundle, args.features, args.embeddings, args.output), indent=2))
     elif args.command == "compare-embeddings":
         from doar.fusion.embedding_comparison import run_embedding_comparison
         print(json.dumps(run_embedding_comparison(

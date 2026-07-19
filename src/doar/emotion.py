@@ -100,17 +100,25 @@ def predict(
                     f"Fusion embedding dimension mismatch: expected "
                     f"{payload['embedding_dimension']}, got {len(embedding)}"
                 )
-            probabilities = np.asarray(
+            raw_probabilities = np.asarray(
                 payload["model"].predict_proba(np.concatenate((objective, embedding))[None])[0]
             )
+            # Item 7: apply validation-fitted temperature if the bundle is calibrated.
+            calibration = payload.get("calibration", {"status": "uncalibrated"})
+            if calibration.get("status") == "calibrated" and calibration.get("temperature"):
+                from .fusion.calibrate import apply_temperature
+                probabilities = apply_temperature(raw_probabilities[None], calibration["temperature"])[0]
+            else:
+                probabilities = raw_probabilities
             metadata = {
                 "model_name": payload["method"],
                 "model_family": "primary_multimodal_fusion",
                 "model_version": payload["checkpoint_type"],
                 "preprocessing_version": payload["embedding_preprocessing_hash"],
-                "calibration_status": payload["calibration"]["status"],
+                "calibration_status": calibration.get("status", "uncalibrated"),
             }
             result = _summary(probabilities, metadata, checkpoint)
+            result["raw_probabilities"] = {c: float(raw_probabilities[i]) for i, c in enumerate(CLASSES)}
             result["model_family"] = "primary_multimodal_fusion"
             result["fusion_method"] = payload["method"]
             result["feature_order_validated"] = True
