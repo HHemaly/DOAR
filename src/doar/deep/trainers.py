@@ -35,12 +35,41 @@ def _macro_f1(truth, predictions) -> float:
     return float(np.mean(scores))
 
 
+def _build_optimizer(name: str, param_groups):
+    import torch
+    name = (name or "adamw").lower()
+    if name == "adamw":
+        return torch.optim.AdamW(param_groups)
+    if name == "adam":
+        return torch.optim.Adam(param_groups)
+    if name == "sgd":
+        return torch.optim.SGD(param_groups, momentum=0.9)
+    raise ValueError(f"Unsupported optimizer: {name}")
+
+
+def _build_scheduler(name: str, optimizer):
+    import torch
+    name = (name or "reduce_on_plateau").lower()
+    if name in ("reduce_on_plateau", "plateau"):
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", patience=2, factor=.3), "max_metric"
+    if name == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10), "step"
+    if name in ("none", "constant"):
+        return None, "none"
+    raise ValueError(f"Unsupported scheduler: {name}")
+
+
 def train_image_model(
     dataset: str, model_name: str, output: str, seed: int = 42, epochs: int = 30,
     batch_size: int = 16, image_size: int = 224, device: str = "auto",
     augmentation: str = "conservative", patience: int = 7, workers: int = 0,
     pretrained: bool = True, freeze_epochs: int = 3, resume: str | None = None,
     configuration_hash: str | None = None,
+    *,
+    class_weighting: bool = True, optimizer_name: str = "adamw",
+    head_learning_rate: float = 3e-4, backbone_learning_rate: float = 1e-4,
+    scheduler_name: str = "reduce_on_plateau", calibration: str | None = None,
+    grad_accum_steps: int = 1, pretrained_weights: str = "DEFAULT",
 ):
     try:
         import torch
@@ -50,15 +79,20 @@ def train_image_model(
     selected_device = "cuda" if device == "auto" and torch.cuda.is_available() else (
         "cpu" if device == "auto" else device
     )
+    # pretrained_weights: "DEFAULT"/"IMAGENET*" => pretrained; "none"/"" => scratch
+    use_pretrained = pretrained and str(pretrained_weights).lower() not in ("none", "", "scratch")
     train_loader, valid_loader = build_loaders(
         dataset, image_size, batch_size, workers, augmentation
     )
-    model = build_model(model_name, len(CLASSES), pretrained).to(selected_device)
+    model = build_model(model_name, len(CLASSES), use_pretrained).to(selected_device)
     if freeze_epochs and model_name != "small_cnn":
         freeze_backbone(model)
-    counts = torch.bincount(torch.tensor(train_loader.dataset.targets), minlength=len(CLASSES)).float()
-    weights = counts.sum() / (len(CLASSES) * counts.clamp_min(1))
-    criterion = torch.nn.CrossEntropyLoss(weight=weights.to(selected_device), label_smoothing=.05)
+    if class_weighting:
+        counts = torch.bincount(torch.tensor(train_loader.dataset.targets), minlength=len(CLASSES)).float()
+        weights = (counts.sum() / (len(CLASSES) * counts.clamp_min(1))).to(selected_device)
+    else:
+        weights = None
+    criterion = torch.nn.CrossEntropyLoss(weight=weights, label_smoothing=.05)
     resume_payload = None
     start_epoch = 0
     if resume:
@@ -71,13 +105,20 @@ def train_image_model(
         start_epoch = int(resume_payload["epoch"]) + 1
         if start_epoch >= freeze_epochs:
             unfreeze_all(model)
-    optimizer = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=1e-4 if start_epoch >= freeze_epochs else 3e-4,
-    )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", patience=2, factor=.3
-    )
+    # Differential learning rates: classification head vs backbone. Params are
+    # matched by the same attribute names used by freeze_backbone (fc/classifier/
+    # heads); everything else is the backbone.
+    head_names = ("fc", "classifier", "heads")
+    head_params, backbone_params = [], []
+    for pname, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        (head_params if pname.split(".")[0] in head_names else backbone_params).append(param)
+    param_groups = [{"params": head_params, "lr": head_learning_rate}]
+    if backbone_params:
+        param_groups.append({"params": backbone_params, "lr": backbone_learning_rate})
+    optimizer = _build_optimizer(optimizer_name, param_groups)
+    scheduler, scheduler_mode = _build_scheduler(scheduler_name, optimizer)
     scaler = torch.amp.GradScaler("cuda", enabled=selected_device.startswith("cuda"))
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -85,7 +126,7 @@ def train_image_model(
     if resume_payload:
         if resume_payload.get("optimizer_state"):
             optimizer.load_state_dict(resume_payload["optimizer_state"])
-        if resume_payload.get("scheduler_state"):
+        if resume_payload.get("scheduler_state") and scheduler is not None:
             scheduler.load_state_dict(resume_payload["scheduler_state"])
         if resume_payload.get("scaler_state"):
             scaler.load_state_dict(resume_payload["scaler_state"])
@@ -123,7 +164,11 @@ def train_image_model(
                 predictions.extend(logits.argmax(1).cpu().tolist())
                 truth.extend(labels.tolist())
         macro_f1 = _macro_f1(truth, predictions)
-        scheduler.step(macro_f1)
+        if scheduler is not None:
+            if scheduler_mode == "max_metric":
+                scheduler.step(macro_f1)
+            elif scheduler_mode == "step":
+                scheduler.step()
         record = {
             "epoch": epoch, "train_loss": train_loss / len(train_loader.dataset),
             "valid_macro_f1": macro_f1, "learning_rate": optimizer.param_groups[0]["lr"],
@@ -131,7 +176,8 @@ def train_image_model(
         history.append(record)
         checkpoint = {
             "model_state": model.state_dict(), "optimizer_state": optimizer.state_dict(),
-            "scheduler_state": scheduler.state_dict(), "scaler_state": scaler.state_dict(),
+            "scheduler_state": scheduler.state_dict() if scheduler is not None else None,
+            "scaler_state": scaler.state_dict(),
             "epoch": epoch, "model_name": model_name, "classes": CLASSES,
             "seed": seed, "image_size": image_size, "preprocessing_version": "imagenet_v1",
             "model_version": "doar_deep_v1", "calibration_status": "uncalibrated",
@@ -150,11 +196,40 @@ def train_image_model(
             stale += 1
         if stale >= patience:
             break
+    # What was ACTUALLY executed (Item 2) — recorded regardless of the config.
+    executed_config = {
+        "model_name": model_name, "seed": seed, "epochs": epochs,
+        "batch_size": batch_size, "image_size": image_size,
+        "device": selected_device, "workers": workers,
+        "augmentation": augmentation, "freeze_epochs": freeze_epochs,
+        "class_weighting": class_weighting, "optimizer": optimizer_name,
+        "head_learning_rate": head_learning_rate,
+        "backbone_learning_rate": backbone_learning_rate,
+        "scheduler": scheduler_name, "calibration": calibration,
+        "grad_accum_steps": grad_accum_steps, "pretrained": use_pretrained,
+        "pretrained_weights": pretrained_weights,
+        "early_stopping_patience": patience,
+    }
+    (output / "executed_config.json").write_text(
+        json.dumps(executed_config, indent=2), encoding="utf-8")
+
+    # Optional validation-only calibration of the best checkpoint (Item 2/7).
+    calibration_result = None
+    if calibration and str(calibration).lower() in ("temperature_scaling", "temperature"):
+        try:
+            from .calibration import calibrate_checkpoint
+            calibration_result = calibrate_checkpoint(
+                str(output / "best.pt"), dataset, output / "calibration", device)
+        except Exception as exc:  # pragma: no cover - needs data+torch
+            calibration_result = {"status": "failed", "error": str(exc)}
+
     result = {
         "model": model_name, "seed": seed, "device": selected_device,
         "selection_split": "valid", "test_used": False, "best_valid_macro_f1": best,
         "epochs_completed": len(history), "training_seconds": time.perf_counter() - started,
         "checkpoint": str(output / "best.pt"), "history": history,
+        "executed_config": executed_config,
+        "calibration": calibration_result,
     }
     (output / "training_result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result

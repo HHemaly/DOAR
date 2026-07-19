@@ -79,6 +79,19 @@ def main() -> None:
     image_train.add_argument("--image-size", type=int, default=224)
     image_train.add_argument("--device", default="auto")
     image_train.add_argument("--augmentation", default="conservative")
+    image_train.add_argument("--validation-split", default=None)
+    image_train.add_argument("--pretrained-weights", default=None)
+    image_train.add_argument("--workers", type=int, default=None)
+    image_train.add_argument("--freeze-epochs", type=int, default=None)
+    image_train.add_argument("--class-weighting", default=None,
+                             choices=["true", "false"])
+    image_train.add_argument("--early-stopping-patience", type=int, default=None)
+    image_train.add_argument("--optimizer", default=None)
+    image_train.add_argument("--head-learning-rate", type=float, default=None)
+    image_train.add_argument("--backbone-learning-rate", type=float, default=None)
+    image_train.add_argument("--scheduler", default=None)
+    image_train.add_argument("--calibration", default=None)
+    image_train.add_argument("--grad-accum-steps", type=int, default=None)
     image_train.add_argument("--resume")
     _add_leakage_args(image_train)
     image_predict = commands.add_parser("predict-image")
@@ -188,23 +201,56 @@ def main() -> None:
                              "scheduler"},
             "output": {"directory", "calibration"},
         })
-        values = resolve(vars(args), config, {
-            "dataset": ("data", "dataset"), "model": ("training", "model"),
-            "output": ("output", "directory"), "seed": ("training", "seed"),
-            "epochs": ("training", "epochs"), "batch_size": ("training", "batch_size"),
-            "image_size": ("training", "image_size"), "device": ("training", "device"),
+        from doar.config import assert_all_config_consumed, save_run_metadata
+        # Every accepted config field is mapped -> consumed (Item 2). If a field
+        # is accepted by load_config but missing here, assert_all_config_consumed
+        # fails, so no setting is ever silently ignored.
+        mapping = {
+            "dataset": ("data", "dataset"), "validation_split": ("data", "validation_split"),
+            "model": ("training", "model"), "pretrained_weights": ("training", "pretrained_weights"),
+            "seed": ("training", "seed"), "image_size": ("training", "image_size"),
+            "batch_size": ("training", "batch_size"), "epochs": ("training", "epochs"),
+            "device": ("training", "device"), "workers": ("training", "workers"),
             "augmentation": ("training", "augmentation"),
-        }, supplied)
+            "freeze_epochs": ("training", "freeze_epochs"),
+            "class_weighting": ("training", "class_weighting"),
+            "early_stopping_patience": ("training", "early_stopping_patience"),
+            "optimizer": ("optimization", "optimizer"),
+            "head_learning_rate": ("optimization", "head_learning_rate"),
+            "backbone_learning_rate": ("optimization", "backbone_learning_rate"),
+            "scheduler": ("optimization", "scheduler"),
+            "output": ("output", "directory"), "calibration": ("output", "calibration"),
+        }
+        assert_all_config_consumed(config, mapping)
+        values = resolve(vars(args), config, mapping, supplied)
         if not all(values.get(name) for name in ("dataset", "model", "output")):
             raise ValueError("train-image-model requires dataset, model, and output via CLI or config")
         _gate(values["dataset"])
-        config_hash = save_resolved(values["output"], args.command, values)
+        config_hash = save_run_metadata(values["output"], args.command, vars(args), values)
+
+        def _opt(name, cast, default):
+            v = values.get(name)
+            return cast(v) if v is not None else default
+        cw = values.get("class_weighting")
+        class_weighting = (str(cw).lower() == "true") if cw is not None else True
+
         print(json.dumps(train_image_model(
-            values["dataset"], values["model"], values["output"], seed=int(values["seed"]),
-            epochs=int(values["epochs"]), batch_size=int(values["batch_size"]),
-            image_size=int(values["image_size"]), device=values["device"],
-            augmentation=values["augmentation"], resume=args.resume,
-            configuration_hash=config_hash,
+            values["dataset"], values["model"], values["output"],
+            seed=_opt("seed", int, 42), epochs=_opt("epochs", int, 30),
+            batch_size=_opt("batch_size", int, 16), image_size=_opt("image_size", int, 224),
+            device=values["device"] or "auto", workers=_opt("workers", int, 0),
+            augmentation=values["augmentation"] or "conservative",
+            patience=_opt("early_stopping_patience", int, 7),
+            freeze_epochs=_opt("freeze_epochs", int, 3),
+            class_weighting=class_weighting,
+            optimizer_name=values.get("optimizer") or "adamw",
+            head_learning_rate=_opt("head_learning_rate", float, 3e-4),
+            backbone_learning_rate=_opt("backbone_learning_rate", float, 1e-4),
+            scheduler_name=values.get("scheduler") or "reduce_on_plateau",
+            calibration=values.get("calibration"),
+            grad_accum_steps=_opt("grad_accum_steps", int, 1),
+            pretrained_weights=values.get("pretrained_weights") or "DEFAULT",
+            resume=args.resume, configuration_hash=config_hash,
         ), indent=2))
     elif args.command == "predict-image":
         from doar.deep.inference import predict_image
