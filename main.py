@@ -110,6 +110,10 @@ def main() -> None:
                              choices=["equal_late_fusion", "validation_weighted_late_fusion",
                                       "logistic_probability_meta"])
     late_fusion.add_argument("--calibrated", action="store_true")
+    gpu_smoke = commands.add_parser("gpu-smoke")
+    gpu_smoke.add_argument("--output", default=None)
+    gpu_smoke.add_argument("--device", default="auto")
+    gpu_smoke.add_argument("--batch-size", type=int, default=4)
     calibrate = commands.add_parser("calibrate")
     calibrate.add_argument("--checkpoint", required=True)
     calibrate.add_argument("--dataset", required=True)
@@ -269,6 +273,9 @@ def main() -> None:
         print(json.dumps(train_late_fusion(
             args.base, args.output, args.method, args.calibrated
         ), ensure_ascii=False, indent=2, default=float))
+    elif args.command == "gpu-smoke":
+        from doar.gpu_smoke import run_gpu_smoke
+        print(json.dumps(run_gpu_smoke(args.output, args.device, args.batch_size), indent=2))
     elif args.command == "calibrate":
         from doar.deep.calibration import calibrate_checkpoint
         print(json.dumps(calibrate_checkpoint(
