@@ -102,14 +102,27 @@ def main() -> None:
     ingest.add_argument("--pdf", required=True)
     ingest.add_argument("--output", required=True)
     ingest.add_argument("--source-id", default=None)
+    export_probs = commands.add_parser("export-probabilities")
+    export_probs.add_argument("--model", required=True, help="A .joblib model bundle")
+    export_probs.add_argument("--features", required=True)
+    export_probs.add_argument("--embeddings", default=None, help="Embeddings .npz (fusion models)")
+    export_probs.add_argument("--output", required=True, help="Output export .json path")
+    export_probs.add_argument("--splits", default="train,valid", help="Comma splits to export")
+
     late_fusion = commands.add_parser("train-late-fusion")
     late_fusion.add_argument("--base", nargs="+", required=True,
-                             help="Two or more exported base-model probability .npz files")
+                             help="Two or more base-model probability export .json files")
     late_fusion.add_argument("--output", required=True)
     late_fusion.add_argument("--method", default="validation_weighted_late_fusion",
                              choices=["equal_late_fusion", "validation_weighted_late_fusion",
                                       "logistic_probability_meta"])
     late_fusion.add_argument("--calibrated", action="store_true")
+
+    apply_late = commands.add_parser("apply-late-fusion")
+    apply_late.add_argument("--model", required=True, help="late_fusion_model.json")
+    apply_late.add_argument("--base", nargs="+", required=True)
+    apply_late.add_argument("--split", default="valid")
+    apply_late.add_argument("--output", required=True)
     cal_fusion = commands.add_parser("calibrate-fusion")
     cal_fusion.add_argument("--bundle", required=True, help="Fusion .joblib bundle")
     cal_fusion.add_argument("--features", required=True)
@@ -296,11 +309,29 @@ def main() -> None:
         print(json.dumps({"draft": True, "rule_count": draft["rule_count"],
                           "activation_blocked": draft["activation_blocked"],
                           "output": args.output}, ensure_ascii=False, indent=2))
+    elif args.command == "export-probabilities":
+        from doar.probability_export import export_probabilities
+        print(json.dumps(export_probabilities(
+            args.model, args.features, args.embeddings, args.output,
+            splits=[s.strip() for s in args.splits.split(",")],
+        ), indent=2))
     elif args.command == "train-late-fusion":
         from doar.fusion.late import train_late_fusion
         print(json.dumps(train_late_fusion(
             args.base, args.output, args.method, args.calibrated
         ), ensure_ascii=False, indent=2, default=float))
+    elif args.command == "apply-late-fusion":
+        import numpy as _np
+        from doar.fusion.late import load_late_fusion, apply_late_fusion
+        model_meta = load_late_fusion(args.model)
+        ids, fused = apply_late_fusion(model_meta, args.base, args.split)
+        out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
+        order = model_meta["class_order"]
+        rows = [{"sample_id": sid, **{order[j]: float(fused[i][j]) for j in range(len(order))}}
+                for i, sid in enumerate(ids)]
+        (out / f"fused_{args.split}.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
+        print(json.dumps({"split": args.split, "count": len(ids),
+                          "output": str(out / f"fused_{args.split}.json")}, indent=2))
     elif args.command == "calibrate-fusion":
         from doar.fusion.calibrate import calibrate_fusion_bundle
         print(json.dumps(calibrate_fusion_bundle(
