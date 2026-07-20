@@ -136,6 +136,62 @@ def write_quarantined_manifest(rows: list[dict], leaked_ids: set,
             "clean_rows": len(clean_rows), "quarantined_rows": len(quarantined)}
 
 
+def materialize_clean_dataset(clean_rows: list[dict], dest: str | Path) -> dict:
+    """Copy non-leaked manifest rows into a fresh ImageFolder dataset at `dest`
+    (dest/<split>/<class>/<file>). This is the scientifically-valid way to resolve
+    cross-split leakage for deep training, which requires a directory — leaked
+    images are dropped, never overridden. Returns per-split/class counts."""
+    import shutil
+    dest = Path(dest)
+    counts: dict[str, dict[str, int]] = {}
+    for r in clean_rows:
+        split, cls = r["split"], r["class"]
+        src = Path(r["path"])
+        dst_dir = dest / split / cls
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy2(src, dst_dir / src.name)
+            counts.setdefault(split, {}).setdefault(cls, 0)
+            counts[split][cls] += 1
+        except Exception:
+            continue
+    return {"dest": str(dest), "counts": counts,
+            "total": sum(n for s in counts.values() for n in s.values())}
+
+
+def resolve_leakage(dataset: str | Path, output: str | Path,
+                    subject_key: str = "subject_id",
+                    materialize: bool = True) -> dict:
+    """Build a manifest, assess cross-split leakage, write clean_manifest +
+    quarantine + report, and (default) materialize a clean ImageFolder dataset
+    with leaked images removed. No override — leaked images are dropped."""
+    out = Path(output)
+    out.mkdir(parents=True, exist_ok=True)
+    build_manifest(dataset, out / "manifest.csv")
+    rows = _load_manifest_rows(out / "manifest.csv")
+    report = assess_leakage(rows, subject_key=subject_key)
+    quarantine = write_quarantined_manifest(rows, set(report["leaked_image_ids"]), out)
+    report["quarantine"] = quarantine
+    (out / "leakage_report.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    result = {
+        "leakage_status": report["status"],
+        "leakage_ok": report["leakage_ok"],
+        "quarantined_images": quarantine["quarantined_rows"],
+        "clean_images": quarantine["clean_rows"],
+        "clean_manifest": quarantine["clean_manifest"],
+        "report": str(out / "leakage_report.json"),
+    }
+    if not report["leakage_ok"] and materialize:
+        clean_rows = _load_manifest_rows(quarantine["clean_manifest"])
+        mat = materialize_clean_dataset(clean_rows, out / "clean_dataset")
+        result["clean_dataset"] = mat["dest"]
+        result["clean_dataset_counts"] = mat["counts"]
+        result["clean_dataset_total"] = mat["total"]
+    return result
+
+
 def _append_audit(audit_log: str | Path, entry: dict) -> None:
     path = Path(audit_log)
     path.parent.mkdir(parents=True, exist_ok=True)

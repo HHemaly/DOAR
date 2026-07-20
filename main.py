@@ -29,6 +29,12 @@ def main() -> None:
     manifest = commands.add_parser("build-manifest")
     manifest.add_argument("--dataset", required=True)
     manifest.add_argument("--output", required=True)
+    resolve_leak = commands.add_parser("resolve-leakage")
+    resolve_leak.add_argument("--dataset", required=True)
+    resolve_leak.add_argument("--output", required=True)
+    resolve_leak.add_argument("--subject-key", default="subject_id")
+    resolve_leak.add_argument("--no-materialize", action="store_true",
+                              help="Only report + clean manifest; do not copy a clean dataset")
     def _add_leakage_args(parser):
         parser.add_argument("--subject-key", default="subject_id",
                             help="Manifest column for child/subject grouping")
@@ -269,6 +275,11 @@ def main() -> None:
         print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
     elif args.command == "build-manifest":
         print(json.dumps(build_manifest(args.dataset, args.output), indent=2))
+    elif args.command == "resolve-leakage":
+        from doar.leakage import resolve_leakage
+        print(json.dumps(resolve_leakage(
+            args.dataset, args.output, subject_key=args.subject_key,
+            materialize=not args.no_materialize), indent=2))
     elif args.command == "extract-features":
         _gate(args.manifest)
         print(json.dumps(extract_features(args.manifest, args.output), indent=2))
