@@ -99,6 +99,58 @@ This correction was presented to the user before implementation (not silently su
 
 ---
 
+## 2026-08-02 — Phase 3 planning and validation prep (no detector adopted)
+
+User approved Phase 2 (commit `c0ebb17`) and authorized Phase 3 *planning and
+validation preparation only* — explicitly not adoption/enabling of any
+detector. Produced: `DETECTOR_DEPENDENCY_MATRIX.csv` (13 Tier-2 rules ×
+required object/detector capability/task type/free-drawing applicability/
+candidate models & datasets/licence & compute/required annotations/validation
+metrics/whether the rule stays scientifically unvalidated even if detection
+works — always yes, confirmed per rule against `RULE_SOURCE_REGISTER.csv`);
+`PHASE3_DETECTOR_EVALUATION_PLAN.md` (candidate comparison across
+person/face, shapes/symbols/objects, and animals, each including photo-domain,
+sketch-domain, and drawing-specific options); `docs/PHASE3_ANNOTATION_SCHEMA.md`;
+and `src/doar/detectors/` (a `DetectorResult` contract + IoU/component-ID
+matching metrics harness — scaffolding only, not imported by any user-facing
+code path, no model or download involved).
+
+**Key research findings, verified via web search rather than asserted from
+memory**: COCO's 10 animal classes (bird/cat/dog/horse/sheep/cow/elephant/
+bear/zebra/giraffe) do not include any of tiger/wolf/fox/squirrel/lion — the
+animal category has no matching off-the-shelf detector vocabulary at all.
+COCO's vehicle classes (car/truck/bus/train/airplane/boat/bicycle/motorcycle)
+do match the `vehicles` rule directly. Quick, Draw! (Google, CC-BY 4.0, 345
+categories) is treated per the user's explicit instruction as a
+classification-of-isolated-sketch candidate only, not a detection source.
+Two datasets not in the original architecture proposal were found and
+evaluated: **ESRA** (Roboflow Universe, ~3,002 images of "objects inside
+kids' drawings," licence/quality unverified) and **ChildlikeSHAPES** (Meta,
+arXiv:2504.08022, Apr 2025, 16,075 pixel-annotated figure drawings — but
+authenticity as real child-drawn data vs. artist-created "childlike style"
+art is unconfirmed and must be checked before relying on it). A third,
+**SceneDAPR** (ACM Web Conference 2024, scene-level free-hand drawings
+including children), was considered and **rejected** for this project: it is
+fundamentally Draw-A-Person-in-the-Rain data — an instructed, prompt-specific
+test — and training on it risks learning instructed-prompt compositional
+conventions that DOAR's own free-drawing constraint
+(`SCIENTIFIC_LIMITATIONS.md` Section 4) exists specifically to avoid.
+
+**Recommended first experiment**: circles, via classical CV (contour
+circularity over DOAR's existing connected-component extraction) — zero new
+dependency, zero download, tests whether the existing segmentation pipeline
+even produces clean enough crops for any shape-classification approach to be
+viable, before investing in any external dataset integration.
+
+No detector was downloaded, adopted, or enabled. No rule's `tier`,
+`activation_status`, or runtime `status` changed — verified against a real
+`analyze-image` run (13 `DETECTOR_UNAVAILABLE`, 6 `IMPLEMENTED_UNVALIDATED`,
+`concerns.json` still `[]`, identical to the Phase 2 verification run).
+216/216 tests passing (12 new). Awaiting review before Phase 3 implementation
+begins.
+
+---
+
 ## 2026-08-02 — Phase 2 complete
 
 Implemented exactly the corrected design: `tier` + `activation_status` fields added to all 19 registry rules (content unchanged, verified by diff — only cosmetic array reformatting plus the two new fields); `rules.py::_status_for()` refactored to explicit tier-aware dispatch (behavior-identical for every existing rule, verified by end-to-end test against the real registry); `evaluate_rules()` no longer discards `evidence`; `concerns.py` implements the four-level aggregation vocabulary; `CONCERNS_ENABLED` left `False`. 13 new/updated tests added (2 existing tests updated to reflect the new, spec-required `WEAK_HYPOTHESIS` behavior for correlated single-source rules, with the change documented in-line). Full suite: 204/204 passing. `ruff check`: clean. `compileall`: clean. Real end-to-end `analyze-image` run confirmed `rules.json` carries correct tier/activation_status fields and `concerns.json` stays `[]` in production. Committed separately from Phase 1. Per the user's explicit instruction: this is **not** described as scientifically validated — it is a correctness/completeness improvement to inert scaffolding. No rule produces different user-facing output than before Phase 2.
