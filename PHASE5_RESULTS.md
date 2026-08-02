@@ -203,10 +203,10 @@ and `outputs/phase5/postcal_efficientnet_b0_seed_42/metrics.json`).
 
 **Evidence-strength caveat:** three seeds is enough to see whether a ranking
 is seed-sensitive, but it is not enough to support a formal confidence
-interval or a claim of statistical significance. No 95% CI is reported below,
-and no claim of "statistically significant" superiority is made anywhere in
-this document. All spreads are reported as plain min/max/std over 3
-observations.
+interval or any test of statistical superiority. No 95% CI is reported below,
+no superiority or equivalence test was run, and no claim of statistically
+significant superiority is made anywhere in this document. All spreads are
+reported as plain min/max/std over 3 observations, descriptively.
 
 | Model | Mean macro-F1 | Std | Min | Max | Mean accuracy | Mean ECE (precal) | Std ECE | Mean ECE (postcal) |
 |---|---|---|---|---|---|---|---|---|
@@ -228,11 +228,25 @@ minimums (0.7120, 0.7186) — this is the one consistent, unambiguous finding
 across all three seeds.
 
 `efficientnet_b0` and `resnet18` swap 1st/2nd place depending on seed. The
-mean gap between them (0.7291 − 0.7179 = 0.0112) is smaller than either
-model's own seed-to-seed standard deviation (0.0076 and 0.0067 respectively).
-With n=3, this is not a resolvable difference — it should be read as "these
-two architectures perform comparably on this validation split," not as
-"efficientnet_b0 wins."
+mean gap between them is approximately 0.0112 (0.7291 − 0.7179), while their
+own seed-to-seed population standard deviations are approximately 0.0076
+(`efficientnet_b0`) and 0.0067 (`resnet18`) — those numbers alone do not
+establish equivalence or superiority, and no formal statistical test was
+run on them. What the data directly show is:
+
+- Their observed macro-F1 ranges overlap: `resnet18` spans 0.7120–0.7272 and
+  `efficientnet_b0` spans 0.7186–0.7364, overlapping across 0.7186–0.7272.
+- Their ranking changes on seed 2026, where `resnet18` (0.7272) outperforms
+  `efficientnet_b0` (0.7186) — the opposite order from seeds 42 and 123.
+- Three seeds provide insufficient evidence to establish statistical
+  superiority of either model over the other.
+- No formal superiority or equivalence test (e.g. a paired comparison across
+  matched seeds) was performed in this phase.
+
+**This comparison should be described as inconclusive regarding superiority
+between `efficientnet_b0` and `resnet18`** — not as "comparable performance,"
+"a practical tie," or "statistically indistinguishable," none of which were
+tested for.
 
 ### Per-class F1 variation (mean ± std across 3 seeds, precal)
 
@@ -264,7 +278,15 @@ and lowest-scoring of the three on every seed.
 
 ---
 
-## 6. Artifacts
+## 6. Verification (tests, Ruff, compileall)
+
+- **Test suite:** `pytest tests/` — **226 passed**, 9 warnings (pre-existing sklearn imputation warnings, unrelated to Phase 5), 0 failures.
+- **compileall:** `python -m compileall src main.py` — **exit 0**, no syntax errors.
+- **Ruff:** `ruff check .` — **completed and failed its own pass/fail gate: 792 findings, exit code 1.** This is reported honestly as a failing Ruff run, not as "passing." No `src/doar` or `tests/` file was modified in Phase 5 (see §2 above and the git diff for this phase's commit) — the 792 findings pre-date this phase and are concentrated in `legacy/` code. Phase 5 introduced **no identified new Ruff finding**, because it introduced no source-code change for Ruff to flag, but this phase does not claim the codebase as a whole passes Ruff, and does not fix the pre-existing findings (out of scope for a documentation/experiment phase).
+
+---
+
+## 7. Artifacts
 
 - `outputs/phase5/manifest.csv` — dataset manifest, byte-identical to Phase 3A/4.
 - `outputs/phase5/deep/runs/{model}_seed_{123,2026}/` — 6 new training runs (checkpoints, configs, results).
@@ -279,36 +301,50 @@ All of `outputs/` is gitignored; none of the above were committed to git.
 
 ---
 
-## 7. Recommendation
+## 8. Recommendation
 
 Using **mean validation macro-F1 as the primary criterion** (per the
 user's instruction): `efficientnet_b0` has the highest mean (0.7291),
-narrowly ahead of `resnet18` (0.7179) and clearly ahead of
-`mobilenet_v3_small` (0.6951). But per §5, the `efficientnet_b0`/`resnet18`
-gap is smaller than either model's own seed variability — it is **not**
-a resolvable difference at n=3, and this document does not claim
-`efficientnet_b0` is statistically better than `resnet18`.
+ahead of `resnet18` (0.7179) and `mobilenet_v3_small` (0.6951). But per §5,
+the comparison between `efficientnet_b0` and `resnet18` is **inconclusive
+regarding superiority**: their observed seed ranges overlap, their ranking
+flips on seed 2026, three seeds is not enough evidence to establish
+superiority either way, and no formal superiority or equivalence test was
+performed. This document does not claim `efficientnet_b0` is statistically
+better than `resnet18`, nor that the two are statistically indistinguishable
+— neither claim was tested.
 
 Bringing in the secondary criteria the user asked for:
-- **Calibration:** `efficientnet_b0` has the lowest mean pre-calibration ECE (0.0564) of the three, though `resnet18` closes most of the gap after calibration (0.1058→0.0588).
+- **Calibration:** reported separately by metric, since no single model was
+  best on all three. Pre-calibration, `efficientnet_b0` had the lowest mean
+  ECE (0.0564), NLL (0.7264), and Brier score (0.3724) of the three.
+  Post-calibration, `mobilenet_v3_small` had the lowest mean ECE (0.0417),
+  overtaking `efficientnet_b0` (0.0543) and `resnet18` (0.0588); but
+  `efficientnet_b0` still had the lowest mean post-calibration NLL (0.7125)
+  and Brier score (0.3714). `resnet18` had the worst mean ECE both before
+  (0.1058) and after (0.0588) calibration, despite the largest absolute ECE
+  improvement from calibration of the three.
 - **Runtime:** `resnet18` trains ~40% faster than `efficientnet_b0` per seed.
 - **Model size:** `efficientnet_b0`'s checkpoint (~49 MB) is roughly a third of `resnet18`'s (~134 MB).
 - **Deployment complexity:** both are standard torchvision architectures already wired into the existing `registry.py`/`trainers.py` path; no meaningful difference.
 
-`mobilenet_v3_small` is unambiguously the weakest of the three on every seed
-and is not recommended.
+`mobilenet_v3_small` is unambiguously the weakest of the three on macro-F1
+on every seed and is not recommended on that basis, notwithstanding its best
+post-calibration ECE.
 
 **Recommendation: `efficientnet_b0`**, on the basis of the best mean
-macro-F1 combined with the best calibration behavior and a substantially
-smaller checkpoint than `resnet18`, even though its macro-F1 lead over
-`resnet18` alone is not statistically resolvable from 3 seeds. This is
-offered as a preliminary recommendation for a **future** end-to-end pipeline
-test — not a decision to replace the production/default model, which this
-phase does not do.
+macro-F1, the best pre-calibration ECE/NLL/Brier and best post-calibration
+NLL/Brier, and a substantially smaller checkpoint than `resnet18`. This
+recommendation is offered despite the `efficientnet_b0`/`resnet18` macro-F1
+comparison being inconclusive at n=3 seeds (see §5) — the secondary criteria,
+not a resolved macro-F1 superiority claim, are what tip this recommendation
+toward `efficientnet_b0` over `resnet18`. This is offered as a preliminary
+recommendation for a **future** end-to-end pipeline test — not a decision to
+replace the production/default model, which this phase does not do.
 
 ---
 
-## 8. Explicitly out of scope for this phase (per user instruction)
+## 9. Explicitly out of scope for this phase (per user instruction)
 
 The following were **not** done and should not be inferred from this
 document: test-split evaluation of any kind; replacing the production/default

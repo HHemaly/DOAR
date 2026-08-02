@@ -166,20 +166,34 @@ Validation split only, n=310, **still preliminary, still not leakage-safe**.
 
 `mobilenet_v3_small` ranks last on every one of the 3 seeds with no overlap
 against the other two's ranges — the one unambiguous finding. `efficientnet_b0`
-and `resnet18` swap 1st/2nd depending on seed; their mean gap (0.0112) is
-smaller than either model's own seed-to-seed std, so **no statistical
-superiority is claimed between them at n=3** — see `PHASE5_RESULTS.md` §5.
-Temperature-scaling calibration was applied to all 9 checkpoints
-(validation-only, never test): it improved NLL/Brier in all 9 cases but
-worsened ECE in 3 of 9, showing calibration does not uniformly improve every
-probability-quality metric. Macro-F1/accuracy are identical before and after
-calibration for every run, as expected (temperature scaling doesn't change
-arg-max predictions). Preliminary recommendation for a **future** end-to-end
-pipeline test: `efficientnet_b0` (best mean macro-F1, best calibration, and
-a much smaller checkpoint than `resnet18`) — but this is **not** a decision
-to replace the production/default model, and no test-split evaluation
-occurred. Full 9-run detail, per-class variation, and artifact hashes in
+and `resnet18` swap 1st/2nd depending on seed (their mean gap is ~0.0112
+against population std ~0.0076/~0.0067); their observed ranges overlap and
+their ranking flips on seed 2026. **This comparison is inconclusive
+regarding superiority — no formal superiority or equivalence test was run,
+and neither "comparable" nor "statistically indistinguishable" is claimed**
+— see `PHASE5_RESULTS.md` §5. Temperature-scaling calibration was applied
+to all 9 checkpoints (validation-only, never test): it improved NLL/Brier in
+all 9 cases but worsened ECE in 3 of 9. Calibration behavior differed by
+metric and phase: `efficientnet_b0` had the best mean pre-calibration
+ECE/NLL/Brier, but `mobilenet_v3_small` had the lowest mean *post*-
+calibration ECE (0.0417 vs. `efficientnet_b0`'s 0.0543), while
+`efficientnet_b0` kept the best post-calibration NLL/Brier — no model was
+uniformly best on every calibration metric. Macro-F1/accuracy are identical
+before and after calibration for every run, as expected (temperature scaling
+doesn't change arg-max predictions). Preliminary recommendation for a
+**future** end-to-end pipeline test: `efficientnet_b0` (best mean macro-F1,
+best pre-calibration ECE/NLL/Brier, best post-calibration NLL/Brier, and a
+much smaller checkpoint than `resnet18`) — but this is **not** a decision to
+replace the production/default model, and no test-split evaluation occurred.
+Full 9-run detail, per-class variation, and artifact hashes in
 `PHASE5_RESULTS.md`.
+
+**Verification:** full test suite passed (226 tests). `compileall` passed
+(exit 0). `ruff check .` **failed its pass/fail gate with 792 findings** —
+reported honestly here as a failing Ruff run; no `src/doar` or `tests/` code
+was changed in Phase 5 (see §2 above), so all 792 findings are pre-existing
+and Phase 5 introduced no identified new one, but the codebase as a whole
+does not currently pass Ruff.
 
 ---
 
@@ -230,10 +244,12 @@ found, full-text verification blocked by a cookie wall); the objective
 scribble/fragmentation feature (`LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006` —
 corrected to "hypothesis to pilot," not operational); Arabic report
 linguistic quality (structure verified, fluency not); **which of the 3
-competitive Phase 5 architectures is genuinely best — `efficientnet_b0` and
-`resnet18` are statistically indistinguishable at n=3 seeds (see
-`PHASE5_RESULTS.md` §5); a preliminary single-model recommendation exists
-for a future pipeline test, but no test-split evaluation, production-model
+competitive Phase 5 architectures is genuinely best — the `efficientnet_b0`
+vs. `resnet18` macro-F1 comparison is inconclusive regarding superiority at
+n=3 seeds (overlapping ranges, ranking flips on seed 2026, no formal
+superiority test run — see `PHASE5_RESULTS.md` §5); a preliminary
+single-model recommendation exists for a future pipeline test based on
+secondary criteria, but no test-split evaluation, production-model
 replacement, or full pipeline run has occurred**.
 
 ---
@@ -344,13 +360,17 @@ Stop for approval before running any training.
 first (rather than accepting Phase 5's preliminary lean):**
 ```
 Continue the DOAR project. Read SESSION_HANDOFF.md and PHASE5_RESULTS.md in
-full before acting. Phase 5 (n=3 seeds) found efficientnet_b0 and resnet18
-statistically indistinguishable on mean validation macro-F1 -- their gap is
-smaller than either model's own seed-to-seed standard deviation. Do not
-manufacture false statistical confidence with more seeds under the same
-non-leakage-safe protocol; instead ask the user whether they want (a) more
-seeds under the current preliminary protocol, (b) to accept the practical
-tie and pick the simpler/cheaper model, or (c) to defer the decision until
-after the dataset audit produces a leakage-safe evaluation. Do not decide
-this unilaterally.
+full before acting. Phase 5 (n=3 seeds) found the efficientnet_b0 vs.
+resnet18 macro-F1 comparison inconclusive regarding superiority -- their
+observed ranges overlap, their ranking flips on seed 2026, and no formal
+superiority or equivalence test was run. Do not manufacture false
+statistical confidence with more seeds under the same non-leakage-safe
+protocol, and do not describe the two models as "comparable" or
+"statistically indistinguishable" without actually running a test for that;
+instead ask the user whether they want (a) more seeds under the current
+preliminary protocol, (b) a formal statistical comparison run on the
+existing 3-seed data, (c) to pick a model on secondary criteria alone
+(calibration, runtime, size) without resolving the macro-F1 question, or
+(d) to defer the decision until after the dataset audit produces a
+leakage-safe evaluation. Do not decide this unilaterally.
 ```
