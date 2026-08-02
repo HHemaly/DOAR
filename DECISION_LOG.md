@@ -223,6 +223,53 @@ review before any detector implementation begins.
 
 ---
 
+## 2026-08-02 — Phase 3A: preliminary end-to-end training and functional validation
+
+User redirected priority mid-turn: paused the dataset/label-quality audit
+(originally requested) in favor of a fast functional-verification pass —
+train and exercise the complete pipeline end-to-end using ALL currently
+readable images, explicitly WITHOUT removing duplicates, near-duplicates, or
+conflicting labels, to prove the wiring works before investing further in
+data cleaning. Framed as Phase 3A (distinct from the paused Phase 3
+detector-planning work, deferred as Phase 3B).
+
+Executed: manifest built directly from the original (uncleaned) dataset
+(3,688 images, 0 unreadable); existing train/valid/test folder structure used
+as the (already fixed, deterministic) split; `mobilenet_v3_small` trained 10
+epochs, seed 42, on the full uncleaned train split (520.6s, GPU) with the
+leakage gate explicitly overridden and audit-logged, not bypassed silently;
+evaluated on the **validation** split only (test/locked-test path
+untouched) — accuracy 0.729, macro-F1 0.704, full per-class and confusion-
+matrix detail in `PHASE3A_RESULTS.md`; one real image per class run through
+the complete `analyze-image` pipeline (quality→segmentation→composition→
+colour→deep inference→tier-aware rules→disabled concerns→label-provenance
+audit→bilingual EN/AR reports→versioned case output), all 4 successful, zero
+errors/exceptions in the run log.
+
+**No bugs found this pass** — a real, reportable (if unglamorous) result: it
+confirms the Phase 1/2 fixes hold up under a fresh end-to-end run on a
+materially different dataset configuration and checkpoint than previously
+tested. No source code changed; no new tests were needed since nothing
+broke.
+
+**Important finding, not a bug**: this run's macro-F1 (0.704) is higher than
+the equivalent leakage-cleaned run from earlier this session (0.656, same
+architecture family) — the expected signature of validation leakage from
+retained duplicates, not genuine improvement. Explicitly labeled preliminary
+in `PHASE3A_RESULTS.md`, not comparable to, or a replacement for, a
+leakage-safe evaluation. This is itself evidence supporting the deferred
+dataset-audit's importance, quantified for the first time on this exact
+dataset/architecture pairing (~0.05 macro-F1 apparent inflation in this one
+run — not a precise estimate, a directional signal).
+
+Full test suite (222/222, unchanged — no source touched), ruff, and
+compileall re-run clean. Committed separately from all prior phases per
+instruction. The interrupted dataset/label-quality audit (with its versioned
+manifests, mutual-exclusion counts, and SESSION_HANDOFF.md) remains queued as
+next work, not abandoned.
+
+---
+
 ## 2026-08-02 — CSV structural corrections + developmental-stage overreach corrected
 
 User accepted commit `20966e8` as a preliminary checkpoint and required, before
