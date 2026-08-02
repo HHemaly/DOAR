@@ -1,6 +1,6 @@
 # Session Handoff
 
-Updated 2026-08-02, end of the Phase 5 working session, for a fresh Claude
+Updated 2026-08-02, end of the Phase 6 working session, for a fresh Claude
 Code session (or human) to pick up with full context. Read this before
 `CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's current and
 in what order everything happened.
@@ -11,7 +11,8 @@ in what order everything happened.
 - **Phase 3A: Preliminary End-to-End Training and Functional Validation**
 - **Phase 3A Closure Verification** — commit `cf6512f`
 - **Phase 4: Preliminary Controlled Emotion-Model Comparison**
-- **Phase 5: Preliminary Multi-Seed Confirmation** — this session
+- **Phase 5: Preliminary Multi-Seed Confirmation**
+- **Phase 6: Selected-Model End-to-End Integration Validation** — this session
 - Detector implementation for currently-unavailable rules was **proposed
   only, never implemented**. It is a **future roadmap item**, not a
   numbered phase (specifically, it is **not** "Phase 3B" — that label was
@@ -38,7 +39,9 @@ been or can be pushed anywhere from this machine.
 | `cff8342` | Phase 3A | Preliminary end-to-end training + full-pipeline functional validation on the full uncleaned dataset |
 | `cf6512f` | Phase 3A Closure Verification | Version-history round-trip re-verified, report structural inspection, wording corrections, artifact hash inventory, `SESSION_HANDOFF.md` v1 |
 | `73b082f` | Phase 4 | Preliminary controlled one-seed emotion-model comparison — see §4 |
-| *(this session, to be committed next)* | Phase 5 | Preliminary multi-seed (42/123/2026) confirmation of the 3 competitive pretrained architectures + post-hoc calibration — see §4 |
+| `1542505` | Phase 5 | Preliminary multi-seed (42/123/2026) confirmation of the 3 competitive pretrained architectures + post-hoc calibration — see §4 |
+| `d0c5ca2` | Phase 5 correction | Fixed overreaching superiority/calibration claims, recorded Ruff honestly (documentation-only, no retraining, no artifacts touched) |
+| *(this session, to be committed next)* | Phase 6 | Selected-model (`efficientnet_b0`) end-to-end integration validation against the Phase 3A `mobilenet_v3_small` reference — see §4 |
 
 ---
 
@@ -83,6 +86,21 @@ been or can be pushed anywhere from this machine.
   a file path — passing a `.json` path created a nested directory named
   `metrics.json`; caught immediately, fixed by moving the files up one
   level, no data was lost (see `PHASE5_RESULTS.md` §3 note).
+- **Phase 5 correction** (commit `d0c5ca2`): documentation-only. Corrected
+  overreaching wording in `PHASE5_RESULTS.md`/`SESSION_HANDOFF.md` (the
+  `efficientnet_b0`/`resnet18` comparison was reframed from "comparable"/
+  implicitly-tied to "inconclusive regarding superiority, no formal test
+  run"), corrected the calibration conclusion to report NLL/Brier/ECE
+  separately instead of implying one model was uniformly best, and recorded
+  Ruff's actual result (792 findings, exit 1) honestly instead of omitting
+  it. No retraining, no artifact changes, no `src/doar` changes.
+- **Phase 6**: **no `src/doar` code changed** — no bug was found to fix.
+  Ran `main.py analyze-image` (unmodified) 10 times: the same 4 Phase 3A
+  smoke-test images through the selected Phase 5 `efficientnet_b0`
+  checkpoint and the Phase 3A `mobilenet_v3_small` checkpoint, plus 2 extra
+  runs re-exercising the version-history path from Phase 3A §7a with the
+  new checkpoint. All 10 runs exited 0 with no errors/warnings found in the
+  logs.
 
 Everything else across all phases was documentation, CSV registers, and
 tests.
@@ -110,19 +128,21 @@ versioned (Phase 1); the review-master CSV is genuinely append-only.
 code-reading): the full CLI pipeline end-to-end, on real data, multiple
 times — a leakage-cleaned subset (~2,171 images, an earlier session), the
 full uncleaned dataset for a single model (Phase 3A), the full uncleaned
-dataset across **4 architectures** (Phase 4), and now **3 seeds × 3
-architectures** (9 model×seed checkpoints total) plus, for the first time in
-this project, post-hoc temperature-scaling calibration on all 9 (Phase 5).
-All produced real trained checkpoints, real metrics, real bilingual case
-reports.
+dataset across **4 architectures** (Phase 4), **3 seeds × 3 architectures**
+(9 model×seed checkpoints total) plus post-hoc temperature-scaling
+calibration on all 9 (Phase 5), and now a **full single-image pipeline
+integration test of the Phase 5-selected `efficientnet_b0` checkpoint**
+against the Phase 3A `mobilenet_v3_small` checkpoint, side by side, on the
+same 4 smoke-test drawings (Phase 6). All produced real trained checkpoints,
+real metrics, real bilingual case reports.
 
 ---
 
-## 4. Exact Phase 3A, Phase 4, and Phase 5 commands and results
+## 4. Exact Phase 3A through Phase 6 commands and results
 
-Full detail lives in `PHASE3A_RESULTS.md`, `PHASE4_RESULTS.md`, and
-`PHASE5_RESULTS.md` — read those directly for anything you plan to cite.
-Headline:
+Full detail lives in `PHASE3A_RESULTS.md`, `PHASE4_RESULTS.md`,
+`PHASE5_RESULTS.md`, and `PHASE6_RESULTS.md` — read those directly for
+anything you plan to cite. Headline:
 
 **Phase 3A**: `mobilenet_v3_small`, seed 42, 10 epochs, on the full uncleaned
 dataset (3,688 images, 0 unreadable). Validation macro-F1 0.704, accuracy
@@ -195,6 +215,40 @@ was changed in Phase 5 (see §2 above), so all 792 findings are pre-existing
 and Phase 5 introduced no identified new one, but the codebase as a whole
 does not currently pass Ruff.
 
+**Phase 6**: end-to-end integration validation of the Phase 5-selected
+`efficientnet_b0` checkpoint (seed 42, the highest validation macro-F1 of
+the three Phase 5 seeds, 0.7364 — the Phase 5 calibrated reference copy at
+`outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt`), run
+through `main.py analyze-image` on the same 4 Phase 3A smoke-test drawings,
+side by side against the Phase 3A `mobilenet_v3_small` checkpoint
+(`outputs/phase3a/model/best.pt`) as reference. **All 8 runs (+2 more for
+the versioning check) exited 0, zero errors/warnings/exceptions found.**
+Both checkpoints agreed on the predicted class for all 4 drawings (3/4
+correct against ground truth, same Fear→Angry miss both times — consistent
+with every architecture tested so far). Objective features
+(quality/segmentation/composition/colour) were confirmed byte-identical
+between the two checkpoints' runs for every drawing, as they must be — no
+coupling bug found. Emotion-derived evidence (`ev_emotion_prediction`)
+correctly differed per checkpoint and matched each run's own `analysis.json`
+exactly; `rules.json` was identical between checkpoints for every drawing,
+correctly explained by the fact that none of the 6 currently-evaluable
+rules (all size/placement-based) consume emotion evidence. All 40 generated
+report files (4 drawings × 2 checkpoints × 5 report types) were scanned for
+placeholders/mojibake — zero issues. The version-history round-trip
+(re-analyze unchanged → no `versions/`; remove checkpoint → exactly the 4
+changed files archived, original prediction preserved; restore checkpoint →
+exact reproduction) was repeated with the new checkpoint and confirmed
+correct, replicating Phase 3A §7a's result under this different
+architecture/calibration configuration. **No bug found, no code changed, no
+default/production model changed, no test-split evaluation performed.** Full
+detail in `PHASE6_RESULTS.md`.
+
+**Verification:** full test suite passed (226 tests, unchanged from Phase 5
+— no code changed so no new tests were needed). `compileall` passed (exit
+0). `ruff check .` **792 findings, exit 1** — identical count to Phase 5,
+confirming no new finding was introduced (`git status` showed zero tracked
+files modified during the investigation itself).
+
 ---
 
 ## 5. Files created or modified this session
@@ -207,15 +261,25 @@ this v2).
 count fields), `tests/test_trainer_regression.py` (3 new tests),
 `PHASE4_RESULTS.md` (new), `SESSION_HANDOFF.md` (v2).
 
-**Phase 5** (to be committed next): `PHASE5_RESULTS.md` (new),
-`SESSION_HANDOFF.md` (this file, v3). **No `src/doar` or `tests/` files
-changed** — no code changes were needed this phase (see §2 above).
+**Phase 5** (committed `1542505`): `PHASE5_RESULTS.md` (new),
+`SESSION_HANDOFF.md` (v3). **No `src/doar` or `tests/` files changed** — no
+code changes were needed this phase (see §2 above).
+
+**Phase 5 correction** (committed `d0c5ca2`): `PHASE5_RESULTS.md` (wording
+corrections), `SESSION_HANDOFF.md` (v4, matching corrections). Documentation
+only.
+
+**Phase 6** (to be committed next): `PHASE6_RESULTS.md` (new),
+`SESSION_HANDOFF.md` (this file, v5). **No `src/doar` or `tests/` files
+changed** — no bug was found this phase (see §2 above).
 
 **Not committed** (git-ignored, `outputs/` rule): everything under
-`outputs/phase3a/`, `outputs/phase4/`, and `outputs/phase5/` — see each
-phase's `*_RESULTS.md` §6/§9a for exact paths, sizes, and SHA-256 hashes of
-every artifact that matters. `outputs/phase4/ARTIFACT_MANIFEST.tsv` (25 rows)
-and `outputs/phase5/ARTIFACT_MANIFEST.tsv` (120 rows, ≈1.22 GB) cover their
+`outputs/phase3a/`, `outputs/phase4/`, `outputs/phase5/`, and
+`outputs/phase6/` — see each phase's `*_RESULTS.md` for exact paths, sizes,
+and SHA-256 hashes of every artifact that matters.
+`outputs/phase4/ARTIFACT_MANIFEST.tsv` (25 rows),
+`outputs/phase5/ARTIFACT_MANIFEST.tsv` (120 rows, ≈1.22 GB), and
+`outputs/phase6/ARTIFACT_MANIFEST.tsv` (202 rows, ≈8.3 MB) cover their
 respective phases in full.
 
 ---
@@ -227,10 +291,15 @@ override-with-audit-log; objective feature extraction; classical and deep
 model training across 4 architectures, now with multi-seed (3-seed)
 confirmation for the 3 competitive ones; deep-checkpoint temperature-scaling
 calibration (validation-only, now exercised for the first time on 9
-checkpoints); fusion training + calibration; locked-test evaluation guard;
-tier-aware rule dispatch (6/19 rules can produce `weak_support`, confidence
-ceilings 0.05–0.25); bilingual report generation; deterministic Q&A;
-versioned case persistence; Streamlit upload-and-analyze.
+checkpoints); the full single-image `analyze-image` pipeline confirmed
+integration-correct with a calibrated `efficientnet_b0` checkpoint
+end-to-end (Phase 6), including version-history behavior under a changed
+checkpoint configuration; fusion training + calibration; locked-test
+evaluation guard; tier-aware rule dispatch (6/19 rules can produce
+`weak_support`, confidence ceilings 0.05–0.25, all 6 currently
+composition/placement-based, none consume emotion-model evidence yet);
+bilingual report generation; deterministic Q&A; versioned case persistence;
+Streamlit upload-and-analyze.
 
 **Disabled by design, correctness-verified but not user-facing**: the
 concern-convergence engine (`CONCERNS_ENABLED = False` — every case's
@@ -310,12 +379,17 @@ remains lower priority than dataset auditing or model comparison work.
 process" — `LIT_EMOTION_FACE_ENCODING_007` is flagged as the best lead
 requiring round-3 full-text verification before any further action.
 
-**Phase 4's multi-seed proposal is now complete (Phase 5)** — see §4 above
-and `PHASE5_RESULTS.md`. The next open decision is what to do with Phase 5's
-preliminary recommendation (`efficientnet_b0`): the user's own closing
-instruction for Phase 5 was to stop before test-split evaluation, production
-replacement, full-pipeline execution, dataset cleaning, detector work, or
-rule activation — so **an explicit go-ahead is needed before any of those**.
+**Phase 4's multi-seed proposal is complete (Phase 5)** and **Phase 5's
+preliminary `efficientnet_b0` recommendation has now been integration-tested
+end-to-end through the pipeline (Phase 6), with no defects found** — see §4
+above, `PHASE5_RESULTS.md`, and `PHASE6_RESULTS.md`. What remains open:
+Phase 6 confirms the pipeline **works** with `efficientnet_b0`; it does not
+resolve the still-inconclusive `efficientnet_b0` vs. `resnet18` macro-F1
+question from Phase 5 §5, and does not by itself justify standardizing on
+`efficientnet_b0`. The user's own closing instruction for Phase 6 was to
+stop before changing the default/production model, test-split evaluation,
+dataset cleaning, detector work, or rule activation — so **an explicit
+go-ahead is needed before any of those**.
 
 ---
 
@@ -324,23 +398,23 @@ rule activation — so **an explicit go-ahead is needed before any of those**.
 Three reasonable next steps exist; pick based on current priority. Use
 whichever prompt matches:
 
-**If proceeding to a final end-to-end pipeline test of the Phase 5 winner:**
+**If proceeding toward a production-model decision for `efficientnet_b0`:**
 ```
-Continue the DOAR project. Read SESSION_HANDOFF.md and PHASE5_RESULTS.md in
-full before acting. Treat the repository at its current HEAD as the source
-of truth.
+Continue the DOAR project. Read SESSION_HANDOFF.md, PHASE5_RESULTS.md, and
+PHASE6_RESULTS.md in full before acting. Treat the repository at its
+current HEAD as the source of truth.
 
-Phase 5 preliminarily recommended efficientnet_b0 (checkpoint at
-outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt or any of
-the seed 123/2026 checkpoints under outputs/phase5/deep/runs/) for a final
-end-to-end pipeline test, but explicitly stopped short of running it. Run
-that model through the full DOAR pipeline (analyze-image or equivalent) on
-a small number of held-out example images -- NOT the locked test split
-unless the user explicitly authorizes unlocking it via --unlock-test
---confirm-final-evaluation, which is a separate, deliberate decision. Do not
-treat this as replacing the production/default model without a separate,
-explicit instruction to do so. Do not clean the dataset, implement
-detectors, or activate psychological concerns.
+Phase 6 confirmed efficientnet_b0 (checkpoint at
+outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt) runs
+correctly through the full DOAR pipeline with no integration defects, on 4
+smoke-test drawings only -- this is not a performance validation. Do not
+replace the production/default model without first resolving (or
+explicitly deciding to set aside) the still-inconclusive efficientnet_b0
+vs. resnet18 macro-F1 comparison from PHASE5_RESULTS.md Section 5. Ask the
+user how they want to proceed (see Section 8's open options) before taking
+any action that changes the default model, touches the locked test split,
+cleans the dataset, implements a detector, or activates psychological
+concerns.
 ```
 
 **If resuming the paused dataset/label-quality audit instead:**
@@ -352,8 +426,8 @@ duplicate/exclusion/conflict manifests, cross-split leakage verification,
 class balance before/after, integrity tests, and a proposed -- not run --
 next baseline experiment). Do not clean the dataset or exclude anything
 without separate approval; the audit's job is to measure and document, not
-to modify. Do not repeat Phase 3A, Phase 4, or Phase 5's completed work.
-Stop for approval before running any training.
+to modify. Do not repeat Phase 3A, Phase 4, Phase 5, or Phase 6's completed
+work. Stop for approval before running any training.
 ```
 
 **If the user wants to formally decide between efficientnet_b0 and resnet18
