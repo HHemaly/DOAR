@@ -29,6 +29,7 @@ class Analysis:
     safety_disclaimer: str
     artifacts: dict[str, str]
     module_execution: dict[str, Any] = field(default_factory=dict)
+    label_provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

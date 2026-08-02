@@ -101,9 +101,25 @@ def evaluate_model(
             "The test split is locked. Final evaluation requires both "
             "--unlock-test and --confirm-final-evaluation."
         )
+    suffix = Path(checkpoint).suffix.lower()
+    if suffix in (".pt", ".pth"):
+        raise ValueError(
+            f"'evaluate' only supports the plain sklearn whole-image baseline "
+            f"produced by 'train' (.joblib). {checkpoint!r} is a deep-model "
+            f"checkpoint. Use 'export-probabilities' followed by "
+            f"'evaluate-predictions' instead, which supports deep and fusion "
+            f"checkpoints correctly."
+        )
     deps = _dependencies()
     joblib, _, accuracy_score, balanced_accuracy_score, f1_score, _, _ = deps
     payload = joblib.load(checkpoint)
+    if payload.get("checkpoint_type") == "doar_fusion_bundle_v1":
+        raise ValueError(
+            f"'evaluate' only supports the plain sklearn whole-image baseline "
+            f"produced by 'train' (.joblib). {checkpoint!r} is a fusion bundle. "
+            f"Use 'export-probabilities' followed by 'evaluate-predictions' "
+            f"instead, which supports deep and fusion checkpoints correctly."
+        )
     if tuple(payload["classes"]) != CLASSES:
         raise ValueError("Checkpoint class mapping does not match the fixed DOAR mapping")
     x, y = _load(manifest, split)

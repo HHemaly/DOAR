@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
@@ -342,6 +341,16 @@ def analyze_image(
             if quality_status == "unsupported" else None
         ),
     }
+    # Label provenance is computed strictly here, after every upstream stage
+    # (quality/segmentation/composition/colour/emotion/rules/concerns) has
+    # already produced its result from the image alone. It reads the dataset
+    # folder name (if any) and the independent emotion prediction only to
+    # record a post-hoc audit signal -- it is never fed back into any stage
+    # above. See label_provenance.py and SCIENTIFIC_LIMITATIONS.md Section 6.
+    from .label_provenance import extract_original_source_label, compute_label_audit_status
+    original_source_label = extract_original_source_label(image_path)
+    label_provenance = compute_label_audit_status(original_source_label, emotion)
+
     result = Analysis(
         schema_version="3.0.0",
         image_path=str(Path(image_path).resolve()),
@@ -359,6 +368,7 @@ def analyze_image(
         safety_disclaimer=DISCLAIMER,
         artifacts=artifacts,
         module_execution=module_execution,
+        label_provenance=label_provenance,
     )
     output.mkdir(parents=True, exist_ok=True)
     portable = result.to_dict()
@@ -370,8 +380,7 @@ def analyze_image(
         for key, path in portable["artifacts"].items()
     }
     portable["image_path"] = Path(image_path).name
-    (output / "analysis.json").write_text(
-        json.dumps(portable, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    from .case_output import write_versioned
+    write_versioned(output / "analysis.json", portable)
     finalize_case(portable, output)
     return result

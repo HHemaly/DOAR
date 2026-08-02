@@ -187,14 +187,25 @@ python main.py explain-gradcam --image "$DS\valid\Happy\<pick-one>.png" `
 ### 7.8 LOCKED final test — run ONCE, only after freezing all choices
 Freeze the architecture, config, preprocessing and the selected winner first.
 Build a manifest that includes test, then evaluate the winner with all three
-confirmation flags (writes an audit‑log entry):
+confirmation flags (writes an audit‑log entry).
+
+**Note:** `evaluate --deep-comparison` only supports the plain sklearn
+whole-image baseline from `train`; it raises a clear error for deep/fusion
+checkpoints (verified 2026-08-02, see `CURRENT_STATE_AUDIT.md`). For deep or
+fusion winners — the normal case — use `export-probabilities` then
+`evaluate-predictions` instead, which correctly dispatch on checkpoint type:
 ```powershell
 python main.py build-manifest --dataset "$DS" --output "$OUT\manifest_full.csv"
-python main.py evaluate --manifest "$OUT\manifest_full.csv" `
-  --deep-comparison "$OUT\deep\deep_comparison.json" --split test `
-  --unlock-test --confirm-final-evaluation --initiated-by "Ahmed" `
-  --output "$OUT\final_test"
+python main.py export-probabilities --model "$win" `
+  --features "$OUT\features\features.csv" --embeddings "$OUT\emb_generic\embeddings.npz" `
+  --output "$OUT\final_test\probability_export.json" --splits test `
+  --unlock-test --confirm-final-evaluation --initiated-by "Ahmed"
+python main.py evaluate-predictions --export "$OUT\final_test\probability_export.json" `
+  --split test --output "$OUT\final_test" `
+  --unlock-test --confirm-final-evaluation --initiated-by "Ahmed"
 ```
+(`--model` may instead point at a deep `.pt` checkpoint with `--manifest` in
+place of `--features`/`--embeddings` — see `export-probabilities --help`.)
 
 ### 7.9 Thesis figures + tables (only from real outputs)
 ```powershell

@@ -46,6 +46,26 @@ class AssessTests(unittest.TestCase):
         r = assess_leakage(rows)
         self.assertTrue(r["conflicting_labels"])
 
+    def test_conflicting_labels_are_quarantined(self):
+        # Regression test: assess_leakage() previously computed conflicting_labels
+        # but never added their image_ids to leaked_image_ids, so
+        # resolve_leakage()'s materialized clean_dataset silently still
+        # contained label-conflicting images (found during a full pipeline run,
+        # 2026-08-02). Both images in a conflicting-label pair must be
+        # quarantined even though they are not cross-split duplicates.
+        from doar.leakage import assess_leakage
+        rows = _rows()
+        rows[1]["sha256"] = "h1"
+        rows[1]["split"] = "train"
+        rows[1]["class"] = "Angry"
+        r = assess_leakage(rows)
+        conflicting_ids = {
+            image_id for group in r["conflicting_labels"] for image_id in group["image_ids"]
+        }
+        self.assertTrue(conflicting_ids)
+        self.assertTrue(conflicting_ids.issubset(set(r["leaked_image_ids"])))
+        self.assertFalse(r["leakage_ok"])
+
     def test_near_duplicate_cross_split_detected(self):
         from doar.leakage import assess_leakage
         rows = _rows()

@@ -158,10 +158,19 @@ results.
 
 ## 9. Final test (locked — run once, deliberately)
 
+`evaluate --checkpoint`/`--deep-comparison` only supports the plain sklearn
+whole-image baseline from `train` (a `.joblib` file); it raises a clear error
+for deep or fusion checkpoints (verified 2026-08-02, see
+`CURRENT_STATE_AUDIT.md` at the repo root). For a deep or fusion winner — the
+normal case — use `export-probabilities` then `evaluate-predictions`:
+
 ```powershell
-python main.py evaluate --manifest outputs\manifest.csv `
-    --checkpoint outputs\deep\runs\<winner>\best.pt --split test `
-    --unlock-test --confirm-final-evaluation --initiated-by "Ahmed"                       # needs dataset
+python main.py export-probabilities --model outputs\deep\runs\<winner>\best.pt `
+    --manifest outputs\manifest.csv --output outputs\final_test\probability_export.json `
+    --splits test --unlock-test --confirm-final-evaluation --initiated-by "Ahmed"         # needs dataset
+python main.py evaluate-predictions --export outputs\final_test\probability_export.json `
+    --split test --output outputs\final_test `
+    --unlock-test --confirm-final-evaluation --initiated-by "Ahmed"
 ```
 Requires BOTH confirmation flags and writes an audit-log entry. Only run after the
 architecture, config, preprocessing and model-selection criteria are frozen.

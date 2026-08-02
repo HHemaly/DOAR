@@ -97,7 +97,7 @@ def assess_leakage(rows: list[dict], subject_key: str = "subject_id",
                 })
 
     leaked_ids = set()
-    for group in exact_cross_split + near_cross_split:
+    for group in exact_cross_split + near_cross_split + conflicting_labels:
         leaked_ids.update(group["image_ids"])
     for group in subject_cross_split:
         leaked_ids.update(group["image_ids"])

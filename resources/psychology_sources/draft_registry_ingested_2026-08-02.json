@@ -1,0 +1,746 @@
+{
+  "source": {
+    "source_id": "doar_source_v1",
+    "source_type": "psychologist_supplied_pdf",
+    "language": "ar",
+    "scientifically_validated": false,
+    "ingestion_note": "Auto-extracted DRAFT. Presence in the PDF is NOT validation. Every rule is blocked pending clinician translation, literature check, and review before any activation."
+  },
+  "references": {},
+  "draft": true,
+  "activation_blocked": true,
+  "rule_count": 43,
+  "rules": [
+    {
+      "rule_id": "PSY_DRAFT_P001",
+      "page": 1,
+      "arabic": "التحليل النفسي للرسم",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P002",
+      "page": 1,
+      "arabic": "رسم العيون",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P003",
+      "page": 1,
+      "arabic": "• رسم العيون الواسعة، هذا يدل على الشخصية المنفتحة",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P004",
+      "page": 1,
+      "arabic": "• رسم العيون الصارمة تدل على الشعور بالغضب",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P005",
+      "page": 1,
+      "arabic": "• رسم العيون المغمضة تدل على رفض الشخص النظر إلى نفسه من الداخل ورفضه الاعتراف",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P006",
+      "page": 1,
+      "arabic": "رسم الحيوانات",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P007",
+      "page": 1,
+      "arabic": "يشير نوع الحيوان الذي تقوم برسمه على مشاعر الإنسان عندما يقوم بالرسم",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P008",
+      "page": 1,
+      "arabic": "• رسم حيوان النمر أوالذئب يدل على الشعور بالغضب",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P009",
+      "page": 1,
+      "arabic": "• رسم الثعلب يدل على أن الشخص الرسام كان يقوم بالتفكير بعمل أمر لئيم أو خبيث",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P010",
+      "page": 1,
+      "arabic": "• رسم السنجاب يشير إلى حاجة الشخص الرسام للحماية والاهتمام",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P011",
+      "page": 1,
+      "arabic": "• رسم الأسد يشير إلى اعتقاد الشخص بأنه متفوق على الأشخاص الآخرين",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P012",
+      "page": 1,
+      "arabic": "الأشكال الهندسية",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P013",
+      "page": 1,
+      "arabic": "إذا كان يحب الرسام رسم الأشكال الهندسية فهذا يشير إلى أن لديه كمية من الأهداف والخطط وأنه عنيد",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P014",
+      "page": 1,
+      "arabic": "ولديه الإصرار على تحقيق أمر ما",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P015",
+      "page": 1,
+      "arabic": "• النجوم رسم النجوم يشير إلى أن الشخص يريد أن يكون ملفتًا لنظر الجميع",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P016",
+      "page": 1,
+      "arabic": "• الزهور والسحب والشمس إذا رسم الرسام هذه الأشكال وهو شارد فهذا يعبر عن أنه يتخيل أهدافًا",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P017",
+      "page": 1,
+      "arabic": "وأفكارًا جديدة تنتظره في الزمن الآتي، وهذا يشير إلى أن الشخص ذو شخصية إيجابية، وفي حالة",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P018",
+      "page": 1,
+      "arabic": "مزاج جيدة",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P019",
+      "page": 1,
+      "arabic": "• الدوائر يعبر الرسم للدوائر على أن الشخص يشعر بالوحدة وأنه يحتاج لقريب أو شخص ما يقف",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P020",
+      "page": 1,
+      "arabic": "إلى جانبه",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P021",
+      "page": 1,
+      "arabic": "المختلفةرسم وسائل النقل",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P022",
+      "page": 1,
+      "arabic": "رسم وسائل النقل يشير إلى إنسان محب للسفر، محب للعطلة، وشخصية اجتماعية، متفتحة، مرحة،",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P023",
+      "page": 1,
+      "arabic": "مغامرة، تحب الحياة",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P024",
+      "page": 2,
+      "arabic": "رسم القلوب",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P025",
+      "page": 2,
+      "arabic": "رسم القلوب يدل على شخصية عاطفيّة أو عاشقة، لديها القدرة على جذب قلوب الآخرين، اجتماعية،",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P026",
+      "page": 2,
+      "arabic": "لطيفة، رومانسية",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P027",
+      "page": 2,
+      "arabic": "حجم الرسم",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P028",
+      "page": 2,
+      "arabic": "• إذا كانت الرسمة تغطي حوالي 50% من حجم الورقة التي قام الشخص بالرسم عليها، فيدل",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P029",
+      "page": 2,
+      "arabic": "ذلك على أنه إنسان ذو شخصية منفتحة في بعض الأوقات وانطوائية في الأوقات الأخرى",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P030",
+      "page": 2,
+      "arabic": "• إذا كانت الرسمة تغطي كل الورقة، فهذا يدل على احترام الشخص العالي لنفسه وتقديره لنفسه",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P031",
+      "page": 2,
+      "arabic": "• إذا كانت الرسمة تغطي جزءًا صغيرًا من الورقة أي لا تتجاوز 20% فهذا يدل على شعوره",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P032",
+      "page": 2,
+      "arabic": "بعدم الاستقرار، وشعوره بالخوف من أمر ما",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P033",
+      "page": 2,
+      "arabic": "موقع الرسم",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P034",
+      "page": 2,
+      "arabic": "• إذا كان الرسم في أعلى الصفحة من الورقة، فهذا يعبّر عن أنه شخصية حالمة، ويشعر كأنه",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P035",
+      "page": 2,
+      "arabic": "يعيش في واقع خيالي، مما يشير لصعوبة التكيف مع العالم الذي يعيش فيه",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P036",
+      "page": 2,
+      "arabic": "• إذا قمت بالرسم في الجانب الأيسر فيدل ذلك على أنه شخصية انطوائية",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P037",
+      "page": 2,
+      "arabic": "• أما الرسم في الجانب الأيمن فيدل على أنّ الرسام ذو شخصية منفتحة",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P038",
+      "page": 2,
+      "arabic": "تحليل الشخصية من خلال الرسم تحليل الشخصية بالرسم يشمل علامات يقوم بتفسيرها علماء النفس",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P039",
+      "page": 2,
+      "arabic": "والأطباء النفسيون يمكنهم عن طريق هذه العلامات التعرف على شخصية الشخص الذي يرسم، وما إن",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P040",
+      "page": 2,
+      "arabic": "كان يعاني من بعض التوترات أم أنه شخص سليم، إذ إن كل خط يقوم الإنسان برسمه لا يكون خطًا",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P041",
+      "page": 2,
+      "arabic": "عاديًا، بل يكون له معنى ودلالة، فالعديد من الدراسات التابعة لعلم النفس قامت بإثبات أن هذه الخطوط",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P042",
+      "page": 2,
+      "arabic": "لها معانٍ وصفات، أما إذا قامت هذه الخطوط التي ترسم بشكل عشوائي بتكوين صورة فإن هذا الشكل",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    },
+    {
+      "rule_id": "PSY_DRAFT_P043",
+      "page": 2,
+      "arabic": "يحلل ويعبر عن معنى خاص به",
+      "english_literal": "",
+      "english_reviewed": "",
+      "observable": "unassigned",
+      "evidence_tier": "unreviewed",
+      "scientific_support": "pending_literature_check",
+      "confidence_ceiling": 0.0,
+      "limitations": [
+        "Unreviewed auto-extraction; not for use."
+      ],
+      "visibility": "blocked_pending_review",
+      "review_status": "pending",
+      "references": []
+    }
+  ]
+}
