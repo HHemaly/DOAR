@@ -89,5 +89,51 @@ class UnfreezeOptimizerTests(unittest.TestCase):
                 self.assertNotEqual(cfg["head_learning_rate"], cfg["backbone_learning_rate"])
 
 
+@unittest.skipUnless(_TORCH, "torch/torchvision not installed")
+class ParameterCountTests(unittest.TestCase):
+    # Phase 4 (2026-08-02): train_image_model() previously did not report
+    # parameter count anywhere, but a model-comparison report needs it per
+    # model. Added as parameter_count / trainable_parameter_count in the
+    # returned/saved result -- regression-tested here so it can't silently
+    # regress.
+    def _run(self, model_name, **kwargs):
+        from doar.deep.trainers import train_image_model
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_dataset(Path(d) / "data")
+            out = Path(d) / "out"
+            return train_image_model(
+                str(Path(d) / "data"), model_name, str(out), seed=0, epochs=1,
+                batch_size=4, image_size=32, device="cpu", workers=0,
+                freeze_epochs=0, pretrained_weights="none", **kwargs)
+
+    def test_parameter_count_present_and_positive(self):
+        result = self._run("small_cnn")
+        self.assertIn("parameter_count", result)
+        self.assertIn("trainable_parameter_count", result)
+        self.assertGreater(result["parameter_count"], 0)
+        self.assertGreater(result["trainable_parameter_count"], 0)
+
+    def test_larger_architecture_reports_more_parameters(self):
+        # resnet18 (torchvision) must report substantially more parameters
+        # than the tiny hand-built small_cnn -- a sanity check that the count
+        # is measuring something real, not a constant/placeholder.
+        small = self._run("small_cnn")
+        resnet = self._run("resnet18")
+        self.assertGreater(resnet["parameter_count"], small["parameter_count"] * 10)
+
+    def test_parameter_count_persisted_to_training_result_json(self):
+        import json
+        from doar.deep.trainers import train_image_model
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_dataset(Path(d) / "data")
+            out = Path(d) / "out"
+            train_image_model(
+                str(Path(d) / "data"), "small_cnn", str(out), seed=0, epochs=1,
+                batch_size=4, image_size=32, device="cpu", workers=0,
+                freeze_epochs=0, pretrained_weights="none")
+            saved = json.loads((out / "training_result.json").read_text(encoding="utf-8"))
+            self.assertIn("parameter_count", saved)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

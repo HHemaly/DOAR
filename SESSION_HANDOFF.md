@@ -1,9 +1,20 @@
 # Session Handoff
 
-Written 2026-08-02 at the end of a long working session, for a fresh Claude
+Updated 2026-08-02, end of the Phase 4 working session, for a fresh Claude
 Code session (or human) to pick up with full context. Read this before
 `CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's current and
 in what order everything happened.
+
+**Canonical phase terminology (preserve exactly, do not rename):**
+- **Phase 1: Pipeline and Data-Safety Corrections**
+- **Phase 2: Rule Tiers and Concern-Engine Correction**
+- **Phase 3A: Preliminary End-to-End Training and Functional Validation**
+- **Phase 3A Closure Verification** — commit `cf6512f`
+- **Phase 4: Preliminary Controlled Emotion-Model Comparison** — this session
+- Detector implementation for currently-unavailable rules was **proposed
+  only, never implemented**. It is a **future roadmap item**, not a
+  numbered phase (specifically, it is **not** "Phase 3B" — that label was
+  used informally in an earlier draft of this document and is retired here).
 
 ---
 
@@ -14,22 +25,18 @@ been or can be pushed anywhere from this machine.
 
 **Commit history** (oldest → newest):
 
-| Commit | Summary |
-|---|---|
-| `894d733` | Baseline commit — first-ever commit of the pre-existing codebase (project had no git history before this session) |
-| `a9bbfe8` | Phase 1 — 2 real bug fixes (leakage quarantine gap, `evaluate` crash), `original_source_label` provenance, versioned case outputs |
-| `c0ebb17` | Phase 2 — rule tiers (`tier`/`activation_status` fields), corrected concern-engine evidence-passthrough fix (concerns stay disabled) |
-| `eee8e35` | Phase 3 planning — detector dependency matrix, candidate comparison, annotation schema, evaluation scaffolding. No detector implemented. |
-| `20966e8` | Literature review round 1 — 6 candidates, no new operational rule found; Phase 3 validation-plan corrections |
-| `5840d65` | Corrections — CSV structural integrity fix (real data-loss incident caught and recovered via git), developmental-stage overreach corrected |
-| `88f0863` | Literature review round 2 — broader 10-query search, 6-category comparison, `EXPERIMENT_PRIORITIZATION.md` (ranks dataset/label audit > model completion > objective-feature pilot > detector work) |
-| `cff8342` | Phase 3A — preliminary end-to-end training + full-pipeline functional validation on the full uncleaned dataset |
-| *(uncommitted)* | Phase 3A verification/documentation corrections — see §4 below, not yet committed as of this doc being written |
-
-**Working tree status as of writing this doc**: `PHASE3A_RESULTS.md` modified
-(corrections + 2 new verification sections, not yet committed) and this file
-is new. Both will be committed together immediately after this doc is
-written — see the end of this session's work.
+| Commit | Phase | Summary |
+|---|---|---|
+| `894d733` | — | Baseline commit — first-ever commit of the pre-existing codebase (project had no git history before the first session) |
+| `a9bbfe8` | Phase 1 | Pipeline and Data-Safety Corrections — 2 real bug fixes (leakage quarantine gap, `evaluate` crash), `original_source_label` provenance, versioned case outputs |
+| `c0ebb17` | Phase 2 | Rule Tiers and Concern-Engine Correction — `tier`/`activation_status` fields, corrected concern-engine evidence-passthrough fix (concerns stay disabled) |
+| `eee8e35` | (planning) | Detector dependency matrix, candidate comparison, annotation schema, evaluation scaffolding. No detector implemented — future roadmap item, see above. |
+| `20966e8` | (planning) | Literature review round 1 — 6 candidates, no new operational rule found |
+| `5840d65` | (corrections) | CSV structural integrity fix (real data-loss incident caught and recovered via git), developmental-stage overreach corrected |
+| `88f0863` | (planning) | Literature review round 2 — broader 10-query search, 6-category comparison, `EXPERIMENT_PRIORITIZATION.md` |
+| `cff8342` | Phase 3A | Preliminary end-to-end training + full-pipeline functional validation on the full uncleaned dataset |
+| `cf6512f` | Phase 3A Closure Verification | Version-history round-trip re-verified, report structural inspection, wording corrections, artifact hash inventory, `SESSION_HANDOFF.md` v1 |
+| *(this session, to be committed next)* | Phase 4 | Preliminary controlled one-seed emotion-model comparison — see §4 |
 
 ---
 
@@ -49,18 +56,24 @@ written — see the end of this session's work.
   `tier_3_prompt_or_age_dependent`) and `activation_status`. **No rule's
   runtime behavior changed** — this made the existing implicit fallthrough
   explicit. `evaluate_rules()` no longer discards the emotion model's
-  evidence; `concerns.py` implements a 4-level aggregation vocabulary
-  (`INSUFFICIENT`/`WEAK_HYPOTHESIS`/`POSSIBLE_FOR_EXPLORATION`/
-  `PROFESSIONAL_REVIEW_SUGGESTED`). **`CONCERNS_ENABLED` stays `False` in
-  production** — this is a correctness fix to disabled scaffolding, not new
-  user-facing capability.
-- **Phase 3 planning**: no `src/doar` code changed. Added
-  `src/doar/detectors/` (schema + metrics scaffolding only, not imported by
-  any user-facing path, no model/download).
-- **Phase 3A**: no `src/doar` code changed (no bugs found — see §5).
+  evidence; `concerns.py` implements a 4-level aggregation vocabulary.
+  **`CONCERNS_ENABLED` stays `False` in production.**
+- **Detector planning** (not a numbered phase): no `src/doar` code changed
+  beyond adding `src/doar/detectors/` (schema + metrics scaffolding only,
+  not imported by any user-facing path, no model/download).
+- **Phase 3A**: no `src/doar` code changed (no bugs found).
+- **Phase 3A Closure Verification**: no `src/doar` code changed (doc/
+  verification corrections only).
+- **Phase 4** (`src/doar/deep/trainers.py`, `tests/test_trainer_regression.py`):
+  `train_image_model()` now records `parameter_count` and
+  `trainable_parameter_count` in its result (previously missing, needed for
+  the model-comparison report). 3 new regression tests. No other code
+  changed — the multi-model comparison itself reused
+  `main.py compare-deep-models` → `deep/compare.py::run_deep_comparison()`
+  unmodified.
 
 Everything else across all phases was documentation, CSV registers, and
-tests — see §7 for the full file inventory.
+tests.
 
 ---
 
@@ -75,83 +88,81 @@ report generation (`reports.py`) → deterministic evidence-grounded Q&A
 (`qa.py`) → versioned case persistence (`case_output.py`).
 
 **Interfaces**: CLI (`main.py`, 32 commands) + Streamlit app
-(`streamlit_app.py`, includes an upload-and-analyze flow added early this
-session). No REST API exists or is planned without a concrete need.
+(`streamlit_app.py`, includes an upload-and-analyze flow). No REST API
+exists or is planned without a concrete need.
 
 **Persistence**: 100% flat JSON/CSV files. No database. Case outputs are
-now versioned (Phase 1) but the review-master CSV was already the one
-genuinely append-only artifact from before this session.
+versioned (Phase 1); the review-master CSV is genuinely append-only.
 
-**What actually runs correctly, proven by execution this session** (not
-just code-reading): the full CLI pipeline end-to-end, on real data, twice —
-once on a leakage-cleaned subset (~2,171 images, an earlier session
-checkpoint predating this handoff's scope) and once on the full uncleaned
-dataset (3,688 images, Phase 3A, this session). Both produced real trained
-checkpoints, real metrics, and real bilingual case reports.
-
----
-
-## 4. Exact Phase 3A commands and results
-
-Full detail, corrected wording, and 2 additional verification checks
-(version-history round-trip, report structural inspection) are in
-`PHASE3A_RESULTS.md` — read that file directly rather than this summary for
-anything you plan to cite. Headline:
-
-- Dataset: 3,688 images, **0 unreadable**, no exclusions (deliberately —
-  Phase 3A tests wiring, not leakage-safe accuracy).
-- Split: existing `train`/`valid`/`test` folder structure (already fixed,
-  deterministic).
-- Model: `mobilenet_v3_small`, seed 42, 10 epochs, batch 4 × grad-accum 4,
-  224px, GPU, 520.6s training time.
-- Validation-split metrics (n=310, **preliminary, not leakage-safe**):
-  accuracy 0.729, macro-F1 0.704, balanced accuracy 0.713, ROC-AUC 0.905 —
-  full per-class/confusion-matrix detail in `PHASE3A_RESULTS.md` §5.
-- This run's macro-F1 is higher than an earlier leakage-cleaned run's
-  (0.656) — **corrected framing**: consistent with possible leakage
-  inflation *and* other uncontrolled experimental differences (different
-  epoch count, different invocation path), not attributable to leakage
-  alone; a controlled comparison has not been run.
-- 4 real images (one per class) run through the full `analyze-image`
-  pipeline — explicitly a **pipeline smoke test**, not a representative
-  performance sample. 3/4 correct, zero errors/exceptions anywhere in the
-  run log.
-- Version-history round-trip independently verified on a real Phase 3A case
-  (§7a of `PHASE3A_RESULTS.md`): unchanged re-analysis correctly creates no
-  version; a genuine content change correctly archives exactly the files
-  that changed, with the prior content recoverable and verified intact.
-- Reports structurally inspected (§7b): zero encoding problems, zero
-  unresolved placeholders, all required sections present, no
-  cross-language contradiction found. **Arabic linguistic quality/fluency
-  has NOT been validated by a qualified Arabic speaker — this remains an
-  open item.**
-- No bugs found this phase; no source code changed.
+**What actually runs correctly, proven by execution** (not just
+code-reading): the full CLI pipeline end-to-end, on real data, multiple
+times — a leakage-cleaned subset (~2,171 images, an earlier session), the
+full uncleaned dataset for a single model (Phase 3A), and now the full
+uncleaned dataset across **4 architectures** (Phase 4). All produced real
+trained checkpoints, real metrics, real bilingual case reports.
 
 ---
 
-## 5. Files created or modified this phase (Phase 3A + its corrections)
+## 4. Exact Phase 3A and Phase 4 commands and results
 
-Committed in `cff8342`: `PHASE3A_RESULTS.md` (created), `DECISION_LOG.md`
-(entry added).
+Full detail lives in `PHASE3A_RESULTS.md` and `PHASE4_RESULTS.md` — read
+those directly for anything you plan to cite. Headline:
 
-Modified after `cff8342`, to be committed next: `PHASE3A_RESULTS.md`
-(corrected §6/§7 wording, added §7a/§7b/§9a), `SESSION_HANDOFF.md` (this
-file, new).
+**Phase 3A**: `mobilenet_v3_small`, seed 42, 10 epochs, on the full uncleaned
+dataset (3,688 images, 0 unreadable). Validation macro-F1 0.704, accuracy
+0.729 (n=310, preliminary). 4-image pipeline smoke test: 3/4 correct, zero
+errors. Version-history round-trip and report structural inspection both
+verified correct (`PHASE3A_RESULTS.md` §7a/§7b). Arabic linguistic fluency
+NOT validated by a qualified speaker — still open.
 
-Not committed (git-ignored, `outputs/` rule): everything under
-`outputs/phase3a/` — see `PHASE3A_RESULTS.md` §9a for the exact paths,
-sizes, and SHA-256 hashes of every artifact that matters (checkpoint,
-manifest, metrics, loss curve, probability export).
+**Phase 4**: one-seed controlled screening of `small_cnn`,
+`mobilenet_v3_small`, `resnet18`, `efficientnet_b0` — identical protocol
+(same dataset/manifest as Phase 3A, same 224px/batch-4/grad-accum-4/10-epoch
+budget, same AdamW/ReduceLROnPlateau policy, same evaluation code) via the
+existing `compare-deep-models` command, not a new framework. Results
+(validation split, n=310, **preliminary, single-seed, not leakage-safe**):
+
+| Model | Params | Time | Macro-F1 | Accuracy | ECE |
+|---|---|---|---|---|---|
+| `small_cnn` | 93,764 | 329.6s | 0.435 | 0.497 | 0.091 |
+| `mobilenet_v3_small` | 1,521,956 | 508.3s | 0.704 | 0.729 | 0.045 |
+| `resnet18` | 11,178,564 | 453.8s | 0.715 | 0.735 | 0.108 |
+| `efficientnet_b0` | 4,012,672 | 790.7s | **0.736** | **0.761** | 0.056 |
+
+`mobilenet_v3_small`'s result here matches Phase 3A's independent run to 4
+decimal places (0.7043 both times) — a genuine internal-consistency check,
+not fabricated agreement. **No architecture is claimed superior from this
+single-seed result** — see `PHASE4_RESULTS.md` §7. Total screening time
+2,082.4s (~34.7 min). No bugs found beyond the parameter-count gap (fixed,
+tested, see §2 above).
+
+---
+
+## 5. Files created or modified this session
+
+**Phase 3A Closure Verification** (committed `cf6512f`): `PHASE3A_RESULTS.md`
+(corrected + 2 new sections), `SESSION_HANDOFF.md` (v1, now superseded by
+this v2).
+
+**Phase 4** (to be committed next): `src/doar/deep/trainers.py` (parameter
+count fields), `tests/test_trainer_regression.py` (3 new tests),
+`PHASE4_RESULTS.md` (new), `SESSION_HANDOFF.md` (this file, v2).
+
+**Not committed** (git-ignored, `outputs/` rule): everything under
+`outputs/phase3a/` and `outputs/phase4/` — see each phase's `*_RESULTS.md`
+§6/§9a for exact paths, sizes, and SHA-256 hashes of every artifact that
+matters. `outputs/phase4/ARTIFACT_MANIFEST.tsv` has the full 25-row Phase 4
+manifest.
 
 ---
 
 ## 6. Operational, disabled, and unvalidated components
 
-**Operational** (proven by execution this session): leakage detection +
-quarantine + override-with-audit-log; objective feature extraction; classical
-and deep model training; fusion training + calibration; locked-test
-evaluation guard; tier-aware rule dispatch (6/19 rules can produce
-`weak_support`, at low confidence ceilings 0.05–0.25); bilingual report
+**Operational** (proven by execution): leakage detection + quarantine +
+override-with-audit-log; objective feature extraction; classical and deep
+model training across 4 architectures now; fusion training + calibration;
+locked-test evaluation guard; tier-aware rule dispatch (6/19 rules can
+produce `weak_support`, confidence ceilings 0.05–0.25); bilingual report
 generation; deterministic Q&A; versioned case persistence; Streamlit
 upload-and-analyze.
 
@@ -160,53 +171,50 @@ concern-convergence engine (`CONCERNS_ENABLED = False` — every case's
 `concerns.json` is `[]`).
 
 **Unvalidated / not yet built**: 13/19 rules (`DETECTOR_UNAVAILABLE` — no
-face/eye, animal, or shape/symbol detector exists); SQLite persistence layer
-(approved, Phase 4, not started); the `LIT_EMOTION_FACE_ENCODING_007`
-literature candidate (most promising lead found, full-text verification
-blocked by a cookie wall, not acted on further); the objective
+face/eye, animal, or shape/symbol detector exists — **future roadmap item,
+not started**); SQLite persistence layer (approved, not started); the
+`LIT_EMOTION_FACE_ENCODING_007` literature candidate (most promising lead
+found, full-text verification blocked by a cookie wall); the objective
 scribble/fragmentation feature (`LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006` —
-explicitly corrected this session from "operational candidate" to
-"hypothesis to pilot," since the source study used CNN features on a
-stimulus-completion task, not DOAR's classical features on free drawings);
-Arabic report linguistic quality (structure verified, fluency not — see §4).
+corrected to "hypothesis to pilot," not operational); Arabic report
+linguistic quality (structure verified, fluency not); **which of the 4
+Phase 4 architectures is genuinely best — single-seed result only, no
+multi-seed comparison run yet (proposed, not executed — see
+`PHASE4_RESULTS.md` §9)**.
 
 ---
 
 ## 7. Known limitations (compounding, not exhaustive — see `SCIENTIFIC_LIMITATIONS.md`)
 
 - Dataset: 41% of the raw dataset was found to be cross-split duplicates or
-  label-conflicting in an earlier leakage-detection pass; this has **not**
-  been resolved into versioned exclusion manifests yet (that work was
-  explicitly paused this session in favor of Phase 3A — see §8).
+  label-conflicting in an earlier leakage-detection pass; **not yet**
+  resolved into versioned exclusion manifests (paused in favor of Phase 3A/
+  Phase 4, queued not abandoned — see §8).
 - Rules: 68% of the active rule registry can never fire (no detector); the
   ones that can fire are backed by a two-page, non-clinical Arabic source
   document, correctly reflected in very low confidence ceilings.
 - Objective features are sensitive to paper size/drawing medium
-  (`LIT_MATERIAL_MEDIUM_CONFOUND_010`), which the pipeline does not record —
-  a genuinely new limitation found this session, not previously documented.
-- No formal database-backed literature search was performed (WebSearch is a
-  general web backend, not PubMed/PsycINFO/Scopus) — stated as a real
-  limitation in `LITERATURE_SEARCH_LOG.md`, not hidden.
-- Phase 3A's metrics are explicitly preliminary and not leakage-safe (§4).
+  (`LIT_MATERIAL_MEDIUM_CONFOUND_010`), which the pipeline does not record.
+- No formal database-backed literature search was performed (WebSearch, not
+  PubMed/PsycINFO/Scopus) — stated as a real limitation, not hidden.
+- Phase 3A's and Phase 4's metrics are explicitly preliminary and not
+  leakage-safe.
+- Phase 4 is single-seed — no stability/variance information exists yet for
+  any of the 4 architectures.
 
 ---
 
 ## 8. Pending decisions and the paused dataset audit
 
-**The dataset/label-quality audit was started, then explicitly paused** by
-the user in favor of Phase 3A (fast functional verification), with an
-explicit instruction that leakage will be addressed **before final thesis
-evaluation** but is not the immediate objective. It is **queued, not
-abandoned**. When resumed, the original scope was:
+**The dataset/label-quality audit was started, then explicitly paused**
+twice now (once for Phase 3A, once implicitly for Phase 4) in favor of
+functional/comparison work, with an explicit instruction that leakage will
+be addressed **before final thesis evaluation**. It is **queued, not
+abandoned**. Original scope (unchanged since Phase 3A Closure Verification):
 
-1. Exact, mutually-exclusive counts explaining the 41% exclusion (original
-   readable / corrupt / exact-dup groups / near-dup groups / same-label
-   dups / cross-label conflicts / other / final retained).
+1. Exact, mutually-exclusive counts explaining the 41% exclusion.
 2. Confirmation that no original image/label was ever deleted/moved/
-   renamed/overwritten/auto-relabeled (generated copies may change,
-   originals must not) — this was already spot-verified informally earlier
-   this session (file timestamps + counts checked directly against the
-   source directory) but not yet done as a formal, versioned audit deliverable.
+   renamed/overwritten/auto-relabeled.
 3. Versioned manifests for duplicate groups, exclusions, conflicts, and
    retained images (paths, hashes, labels, group IDs, reasons, provenance).
 4. Verification that duplicate/near-duplicate groups never cross
@@ -214,61 +222,54 @@ abandoned**. When resumed, the original scope was:
    suspicious labels.
 5. Tests for manifest integrity, mutually-exclusive counts, reproducibility,
    group leakage, source-dataset immutability.
-6. A proposed (not run) next baseline experiment: fixed grouped split,
-   candidate models, seeds, metrics + confidence intervals, calibration,
-   compute/time estimate, model-selection criteria.
+6. A proposed (not run) next baseline experiment.
 
-**Detector work (Phase 3B)** remains approved-but-not-started, now
-explicitly reprioritized: `EXPERIMENT_PRIORITIZATION.md` ranks it **last**
-of 4 options, behind dataset/label auditing, completing the emotion-model
-baseline, and the (now-corrected, still-unvalidated) objective
-scribble/fragmentation pilot. This session's final task (§9 of this
-document, next section below) re-ranks 3 of those 4 options once more,
-explicitly excluding dataset work per this session's final instruction.
+**Detector implementation** (future roadmap item, not a numbered phase,
+not started): planning complete (`DETECTOR_DEPENDENCY_MATRIX.csv`,
+`PHASE3_DETECTOR_EVALUATION_PLAN.md`), ranked last of the non-dataset
+options in `EXPERIMENT_PRIORITIZATION.md` — every one of the 13 unavailable
+rules stays scientifically unvalidated even if a detector works, so this
+remains lower priority than dataset auditing or model comparison work.
 
 **Literature review** is at "round 2 of an explicitly not-yet-exhaustive
 process" — `LIT_EMOTION_FACE_ENCODING_007` is flagged as the best lead
 requiring round-3 full-text verification before any further action.
 
----
-
-## 9. Recommended next-phase ranking (A vs B vs C — see full reasoning in the final chat message of this session)
-
-Comparing, as instructed: **A.** controlled emotion-model baseline
-comparisons; **B.** objective visual-feature experiments; **C.** detector
-implementation for unavailable rules. Dataset cleaning is excluded from this
-specific ranking per the final instruction of this session (not because it
-lacks priority — see §8 — but because it was scoped out of this particular
-comparison).
-
-Full ranking, criteria, and reasoning are in the chat response accompanying
-this handoff (not duplicated here to avoid drift between two copies) — read
-that response, or ask the next session to re-derive it from
-`EXPERIMENT_PRIORITIZATION.md` (which ranked a superset including dataset
-work) plus this document's §8/§9 framing.
+**Phase 4's own proposal** (multi-seed comparison of the same 4
+architectures, seeds 42/123/2026, ~105 min estimated GPU time, ~1.18GB
+storage) is **not started** — awaiting approval per `PHASE4_RESULTS.md` §9.
 
 ---
 
-## 10. Exact recommended prompt for the next session
+## 9. Exact recommended prompt for the next session
 
+Two reasonable next steps exist; pick based on current priority. Use
+whichever prompt matches:
+
+**If continuing model work (multi-seed comparison):**
 ```
-Continue the DOAR project. Read SESSION_HANDOFF.md first, in full, before
-anything else -- it has the current git history, architecture, operational
-status, and pending decisions. Do not repeat any audit or literature review
-already completed (see DECISION_LOG.md for the full history).
+Continue the DOAR project. Read SESSION_HANDOFF.md and PHASE4_RESULTS.md in
+full before acting. Treat the repository at its current HEAD as the source
+of truth. Do not repeat Phase 4's one-seed screening.
 
-Resume the dataset/label-quality audit that was paused for Phase 3A
-(SESSION_HANDOFF.md Section 8 has the original scope: mutually-exclusive
+Proceed with the multi-seed comparison proposed in PHASE4_RESULTS.md
+Section 9: the same 4 architectures (small_cnn, mobilenet_v3_small,
+resnet18, efficientnet_b0), seeds 42/123/2026, identical protocol, on the
+same uncleaned dataset (still explicitly preliminary, not leakage-safe --
+label every result accordingly). Include calibration this time. Do not
+clean the dataset, implement detectors, or activate psychological concerns.
+Stop for review after training completes, before any test-split evaluation.
+```
+
+**If resuming the paused dataset/label-quality audit instead:**
+```
+Continue the DOAR project. Read SESSION_HANDOFF.md in full before acting --
+Section 8 has the paused dataset-audit's exact scope (mutually-exclusive
 exclusion counts, source-image immutability confirmation, versioned
 duplicate/exclusion/conflict manifests, cross-split leakage verification,
 class balance before/after, integrity tests, and a proposed -- not run --
 next baseline experiment). Do not clean the dataset or exclude anything
 without separate approval; the audit's job is to measure and document, not
-to modify. Stop for approval before running any training.
+to modify. Do not repeat Phase 3A or Phase 4's completed work. Stop for
+approval before running any training.
 ```
-
-(This assumes the dataset audit is what gets resumed next, consistent with
-this session's own instruction that leakage must be addressed before final
-thesis evaluation. If a different phase is chosen instead after reviewing
-the A/B/C ranking, adjust the second paragraph accordingly before using this
-prompt.)

@@ -272,6 +272,8 @@ def train_image_model(
         except Exception as exc:  # pragma: no cover - needs data+torch
             calibration_result = {"status": "failed", "error": str(exc)}
 
+    parameter_count = sum(p.numel() for p in model.parameters())
+    trainable_parameter_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
     result = {
         "model": model_name, "seed": seed, "device": selected_device,
         "selection_split": "valid", "test_used": False, "best_valid_macro_f1": best,
@@ -279,6 +281,8 @@ def train_image_model(
         "checkpoint": str(output / "best.pt"), "history": history,
         "executed_config": executed_config,
         "calibration": calibration_result,
+        "parameter_count": int(parameter_count),
+        "trainable_parameter_count": int(trainable_parameter_count),
     }
     (output / "training_result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
