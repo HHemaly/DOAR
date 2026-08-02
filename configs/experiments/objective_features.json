@@ -1,0 +1,15 @@
+{
+  "family": "objective_features",
+  "models": [
+    "logistic_regression",
+    "linear_svm",
+    "rbf_svm",
+    "random_forest",
+    "extra_trees",
+    "hist_gradient_boosting"
+  ],
+  "seeds": [42, 123, 2026],
+  "selection_split": "valid",
+  "primary_metric": "mean_macro_f1",
+  "test_locked": true
+}

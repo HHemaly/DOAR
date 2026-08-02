@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**", "feature/**"]
+  pull_request:
+
+jobs:
+  core:
+    name: Core (no torch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (mandatory)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[cv,dev]"
+      - name: Lint (ruff, required)
+        run: ruff check src tests main.py streamlit_app.py
+      - name: Unit tests (torch/sklearn tests self-skip without those deps)
+        run: python -m unittest discover -s tests -p "test_*.py"
+      - name: CLI parsing
+        run: python main.py --help
+      - name: Synthetic analysis/report/qa/review pipeline
+        run: |
+          python - <<'PY'
+          import sys, tempfile, json
+          sys.path.insert(0, "src")
+          from pathlib import Path
+          from PIL import Image
+          import numpy as np
+          from doar.analysis import analyze_image
+          from doar.judges import run_judges
+          from doar.reports import save_reports
+          from doar.qa import answer
+          from doar.review import init_master, append_reviews, compute_agreement
+          d = tempfile.mkdtemp()
+          p = Path(d) / "x.png"
+          Image.fromarray((np.indices((128,128)).sum(0) % 255).astype("uint8")).convert("RGB").save(p)
+          a = analyze_image(p, Path(d) / "out").to_dict()
+          j = run_judges(a)
+          save_reports(a, j, Path(d) / "reports")
+          assert "evidence_ids" in answer("what colours?", a, j)
+          m = init_master(Path(d) / "m.csv")
+          assert compute_agreement(m)["has_reviews"] is False
+          print("core synthetic pipeline OK:", j["overall_status"])
+          PY
+
+  ml_cpu:
+    name: ML (CPU torch + sklearn)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (mandatory) + CPU torch
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ml,cv,dev]"
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - name: Full test suite (torch + sklearn present)
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+      # The suite already includes: tiny fwd/bwd + 1-epoch training, grad-accum
+      # regression, unfreeze-optimizer regression, deep probability export,
+      # fusion train/calibrate/export, OOF stacking, Grad-CAM smoke,
+      # end-to-end run-smoke-experiment.
+
+  # GPU smoke is a LOCAL verification only; it skips honestly in CI (no CUDA).

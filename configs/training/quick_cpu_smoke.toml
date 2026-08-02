@@ -1,0 +1,25 @@
+[data]
+dataset = "C:/path/to/Combined_Drawing"
+validation_split = "valid"
+
+[training]
+model = "small_cnn"
+seed = 42
+image_size = 128
+batch_size = 4
+epochs = 1
+device = "cpu"
+workers = 0
+augmentation = "conservative"
+class_weighting = true
+early_stopping_patience = 2
+
+[optimization]
+optimizer = "adamw"
+head_learning_rate = 0.0003
+backbone_learning_rate = 0.0001
+scheduler = "reduce_on_plateau"
+
+[output]
+directory = "outputs/experiments/cpu_smoke"
+calibration = "temperature_scaling"

@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+import streamlit as st
+
+st.set_page_config(page_title="DOAR v3 reviewer", layout="wide")
+st.title("DOAR v3 - Psychologist Review")
+st.warning("Research decision-support only. A drawing alone cannot establish a diagnosis.")
+
+WEBAPP_CASES_DIR = Path("outputs/webapp_cases")
+DEFAULT_DEEP_COMPARISON = "outputs/full_run/deep/deep_comparison.json"
+st.session_state.setdefault("case_text", str(Path("outputs/cases").resolve()))
+
+st.sidebar.header("Analyze a new drawing")
+uploaded = st.sidebar.file_uploader("Upload a child's drawing", type=["png", "jpg", "jpeg"])
+has_trained_model = Path(DEFAULT_DEEP_COMPARISON).exists()
+use_trained_model = st.sidebar.checkbox(
+    "Use trained emotion model", value=has_trained_model, disabled=not has_trained_model,
+    help=(f"Loads the validation-winning checkpoint from {DEFAULT_DEEP_COMPARISON}"
+          if has_trained_model else "No trained deep-comparison.json found yet — run compare-deep-models first."),
+)
+if st.sidebar.button("Analyze", disabled=uploaded is None, type="primary"):
+    import time
+    from doar.analysis import analyze_image
+    case_name = f"{Path(uploaded.name).stem}_{int(time.time())}"
+    new_case = WEBAPP_CASES_DIR / case_name
+    new_case.mkdir(parents=True, exist_ok=True)
+    image_path = new_case / uploaded.name
+    image_path.write_bytes(uploaded.getvalue())
+    checkpoint = None
+    if use_trained_model and has_trained_model:
+        from doar.deep.selection import resolve_checkpoint
+        checkpoint = resolve_checkpoint(None, DEFAULT_DEEP_COMPARISON)
+    with st.sidebar:
+        with st.spinner("Analyzing drawing..."):
+            analyze_image(str(image_path), str(new_case), checkpoint)
+    st.session_state["case_text"] = str(new_case.resolve())
+    st.rerun()
+
+previous_cases = sorted((p.name for p in WEBAPP_CASES_DIR.iterdir() if p.is_dir()),
+                        reverse=True) if WEBAPP_CASES_DIR.exists() else []
+if previous_cases:
+    picked = st.sidebar.selectbox("Or reopen a previous upload", ["(none)"] + previous_cases)
+    if picked != "(none)":
+        st.session_state["case_text"] = str((WEBAPP_CASES_DIR / picked).resolve())
+
+st.sidebar.divider()
+case_text = st.sidebar.text_input("Case folder", key="case_text")
+case = Path(case_text)
+analysis_path = case / "analysis.json"
+if not analysis_path.exists():
+    st.info("Upload a drawing in the sidebar and click **Analyze**, or enter a case "
+             "folder that already contains analysis.json.")
+    st.stop()
+
+analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+judges = json.loads((case / "judges.json").read_text(encoding="utf-8"))
+review_path = case / "clinician_review.json"
+review = json.loads(review_path.read_text(encoding="utf-8"))
+
+
+def artifact(name: str) -> str:
+    value = analysis["artifacts"][name]
+    return str(case / value)
+
+tabs = st.tabs([
+    "Summary", "Original Image", "Quality", "Segmentation", "Composition",
+    "Colours", "Lines and Strokes", "Shapes", "Objects", "OCR", "Emotion",
+    "Rules", "Suggested Concern Profile", "Judges", "Psychologist Review",
+    "Reports", "Q&A", "Experiments",
+])
+with tabs[0]:
+    st.json({
+        "schema_version": analysis["schema_version"],
+        "segmentation_status": analysis["segmentation"]["status"],
+        "concern_count": len(analysis["concerns"]),
+        "disclaimer": analysis["safety_disclaimer"],
+    })
+with tabs[1]:
+    st.image(artifact("normalized_image"))
+with tabs[2]:
+    st.json(analysis["quality"])
+with tabs[3]:
+    cols = st.columns(3)
+    cols[0].image(artifact("foreground_mask"), caption="Selected mask")
+    cols[1].image(artifact("foreground_only"), caption="Foreground only")
+    cols[2].image(artifact("density_map"), caption="Density")
+    st.json(analysis["segmentation"])
+with tabs[4]:
+    st.image(artifact("feature_overlay"))
+    st.json(analysis["composition"])
+with tabs[5]:
+    st.json(analysis["colour"])
+with tabs[6]:
+    st.image(artifact("stroke_map"))
+with tabs[7]:
+    st.info("Shape features are preliminary; verified shape detection is not yet available.")
+with tabs[8]:
+    st.json(json.loads((case / "detections.json").read_text(encoding="utf-8")))
+with tabs[9]:
+    st.info("OCR module unavailable in this release.")
+with tabs[10]:
+    st.json(json.loads((case / "emotion.json").read_text(encoding="utf-8")))
+with tabs[11]:
+    st.dataframe(analysis["rule_evaluations"], use_container_width=True)
+with tabs[12]:
+    st.json(analysis["concerns"])
+with tabs[13]:
+    st.json(judges)
+with tabs[14]:
+    from doar.review import (REVIEW_ITEMS, RATINGS, form_to_rows, append_reviews,
+                             compute_agreement)
+    st.caption("Structured psychologist review — appended to the shared review-master CSV. "
+               "Original AI output is never modified.")
+    reviewer = st.text_input("Reviewer ID (required)")
+    is_synth = st.checkbox("Mark as synthetic / demo review", value=False)
+    ratings, comments = {}, {}
+    for item in REVIEW_ITEMS:
+        cols = st.columns([2, 3])
+        ratings[item] = cols[0].selectbox(item, ["(skip)"] + RATINGS, key=f"rate_{item}")
+        comments[item] = cols[1].text_input(f"comment: {item}", key=f"com_{item}")
+        if ratings[item] == "(skip)":
+            ratings[item] = None
+    review_master = case.parent / "review_master.csv"
+    if st.button("Submit structured review"):
+        if not reviewer.strip():
+            st.error("Reviewer ID is required.")
+        else:
+            rows = form_to_rows(case.name, reviewer,
+                                {k: v for k, v in ratings.items() if v},
+                                comments, datetime.now(timezone.utc).isoformat(),
+                                is_synthetic=is_synth)
+            if not rows:
+                st.warning("No items were rated.")
+            else:
+                append_reviews(str(review_master), rows)   # append-only, shared CSV
+                st.success(f"Appended {len(rows)} item ratings to {review_master.name}. "
+                           "AI output unchanged.")
+    if review_master.exists():
+        st.subheader("Agreement (real reviews only)")
+        st.json(compute_agreement(str(review_master)))
+    st.caption("Legacy per-case AI review record (unchanged):")
+    st.json(review)
+with tabs[15]:
+    for report in sorted((case / "reports").glob("*.html")):
+        st.download_button(report.name, report.read_bytes(), file_name=report.name)
+with tabs[16]:
+    st.caption("Answers are grounded ONLY in this case's saved evidence and cite evidence IDs.")
+    qa_language = st.selectbox("Language", ["en", "ar"], key="qa_lang")
+    qa_question = st.text_input("Question about this case", key="qa_question")
+    if qa_question:
+        from doar.qa import answer as _qa_answer
+        try:
+            response = _qa_answer(qa_question, analysis, judges, qa_language)
+            st.json(response)
+        except Exception as exc:  # pragma: no cover - UI guard
+            st.error(f"Could not answer from saved evidence: {exc}")
+    st.divider()
+    st.caption("Equivalent CLI:")
+    st.code('python main.py qa --analysis CASE/analysis.json --question "..." --language en')
+with tabs[17]:
+    st.info("Load validation_leaderboard.json after local model experiments.")
