@@ -1,11 +1,14 @@
 # Phase 6 — Selected-Model End-to-End Integration Validation
 
-**Status:** Preliminary. No test-split evaluation occurred (`analyze-image`
-is a single-image inference command, distinct from the guarded
-`--split test` aggregate-evaluation path used by `evaluate`/
-`evaluate-predictions`, which was never invoked). No dataset cleaning, no
-detector work, no psychological-rule activation, and no production/default
-model change occurred in this phase.
+**Status:** Preliminary. No aggregate test-set performance evaluation or
+model selection was performed — the guarded `--split test` aggregate path
+used by `evaluate`/`evaluate-predictions` was never invoked. **However, four
+test-folder images were reused for individual integration smoke testing via
+`analyze-image`, and their folder labels and predictions were inspected (see
+§2, Test-split disclosure, below). The existing test split therefore cannot
+be described as completely untouched.** No dataset cleaning, no detector
+work, no psychological-rule activation, and no production/default model
+change occurred in this phase.
 
 **Goal:** Verify that the preliminary `efficientnet_b0` candidate from
 Phase 5 works correctly through the complete existing DOAR pipeline, using
@@ -13,7 +16,8 @@ the same 4 smoke-test drawings Phase 3A already used, compared side-by-side
 against the existing Phase 3A `mobilenet_v3_small` checkpoint as a reference.
 **This is an integration test, not a performance or psychological
 validation** — 4 drawings must not be read as representative of either
-model's real-world accuracy.
+model's real-world accuracy, and the resulting agreement count (§4) is not a
+performance estimate.
 
 ---
 
@@ -48,11 +52,50 @@ seed 42, Phase 3A's own independent training run — SHA-256
 `96c177faff89db7d9b79a6237dd66e08da77ce4891b92d9d54d3751bddb7bd40`). This is
 **uncalibrated** (`calibration_status: uncalibrated`, `temperature: 1.0`) —
 Phase 3A never ran calibration. This is a real, expected difference between
-the two checkpoints under test, not a bug (see §4).
+the two checkpoints under test, not a bug (see §5).
 
 ---
 
-## 2. Preservation of prior-phase artifacts
+## 2. Test-split disclosure (correction, added 2026-08-03)
+
+**No aggregate test-set performance evaluation or model selection was
+performed in Phase 6** — no metric computed in this document (macro-F1,
+accuracy, or any other) was calculated from a batch pass over the locked
+test split, and the guarded `--split test` path in `evaluate`/
+`evaluate-predictions` was never invoked.
+
+**However, four individual test-folder images were reused for integration
+smoke testing** — the same 4 images Phase 3A first used, one per class
+(`outputs/phase3a/case_*/analysis.json`), each run through `analyze-image`
+with both checkpoints. Their folder labels (Angry/Fear/Happy/Sad) and each
+checkpoint's predictions were inspected and reported in §4. **This means the
+existing test split cannot be described as completely untouched**: these 4
+specific images, their labels, and both checkpoints' predictions on them
+have now been observed twice by the people building this system — once in
+Phase 3A, once again in Phase 6.
+
+**Consequences, stated plainly:**
+
+- These 4 cases (filenames listed in §3) are **disclosed** here as the
+  full extent of test-split exposure across Phase 3A and Phase 6. No other
+  test-split image or aggregate test-split statistic has been computed or
+  inspected in any phase to date.
+- The §4 agreement count ("3 of 4 predictions matched the folder label") is
+  **not a performance estimate** — it describes what happened on 4
+  specifically chosen, now-inspected images from a single, non-random
+  integration check, not an unbiased sample of test-split performance.
+- Because these 4 images and their labels have been seen by whoever designs
+  and reviews this pipeline, they are no longer suitable as part of a
+  genuinely blind final-evaluation set. **A newly locked, leakage-safe test
+  set — disjoint from these 4 images and from any other data inspected
+  during development — will be required for final thesis evaluation.**
+  Constructing that set is not yet started; see the paused dataset-audit
+  scope in `SESSION_HANDOFF.md` §8 and the leakage-safe partition proposal
+  in `PHASE7_RESULTS.md` §7 (once Phase 7 exists).
+
+---
+
+## 3. Preservation of prior-phase artifacts
 
 Before and after all Phase 6 work, every artifact from Phase 3A, Phase 4,
 and Phase 5 was re-hashed and compared against its own phase's recorded
@@ -70,13 +113,15 @@ needed here — verified directly rather than assumed.
 
 ---
 
-## 3. Pipeline runs
+## 4. Pipeline runs
 
 The exact same 4 test-split images Phase 3A used (one per class, filenames
 matched from `outputs/phase3a/case_*/analysis.json`) were each run through
 `main.py analyze-image` twice — once with the selected `efficientnet_b0`
 checkpoint, once with the Phase 3A `mobilenet_v3_small` checkpoint — for 8
-total runs, plus 2 additional runs exercising the versioning path (§5).
+total runs, plus 2 additional runs exercising the versioning path (§6). See
+§2 for the disclosure that this constitutes real, disclosed test-split
+exposure, not an untouched test split.
 
 | Class | Image file |
 |---|---|
@@ -94,24 +139,27 @@ bilingual (EN/AR) report generation, and case persistence.
 
 ---
 
-## 4. Per-drawing comparison: `efficientnet_b0` vs. `mobilenet_v3_small`
+## 5. Per-drawing comparison: `efficientnet_b0` vs. `mobilenet_v3_small`
 
-| Class (true label) | EfficientNet pred / conf | MobileNet pred / conf | Agree? |
+| Class (folder label) | EfficientNet pred / conf | MobileNet pred / conf | Agree? |
 |---|---|---|---|
 | Angry | Angry / 0.8759 | Angry / 0.8140 | Yes |
 | Fear | Angry / 0.7599 | Angry / 0.7438 | Yes |
 | Happy | Happy / 0.5561 | Happy / 0.5533 | Yes |
 | Sad | Sad / 0.6335 | Sad / 0.8033 | Yes |
 
-**Both checkpoints agree on the predicted class for all 4 drawings** (3/4
-correct against the true label; both miss the same case, Fear→Angry — the
-same confusion Phase 3A's single-checkpoint run and Phase 4/5's aggregate
-confusion matrices already show as the weakest class for every architecture
-tested so far). Confidence values differ per drawing and are not
-consistently higher or lower for either checkpoint (EfficientNet is more
-confident on Angry/Fear, less confident on Sad; both are close on Happy).
-`efficientnet_b0`'s probabilities reflect its calibration
-(`temperature_scaled`, T=1.1436); `mobilenet_v3_small`'s are raw
+**Both checkpoints agree on the predicted class for all 4 drawings**, and
+each checkpoint's prediction matches the folder label on 3 of the 4
+drawings (both miss the same one, Fear→Angry). **This is an integration-test
+observation on 4 disclosed, previously-inspected images, not a performance
+estimate** — see §2. It is, however, consistent with the same Fear/Angry
+confusion Phase 3A's original single-checkpoint run and Phase 4/5's
+aggregate validation-split confusion matrices already show as the weakest
+class for every architecture tested so far. Confidence values differ per
+drawing and are not consistently higher or lower for either checkpoint
+(EfficientNet is more confident on Angry/Fear, less confident on Sad; both
+are close on Happy). `efficientnet_b0`'s probabilities reflect its
+calibration (`temperature_scaled`, T=1.1436); `mobilenet_v3_small`'s are raw
 (`uncalibrated`, T=1.0) — a real, expected difference in reported
 probability shape between the two checkpoints, not a defect in either.
 
@@ -165,7 +213,7 @@ report outputs was found.
 
 ---
 
-## 5. Version-history / repeated-case behavior (with the new checkpoint)
+## 6. Version-history / repeated-case behavior (with the new checkpoint)
 
 Repeated the Phase 3A §7a round-trip using `case_Angry_efficientnet`:
 
@@ -195,7 +243,7 @@ architecture/calibration configuration.
 
 ---
 
-## 6. Fixes made this phase
+## 7. Fixes made this phase
 
 **None required.** No bug, error, exception, warning, or structural defect
 was found anywhere in this integration run — the full log was scanned and
@@ -207,7 +255,7 @@ code changed.
 
 ---
 
-## 7. Verification (tests, Ruff, compileall)
+## 8. Verification (tests, Ruff, compileall)
 
 - **Test suite:** `pytest tests/` — **226 passed**, 9 pre-existing warnings, 0 failures (same count as Phase 5 — no tests added, since no code changed).
 - **compileall:** `python -m compileall src main.py` — **exit 0**.
@@ -215,11 +263,11 @@ code changed.
 
 ---
 
-## 8. Artifacts
+## 9. Artifacts
 
 - `outputs/phase6/case_{class}_efficientnet/` — 4 cases, EfficientNet-B0 (Phase 5 seed-42 calibrated checkpoint).
 - `outputs/phase6/case_{class}_mobilenet/` — 4 cases, MobileNet (Phase 3A checkpoint, reference).
-- `outputs/phase6/case_Angry_efficientnet/versions/` — version-history round-trip artifacts (§5).
+- `outputs/phase6/case_Angry_efficientnet/versions/` — version-history round-trip artifacts (§6).
 - `outputs/phase6/analyze_all.log` — combined stdout/stderr for all 10 `analyze-image` invocations.
 - `outputs/phase6/ARTIFACT_MANIFEST.tsv` — 202 files, paths + sizes + SHA-256, ≈8.3 MB total.
 
@@ -227,7 +275,7 @@ All of `outputs/` is gitignored; none of the above were committed to git.
 
 ---
 
-## 9. Recommendation
+## 10. Recommendation
 
 Integration validation passed with no defects found. Both `efficientnet_b0`
 (Phase 5's preliminary pick) and `mobilenet_v3_small` (Phase 3A's reference)
@@ -239,21 +287,25 @@ This supports, but does not by itself justify, moving `efficientnet_b0`
 forward: 4 drawings confirm the pipeline **works** with this checkpoint, not
 that the checkpoint is the right one to standardize on (that remains the
 inconclusive `efficientnet_b0` vs. `resnet18` question from
-`PHASE5_RESULTS.md` §5, unresolved by this phase and not attempted here).
-**Recommended next decision is the user's**, per the same options already
-raised in `SESSION_HANDOFF.md` §9: run a formal statistical comparison on
-the existing 3-seed data, pick on secondary criteria alone, gather more
-seeds, or defer until after the dataset audit produces a leakage-safe
-evaluation.
+`PHASE5_RESULTS.md` §5, unresolved by this phase and not attempted here), and
+not any estimate of real-world accuracy (see §2). **Recommended next
+decision is the user's**, per the same options already raised in
+`SESSION_HANDOFF.md` §9: run a formal statistical comparison on the existing
+3-seed data, pick on secondary criteria alone, gather more seeds, or defer
+until after a genuinely leakage-safe evaluation set has been constructed
+(§2).
 
 ---
 
-## 10. Explicitly out of scope for this phase (per user instruction)
+## 11. Explicitly out of scope for this phase (per user instruction)
 
 The following were **not** done and should not be inferred from this
-document: changing the default or production model; test-split evaluation
-(the guarded `--split test` aggregate path was never invoked); dataset
-cleaning; detector implementation; psychological-rule activation; starting
-a new numbered phase. The 4 drawings used here are the same 4 Phase 3A used
-as a pipeline smoke test — they are not, and must not be read as, a
-performance or psychological validation of either model.
+document: changing the default or production model; **aggregate** test-split
+evaluation (the guarded `--split test` path was never invoked — see §2 for
+the disclosed, non-aggregate individual-image exposure that did occur);
+dataset cleaning; detector implementation; psychological-rule activation;
+starting a new numbered phase. The 4 drawings used here are the same 4
+Phase 3A used as a pipeline smoke test — they are not, and must not be read
+as, a performance or psychological validation of either model, and per §2
+they are now disclosed, non-blind test-split exposure that a future
+leakage-safe final-evaluation set must exclude.

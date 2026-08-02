@@ -146,10 +146,14 @@ anything you plan to cite. Headline:
 
 **Phase 3A**: `mobilenet_v3_small`, seed 42, 10 epochs, on the full uncleaned
 dataset (3,688 images, 0 unreadable). Validation macro-F1 0.704, accuracy
-0.729 (n=310, preliminary). 4-image pipeline smoke test: 3/4 correct, zero
-errors. Version-history round-trip and report structural inspection both
-verified correct (`PHASE3A_RESULTS.md` §7a/§7b). Arabic linguistic fluency
-NOT validated by a qualified speaker — still open.
+0.729 (n=310, preliminary). 4-image pipeline smoke test (one test-split
+image per class): 3 of 4 predictions matched the folder label, zero errors —
+**this is an integration-check observation, not a performance estimate**,
+and it is the origin of the 4 test-split images that Phase 6 later disclosed
+as non-blind (see the Phase 6 entry below and `PHASE6_RESULTS.md` §2).
+Version-history round-trip and report structural inspection both verified
+correct (`PHASE3A_RESULTS.md` §7a/§7b). Arabic linguistic fluency NOT
+validated by a qualified speaker — still open.
 
 **Phase 4**: one-seed controlled screening of `small_cnn`,
 `mobilenet_v3_small`, `resnet18`, `efficientnet_b0` — identical protocol
@@ -223,9 +227,25 @@ through `main.py analyze-image` on the same 4 Phase 3A smoke-test drawings,
 side by side against the Phase 3A `mobilenet_v3_small` checkpoint
 (`outputs/phase3a/model/best.pt`) as reference. **All 8 runs (+2 more for
 the versioning check) exited 0, zero errors/warnings/exceptions found.**
-Both checkpoints agreed on the predicted class for all 4 drawings (3/4
-correct against ground truth, same Fear→Angry miss both times — consistent
-with every architecture tested so far). Objective features
+
+**Test-split disclosure (correction, added 2026-08-03):** no *aggregate*
+test-set performance evaluation or model selection was performed — the
+guarded `--split test` path was never invoked. But these 4 individual
+test-folder images (the same 4 Phase 3A first used) **were** reused for
+integration smoke testing, and their folder labels and both checkpoints'
+predictions were inspected and reported. **The existing test split
+therefore cannot be described as completely untouched.** These 4 cases are
+the full, disclosed extent of test-split exposure across Phase 3A and
+Phase 6 — no other test-split image or aggregate statistic has been
+computed or inspected in any phase to date. A newly locked, leakage-safe
+test set, disjoint from these 4 images, will be required for final thesis
+evaluation. Full disclosure in `PHASE6_RESULTS.md` §2.
+
+Both checkpoints agreed on the predicted class for all 4 drawings, and each
+checkpoint's prediction matched the folder label on 3 of the 4 drawings
+(same Fear→Angry miss both times — consistent with every architecture
+tested so far). **This is an integration-test observation on 4 disclosed,
+previously-inspected images, not a performance estimate.** Objective features
 (quality/segmentation/composition/colour) were confirmed byte-identical
 between the two checkpoints' runs for every drawing, as they must be — no
 coupling bug found. Emotion-derived evidence (`ev_emotion_prediction`)
@@ -240,8 +260,8 @@ changed files archived, original prediction preserved; restore checkpoint →
 exact reproduction) was repeated with the new checkpoint and confirmed
 correct, replicating Phase 3A §7a's result under this different
 architecture/calibration configuration. **No bug found, no code changed, no
-default/production model changed, no test-split evaluation performed.** Full
-detail in `PHASE6_RESULTS.md`.
+default/production model changed, no aggregate test-split evaluation
+performed.** Full detail in `PHASE6_RESULTS.md`.
 
 **Verification:** full test suite passed (226 tests, unchanged from Phase 5
 — no code changed so no new tests were needed). `compileall` passed (exit
@@ -316,10 +336,12 @@ linguistic quality (structure verified, fluency not); **which of the 3
 competitive Phase 5 architectures is genuinely best — the `efficientnet_b0`
 vs. `resnet18` macro-F1 comparison is inconclusive regarding superiority at
 n=3 seeds (overlapping ranges, ranking flips on seed 2026, no formal
-superiority test run — see `PHASE5_RESULTS.md` §5); a preliminary
-single-model recommendation exists for a future pipeline test based on
-secondary criteria, but no test-split evaluation, production-model
-replacement, or full pipeline run has occurred**.
+superiority test run — see `PHASE5_RESULTS.md` §5); `efficientnet_b0` has
+since been integration-tested through the full pipeline on 4 disclosed
+test-split images (Phase 6, no defects found), but this is not a
+performance validation and does not resolve the architecture question; no
+*aggregate* test-split evaluation or production-model replacement has
+occurred**.
 
 ---
 
@@ -367,6 +389,13 @@ abandoned**. Original scope (unchanged since Phase 3A Closure Verification):
 5. Tests for manifest integrity, mutually-exclusive counts, reproducibility,
    group leakage, source-dataset immutability.
 6. A proposed (not run) next baseline experiment.
+7. **(added 2026-08-03)** The eventual leakage-safe test set must exclude
+   the 4 test-folder images disclosed in `PHASE6_RESULTS.md` §2
+   (`2-1_jpg.rf.f967ea55654e6fa4badbe2906373b7f7.jpg`,
+   `Fear_1_10_jpg.rf.eb405d0904de942eabf3841d65ea4d01.jpg`,
+   `Happy_1_19_jpg.rf.87ed22895e6a85ffbf4d1c43c2420ac1.jpg`,
+   `3-4_jpg.rf.f9a20de96b74b4e2ace5fb04c364791d.jpg`) — their labels and two
+   different checkpoints' predictions on them are no longer blind.
 
 **Detector implementation** (future roadmap item, not a numbered phase,
 not started): planning complete (`DETECTOR_DEPENDENCY_MATRIX.csv`,
@@ -387,9 +416,19 @@ Phase 6 confirms the pipeline **works** with `efficientnet_b0`; it does not
 resolve the still-inconclusive `efficientnet_b0` vs. `resnet18` macro-F1
 question from Phase 5 §5, and does not by itself justify standardizing on
 `efficientnet_b0`. The user's own closing instruction for Phase 6 was to
-stop before changing the default/production model, test-split evaluation,
-dataset cleaning, detector work, or rule activation — so **an explicit
-go-ahead is needed before any of those**.
+stop before changing the default/production model, *aggregate* test-split
+evaluation, dataset cleaning, detector work, or rule activation — so **an
+explicit go-ahead is needed before any of those**.
+
+**Test-split disclosure (open item, added 2026-08-03):** Phase 3A and Phase
+6 both reused the same 4 test-folder images (one per class) for individual
+`analyze-image` integration smoke tests, and their folder labels and
+predictions were inspected both times — see `PHASE6_RESULTS.md` §2. No
+aggregate test-split statistic exists, but these 4 specific images are no
+longer blind and must be excluded from whatever leakage-safe final
+evaluation set gets constructed. This is now a **required input** to the
+paused dataset audit (§8 below), not just a data-quality question — the
+audit must also produce a test set disjoint from these 4 disclosed images.
 
 ---
 
@@ -407,14 +446,18 @@ current HEAD as the source of truth.
 Phase 6 confirmed efficientnet_b0 (checkpoint at
 outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt) runs
 correctly through the full DOAR pipeline with no integration defects, on 4
-smoke-test drawings only -- this is not a performance validation. Do not
-replace the production/default model without first resolving (or
-explicitly deciding to set aside) the still-inconclusive efficientnet_b0
-vs. resnet18 macro-F1 comparison from PHASE5_RESULTS.md Section 5. Ask the
-user how they want to proceed (see Section 8's open options) before taking
-any action that changes the default model, touches the locked test split,
-cleans the dataset, implements a detector, or activates psychological
-concerns.
+smoke-test drawings only -- this is not a performance validation. Note that
+these same 4 test-folder images were also used in Phase 3A -- both their
+labels and both checkpoints' predictions are now disclosed and no longer
+blind (PHASE6_RESULTS.md Section 2); do not treat them as available for a
+future leakage-safe final-evaluation set. Do not replace the
+production/default model without first resolving (or explicitly deciding to
+set aside) the still-inconclusive efficientnet_b0 vs. resnet18 macro-F1
+comparison from PHASE5_RESULTS.md Section 5. Ask the user how they want to
+proceed (see Section 8's open options) before taking any action that
+changes the default model, runs an aggregate evaluation on the locked test
+split, cleans the dataset, implements a detector, or activates
+psychological concerns.
 ```
 
 **If resuming the paused dataset/label-quality audit instead:**
