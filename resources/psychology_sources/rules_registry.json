@@ -48,8 +48,16 @@
       "confidence_ceiling": 0.2,
       "professional_reasoning": "Wide eyes were detected, but the supplied personality interpretation is unvalidated.",
       "parent_safe_wording": "The drawing includes wide eyes. Ask the child what the expression means to them.",
-      "references": ["REF_EYES_EXPRESSION_2007", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Eye style may reflect emotion depiction, artistic convention, copying, age, or skill.", "Clinician-only hypothesis."]
+      "references": [
+        "REF_EYES_EXPRESSION_2007",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Eye style may reflect emotion depiction, artistic convention, copying, age, or skill.",
+        "Clinician-only hypothesis."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_EYES_STERN_002",
@@ -60,8 +68,15 @@
       "confidence_ceiling": 0.25,
       "professional_reasoning": "Stern-looking eyes may be an intentional anger cue, but context and the child's explanation are required.",
       "parent_safe_wording": "The eyes may have been drawn with a stern expression. Ask what the character is feeling.",
-      "references": ["REF_EYES_EXPRESSION_2007", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["An depicted angry expression is not evidence that the child is angry or aggressive."]
+      "references": [
+        "REF_EYES_EXPRESSION_2007",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "An depicted angry expression is not evidence that the child is angry or aggressive."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_EYES_CLOSED_003",
@@ -72,8 +87,16 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "Closed eyes were detected; the categorical interpretation is unsupported.",
       "parent_safe_wording": "The drawing includes closed eyes. Their meaning is unknown without asking the child.",
-      "references": ["REF_GENERAL_LIMITS_1998", "REF_PROJECTIVE_REVIEW_2025"],
-      "limitations": ["Restricted from direct parent interpretation.", "Many ordinary artistic explanations are possible."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998",
+        "REF_PROJECTIVE_REVIEW_2025"
+      ],
+      "limitations": [
+        "Restricted from direct parent interpretation.",
+        "Many ordinary artistic explanations are possible."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_ANIMAL_TIGER_WOLF_004",
@@ -84,8 +107,15 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "A tiger or wolf was detected; no reliable source was found for inferring the child's anger.",
       "parent_safe_wording": "An animal resembling a tiger or wolf may be present. Ask why it was chosen.",
-      "references": ["REF_GENERAL_LIMITS_1998", "REF_PROJECTIVE_REVIEW_2025"],
-      "limitations": ["Animal choice may reflect stories, interests, assignments, or cultural symbolism."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998",
+        "REF_PROJECTIVE_REVIEW_2025"
+      ],
+      "limitations": [
+        "Animal choice may reflect stories, interests, assignments, or cultural symbolism."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_ANIMAL_FOX_005",
@@ -96,8 +126,14 @@
       "confidence_ceiling": 0.05,
       "professional_reasoning": "A fox may be present; the malicious-intent interpretation is unsupported and must not be inferred.",
       "parent_safe_wording": "A fox may be present. Ask the child about its role in the picture.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Clinician-only; categorical intent attribution is unsafe."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Clinician-only; categorical intent attribution is unsafe."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_ANIMAL_SQUIRREL_006",
@@ -108,8 +144,14 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "A squirrel may be present; no validated inference about protection needs follows from it alone.",
       "parent_safe_wording": "A squirrel may be present. Ask what it needs and what is happening around it.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Requires converging interview and contextual evidence."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Requires converging interview and contextual evidence."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_ANIMAL_LION_007",
@@ -120,8 +162,14 @@
       "confidence_ceiling": 0.05,
       "professional_reasoning": "A lion may be present; superiority cannot be inferred from this symbol.",
       "parent_safe_wording": "A lion may be present. Ask what the lion represents in the story.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Restricted categorical personality claim."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Restricted categorical personality claim."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_GEOMETRY_008",
@@ -132,8 +180,14 @@
       "confidence_ceiling": 0.15,
       "professional_reasoning": "Repeated geometry was detected; planning or personality traits cannot be inferred without other evidence.",
       "parent_safe_wording": "The drawing uses repeated geometric forms. Ask what the pattern means.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["May reflect task demands, practice, aesthetics, or motor preference."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "May reflect task demands, practice, aesthetics, or motor preference."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_STARS_009",
@@ -144,8 +198,14 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "Stars were detected; attention-seeking cannot be inferred from the symbol.",
       "parent_safe_wording": "Stars are present. Ask what they mean in this drawing.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Weak symbolic hypothesis."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Weak symbolic hypothesis."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_FLOWERS_CLOUDS_SUN_010",
@@ -156,8 +216,15 @@
       "confidence_ceiling": 0.15,
       "professional_reasoning": "These motifs were detected, but mood and personality require contextual confirmation.",
       "parent_safe_wording": "The drawing includes positive-weather or nature motifs. Ask the child how the scene feels.",
-      "references": ["REF_GENERAL_LIMITS_1998", "REF_PROJECTIVE_REVIEW_2025"],
-      "limitations": ["Common motifs may be decorative or prompted."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998",
+        "REF_PROJECTIVE_REVIEW_2025"
+      ],
+      "limitations": [
+        "Common motifs may be decorative or prompted."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_CIRCLES_011",
@@ -168,8 +235,14 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "Circles were detected; loneliness cannot be inferred from circles alone.",
       "parent_safe_wording": "The drawing contains circles. Ask what they represent and who is present or absent.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Do not display loneliness as a conclusion."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Do not display loneliness as a conclusion."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_TRANSPORT_012",
@@ -180,8 +253,14 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "A vehicle was detected; personality traits cannot be inferred from it.",
       "parent_safe_wording": "A vehicle may be present. Ask where it is going and who is travelling.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Vehicle interests and drawing prompts are alternative explanations."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Vehicle interests and drawing prompts are alternative explanations."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_HEARTS_013",
@@ -192,8 +271,14 @@
       "confidence_ceiling": 0.15,
       "professional_reasoning": "Hearts were detected; they may conventionally express affection, but personality cannot be concluded.",
       "parent_safe_wording": "Heart shapes are present. Ask who or what they are connected to.",
-      "references": ["REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Cultural and decorative convention is a strong alternative explanation."]
+      "references": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Cultural and decorative convention is a strong alternative explanation."
+      ],
+      "tier": "tier_2_content_conditional",
+      "activation_status": "DETECTOR_UNAVAILABLE"
     },
     {
       "rule_id": "PSY_AR_SIZE_HALF_014",
@@ -204,8 +289,16 @@
       "confidence_ceiling": 0.2,
       "professional_reasoning": "The drawing's bounding box covers about half the page. Research shows size can vary with task and emotional characterization, but this personality interpretation is not validated.",
       "parent_safe_wording": "The drawing occupies about half the page; this is a visual measurement, not a personality conclusion.",
-      "references": ["REF_SIZE_2004", "REF_SIZE_DEPTH_2013", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Page coverage is not equivalent to emotional or personality status."]
+      "references": [
+        "REF_SIZE_2004",
+        "REF_SIZE_DEPTH_2013",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Page coverage is not equivalent to emotional or personality status."
+      ],
+      "tier": "tier_1_prompt_independent",
+      "activation_status": "IMPLEMENTED_UNVALIDATED"
     },
     {
       "rule_id": "PSY_AR_SIZE_FULL_015",
@@ -216,8 +309,16 @@
       "confidence_ceiling": 0.15,
       "professional_reasoning": "The drawing spans nearly the full page. This may reflect planning, scale, task, or style; self-esteem cannot be concluded.",
       "parent_safe_wording": "The drawing uses nearly the whole page. Ask how the child planned the space.",
-      "references": ["REF_SIZE_2004", "REF_SIZE_DEPTH_2013", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["No validated 90-100% threshold for self-esteem."]
+      "references": [
+        "REF_SIZE_2004",
+        "REF_SIZE_DEPTH_2013",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "No validated 90-100% threshold for self-esteem."
+      ],
+      "tier": "tier_1_prompt_independent",
+      "activation_status": "IMPLEMENTED_UNVALIDATED"
     },
     {
       "rule_id": "PSY_AR_SIZE_SMALL_016",
@@ -228,8 +329,16 @@
       "confidence_ceiling": 0.15,
       "professional_reasoning": "The drawing's bounding box covers at most one fifth of the page. Fear or instability cannot be inferred without converging evidence.",
       "parent_safe_wording": "The drawing uses a small part of the page. Ask whether that was intentional and what the child chose to emphasize.",
-      "references": ["REF_SIZE_2004", "REF_SIZE_DEPTH_2013", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Age, motor skill, instructions, subject size, and available time may explain small scale."]
+      "references": [
+        "REF_SIZE_2004",
+        "REF_SIZE_DEPTH_2013",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Age, motor skill, instructions, subject size, and available time may explain small scale."
+      ],
+      "tier": "tier_1_prompt_independent",
+      "activation_status": "IMPLEMENTED_UNVALIDATED"
     },
     {
       "rule_id": "PSY_AR_PLACE_TOP_017",
@@ -240,8 +349,15 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "The foreground centroid is in the upper region. The supplied adaptation interpretation is not supported by the located research.",
       "parent_safe_wording": "The drawing is positioned high on the page; this is a spatial observation only.",
-      "references": ["REF_PLACEMENT_1992", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Placement effects are weak, task-dependent, and not diagnostic."]
+      "references": [
+        "REF_PLACEMENT_1992",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Placement effects are weak, task-dependent, and not diagnostic."
+      ],
+      "tier": "tier_1_prompt_independent",
+      "activation_status": "IMPLEMENTED_UNVALIDATED"
     },
     {
       "rule_id": "PSY_AR_PLACE_LEFT_018",
@@ -252,8 +368,15 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "The foreground centroid is left of centre. Introversion cannot be inferred from this placement.",
       "parent_safe_wording": "The drawing is positioned toward the left; this is a spatial observation only.",
-      "references": ["REF_PLACEMENT_1992", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Handedness, script direction, composition, copying, and task constraints may influence placement."]
+      "references": [
+        "REF_PLACEMENT_1992",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Handedness, script direction, composition, copying, and task constraints may influence placement."
+      ],
+      "tier": "tier_1_prompt_independent",
+      "activation_status": "IMPLEMENTED_UNVALIDATED"
     },
     {
       "rule_id": "PSY_AR_PLACE_RIGHT_019",
@@ -264,8 +387,15 @@
       "confidence_ceiling": 0.1,
       "professional_reasoning": "The foreground centroid is right of centre. Openness cannot be inferred from this placement.",
       "parent_safe_wording": "The drawing is positioned toward the right; this is a spatial observation only.",
-      "references": ["REF_PLACEMENT_1992", "REF_GENERAL_LIMITS_1998"],
-      "limitations": ["Handedness, script direction, composition, copying, and task constraints may influence placement."]
+      "references": [
+        "REF_PLACEMENT_1992",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "limitations": [
+        "Handedness, script direction, composition, copying, and task constraints may influence placement."
+      ],
+      "tier": "tier_1_prompt_independent",
+      "activation_status": "IMPLEMENTED_UNVALIDATED"
     }
   ]
 }

@@ -15,7 +15,7 @@ Phased, incremental, each phase scoped to be reviewable on its own. Phases marke
 
 None of the above changes the principal model, the database, any public interface, or the research protocol — all are additive/corrective within the existing design.
 
-## Phase 2 — Rule tiering, free-drawing gating, aggregation fix — **SAFE — PROCEED** (extends already-tested logic; no new dependency, no model/DB/API change)
+## Phase 2 — Rule tiering, free-drawing gating, aggregation fix — **DONE (2026-08-02)**
 1. Add a `tier` field to every entry in `rules_registry.json` (values from `RULE_COVERAGE_MATRIX.csv`, already assigned this session) without changing any existing rule's wording, citations, or confidence ceiling.
 2. Rewrite `rules.py::_status_for()` as tier-aware: Tier 1 evaluates as today; Tier 2 must check a real "positively detected" signal (which, until Phase 3 ships a detector, always resolves to `DETECTOR_UNAVAILABLE`/`missing_detector` — behavior-identical to today, just now for a documented reason rather than an implicit default branch); Tier 3 always returns `NOT_ASSESSABLE_CONTEXT_UNKNOWN` and is excluded from ordinary free-drawing inference unless prompt metadata is later supplied and approved.
 3. Fix the `source_type` bug in `concerns.py`/`rules.py` (`CURRENT_STATE_AUDIT.md` §5.3) so evidence is tagged by its *actual* origin (objective measurement vs. clinician-symbolic hypothesis vs. model prediction), not a blanket string.

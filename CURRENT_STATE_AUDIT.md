@@ -151,6 +151,13 @@ Content of the PDF (now directly read, not inferred): a short, informal Arabic a
 
 ### 5.3 Concern profiles — hardcoded off, and structurally unreachable even if re-enabled
 
+> **CORRECTED 2026-08-02 (Phase 2)**: the "source_type tagging" explanation below
+> for *why* concerns can't converge is inaccurate — see `DECISION_LOG.md`
+> 2026-08-02 for the corrected root cause (`evaluate_rules()` discarding its
+> `evidence` argument, not a tagging bug) and the fix applied. `CONCERNS_ENABLED`
+> is still `False` in production; this section is kept as the historical record
+> of the original (mistaken) Phase 0 finding, per the append-only principle.
+
 `concerns.py` has `CONCERNS_ENABLED = False` at module scope — `derive_concerns()` returns `[]` immediately unless called with `enabled=True` (only done in tests). This alone means **no concern profile has ever been emitted by the running system.**
 
 More importantly, even if that flag were flipped: `derive_concerns()` requires supporting evidence from ≥2 distinct `source_type`s, and its `_source_type()` helper checks `rule.get("source_type") == "psychologist_supplied_hypothesis"` first — but `rules.py::evaluate_rules()` sets `"source_type": "psychologist_supplied_hypothesis"` on literally every rule evaluation it emits, including the 6 that are backed by real composition measurements. So `_source_type()` always returns `"clinician_symbolic"` for every piece of evidence the rules engine can ever produce, the resulting `source_types` set is always exactly `{"clinician_symbolic"}`, and the diversity check `non_clinical_sources = source_types - {"clinician_symbolic"}` is always empty. **The multi-source convergence requirement is unsatisfiable by construction from the current rules engine's output — not just switched off.** This was verified by reading both files together, not assumed from either alone.

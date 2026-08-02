@@ -91,23 +91,36 @@ class ConcernEngineUnreachabilityBaselineTests(unittest.TestCase):
         }
         self.assertEqual(source_types, {"clinician_symbolic"})
 
-    def test_real_rule_output_cannot_converge_even_if_enabled(self):
+    def test_real_rule_output_caps_at_weak_hypothesis_not_a_full_concern(self):
+        # UPDATED for Phase 2 (2026-08-02): the original Phase-0 finding that
+        # real rule output "can never converge even if enabled" turned out to
+        # be based on an inaccurate read of the code (see DECISION_LOG.md
+        # 2026-08-02 correction) -- clinician-symbolic tagging for these
+        # rules is intentional, not a bug, and was left unchanged. What
+        # Phase 2 actually fixed is that evaluate_rules() no longer discards
+        # the emotion model's independent evidence (test_phase2_rule_tiers_
+        # and_aggregation.py::ModelEvidencePassthroughTests). Two Tier-1
+        # rules matching together with NO model evidence are still exactly
+        # ONE source type, so per the working spec's own policy ("several
+        # correlated rules from one family: at most a weak hypothesis") this
+        # now correctly produces a WEAK_HYPOTHESIS-level concern -- not [],
+        # and not a stronger POSSIBLE_FOR_EXPLORATION/PROFESSIONAL_REVIEW
+        # level either, since no second independent source is present.
         from doar.rules import evaluate_rules
         from doar.concerns import derive_concerns
         # A composition designed to match BOTH a coverage rule and a
         # placement rule -- two different evidence IDs, from two genuinely
         # different objective measurements (bounding-box coverage vs.
-        # centroid placement).
+        # centroid placement) -- but the SAME (clinician_symbolic) source type.
         composition = {"bounding_box_coverage": 0.5, "placement": "top-left"}
         evaluations, _ = evaluate_rules(composition, {}, [])
         weak_support = [e for e in evaluations if e["status"] == "weak_support"]
         self.assertGreaterEqual(len(weak_support), 2,
                                 "expected >=2 matched rules from 2 different evidence IDs")
         concerns = derive_concerns(evaluations, enabled=True)
-        self.assertEqual(concerns, [],
-                         "real evaluate_rules() output should not converge to a "
-                         "concern today, even with enabled=True, per the "
-                         "source_type bug documented in CURRENT_STATE_AUDIT.md 5.3")
+        self.assertEqual(len(concerns), 1)
+        self.assertEqual(concerns[0]["aggregation_strength"], "WEAK_HYPOTHESIS")
+        self.assertEqual(concerns[0]["source_types"], ["clinician_symbolic"])
 
 
 if __name__ == "__main__":

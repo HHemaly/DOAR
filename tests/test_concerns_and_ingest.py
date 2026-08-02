@@ -10,7 +10,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 class ConcernConvergenceTests(unittest.TestCase):
-    def test_single_clinician_symbol_never_converges(self):
+    def test_single_source_type_caps_at_weak_hypothesis(self):
+        # Phase 2 (2026-08-02): two clinician-symbolic rules firing together
+        # are still one source type. Per the working spec's aggregation
+        # policy ("several correlated rules from one family: at most a weak
+        # hypothesis"), this must now surface as WEAK_HYPOTHESIS rather than
+        # silently vanish -- previously this test asserted `== []`, which
+        # was the pre-Phase-2 binary converge-or-nothing behaviour.
         from doar.concerns import derive_concerns
         rules = [
             {"status": "weak_support", "matched_evidence_ids": ["ev_bbox_coverage"],
@@ -18,9 +24,10 @@ class ConcernConvergenceTests(unittest.TestCase):
             {"status": "weak_support", "matched_evidence_ids": ["ev_centroid"],
              "source_type": "psychologist_supplied_hypothesis", "confidence_ceiling": 0.2},
         ]
-        # Both are clinician_symbolic -> only one source type -> no concern
-        # (even when the engine is enabled).
-        self.assertEqual(derive_concerns(rules, enabled=True), [])
+        concerns = derive_concerns(rules, enabled=True)
+        self.assertEqual(len(concerns), 1)
+        self.assertEqual(concerns[0]["aggregation_strength"], "WEAK_HYPOTHESIS")
+        self.assertEqual(concerns[0]["source_types"], ["clinician_symbolic"])
 
     def test_concerns_disabled_by_default(self):
         from doar.concerns import derive_concerns, CONCERNS_ENABLED
@@ -49,6 +56,7 @@ class ConcernConvergenceTests(unittest.TestCase):
         self.assertEqual(c["confidence"], 0.15)          # capped by lowest ceiling
         self.assertTrue(c["requires_clinician_review"])
         self.assertEqual(c["approval_status"], "pending")
+        self.assertEqual(c["aggregation_strength"], "POSSIBLE_FOR_EXPLORATION")
 
     def test_current_registry_yields_no_concerns(self):
         # End-to-end: real evaluate_rules over the shipped registry stays empty.
