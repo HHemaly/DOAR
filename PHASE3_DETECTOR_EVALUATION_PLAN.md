@@ -93,14 +93,21 @@ question here, before any modeling work — see §5.
 > the face/eye detector, since a successful detector there would still only
 > support an unusually weakly-evidenced interpretation even by this
 > literature area's own low bar. Per your instruction to prioritize scientific
-> value over rule count, face/eyes is demoted below shapes/symbols but now
-> also below the newly-found objective (non-psychological) developmental-stage
-> candidate, which has robust, uncontested evidence (p<.001) and zero new
-> dependency.
+> value over rule count, face/eyes is demoted below shapes/symbols.
+>
+> **Further correction (2026-08-02, second pass)**: the "developmental-stage
+> feature ranks 1st" claim below itself overreached — see
+> `LITERATURE_CANDIDATE_REGISTER.csv`'s corrected `LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`
+> row. The p<.001 finding is robust *in its source study's population,
+> protocol, and CNN-based measurement* — not in DOAR's classical
+> handcrafted features on genuinely free drawings, which is untested. This
+> table row is retracted; the corrected ranking (developmental-stage feature
+> included as one candidate among several, not a presumed winner) is in the
+> final chat report and will be folded back into this document next revision.
 
 | Category / candidate | Rules enabled if successful | Feasibility | Scientific value if successful | Priority |
 |---|---|---|---|---|
-| Objective developmental-stage feature (`LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`) | 0 rules — not tied to any Tier-2 rule; a new Tier-1 objective feature / possible emotion-model covariate | High — reuses existing DOAR features, no new dependency | **Higher than any Tier-2 rule**: robust, uncontested literature (p<.001); makes zero psychological claim, so carries none of the interpretation-validity problem every Tier-2 rule shares | **1st** (see §8) |
+| Objective developmental-stage feature (`LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`) | 0 rules — not tied to any Tier-2 rule; a new Tier-1 objective feature / possible emotion-model covariate | **Unknown, not "high"** — reuses existing DOAR *code paths* but whether they measure the right *construct* is an untested hypothesis, not a given | **RETRACTED ranking**: the source evidence (p<.001) is real but applies to a different population/protocol/measurement approach than DOAR's; transfer is unvalidated | **Not ranked 1st — see final report for the corrected comparison** |
 | Shapes/symbols/objects | 6 | High — cheap compute, relevant public data, reuses existing DOAR code, one rule (circles) needs no model at all | Low-moderate — a working detector only ever yields a geometric observation; the attached interpretation stays unsupported (§1) regardless | **2nd** |
 | Person/face/eyes | 3 | Medium — mature face-detection tech exists, but eye-*state* classification has no precedent and the one promising drawing-domain dataset (ChildlikeSHAPES) has unconfirmed provenance | **Lowered this round** — even the best available instructed-protocol literature for this rule family is weak and internally inconsistent (see correction note above) | 3rd |
 | Animals | 4 | Lowest — zero matching pretrained vocabulary, no drawing-domain data found | Lowest — no literature at all, in any protocol, supports any of the 4 specific species interpretations | 4th, possibly permanently deferred |
@@ -240,15 +247,17 @@ to piloting.
 
 ## 8. Recommended first experiment
 
-> **REVISED (round 2)**: see the final chat report for the full reasoning.
-> Short version — the literature review found a non-psychological objective
-> feature (`LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`, scribble-vs-representational
-> developmental stage) with more robust, uncontested evidence than anything
-> backing the Tier-2 rules any detector here would eventually serve, and zero
-> interpretation-validity ceiling to run into. This is presented as an
-> **alternative** first-experiment candidate for your decision, not a
-> unilateral change — the original circles recommendation below stands as the
-> "if we're piloting a Tier-2-rule detector" answer.
+> **SUPERSEDED — see the final chat report for the corrected comparison.**
+> This section's round-2 revision overreached by presenting the
+> developmental-stage feature as though its evidence (p<.001) directly
+> supported DOAR feasibility — it does not; that evidence applies to the
+> source study's own population, protocol, and CNN-based measurement, and
+> transfer to DOAR's classical features on free drawings is an untested
+> hypothesis, exactly like every Tier-2 detector candidate. The comparison
+> across circles, the developmental-stage feature, emotion-model improvement,
+> and label-quality auditing is redone on equal footing in the final report
+> and will be folded back into this document next revision. Text below is
+> preserved as the record of what was previously (incorrectly) recommended.
 
 **If the goal is Phase-3 Tier-2 detector groundwork**: circles, via classical
 CV (contour circularity on existing connected components), feasibility-checked

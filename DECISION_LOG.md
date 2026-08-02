@@ -223,6 +223,47 @@ review before any detector implementation begins.
 
 ---
 
-## 2026-08-02 — Phase 2 complete
+## 2026-08-02 — CSV structural corrections + developmental-stage overreach corrected
 
-Implemented exactly the corrected design: `tier` + `activation_status` fields added to all 19 registry rules (content unchanged, verified by diff — only cosmetic array reformatting plus the two new fields); `rules.py::_status_for()` refactored to explicit tier-aware dispatch (behavior-identical for every existing rule, verified by end-to-end test against the real registry); `evaluate_rules()` no longer discards `evidence`; `concerns.py` implements the four-level aggregation vocabulary; `CONCERNS_ENABLED` left `False`. 13 new/updated tests added (2 existing tests updated to reflect the new, spec-required `WEAK_HYPOTHESIS` behavior for correlated single-source rules, with the change documented in-line). Full suite: 204/204 passing. `ruff check`: clean. `compileall`: clean. Real end-to-end `analyze-image` run confirmed `rules.json` carries correct tier/activation_status fields and `concerns.json` stays `[]` in production. Committed separately from Phase 1. Per the user's explicit instruction: this is **not** described as scientifically validated — it is a correctness/completeness improvement to inert scaffolding. No rule produces different user-facing output than before Phase 2.
+User accepted commit `20966e8` as a preliminary checkpoint and required, before
+choosing a first experiment: (1) structural validation of
+`RULE_SOURCE_REGISTER.csv` with a non-destructive fix and an automated test,
+(2) correction of `LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`'s overstated DOAR
+applicability, (3) treatment of the prior round as preliminary only, (4) a
+broader reproducible literature review, (5) a 6-category comparison against
+the 19 existing rules, (6) a ranked comparison of candidate experiments not
+assuming detector work is the answer.
+
+**CSV structural fix**: root cause diagnosed precisely — 3 rows in
+`RULE_SOURCE_REGISTER.csv` (and, found by the new automated test, 1 row in
+`RULE_COVERAGE_MATRIX.csv`) contained an unquoted comma inside a parenthetical
+remark from the original hand-authored text, which any CSV parser reads as an
+extra field boundary. Fixed by reading the full file into memory first
+(`csv.reader`, which tolerates the extra fields without raising), merging
+exactly the diagnosed field pairs, verifying every resulting row has the
+declared column count, backing up the pre-fix file
+(`*.pre_structural_fix_2026-08-02.csv`, committed alongside the fix, not
+deleted), and only then writing. Content preservation verified by a full
+cell-by-cell comparison against the backup (0 mismatches across 28/20 rows
+respectively) — not just re-parsing successfully. `tests/test_csv_register_integrity.py`
+added: validates field-count consistency, no duplicate IDs, no empty IDs,
+and no `None`-keyed rows (the exact failure signature that caused the
+earlier incident) across all 4 root-level CSV registers. This test would
+have caught the original malformed rows before they were ever committed.
+
+**Developmental-stage correction**: `LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`'s
+`applicability_to_doar`/`detector_measurement_requirements`/`recommendation`
+fields (in both `LITERATURE_CANDIDATE_REGISTER.csv` and
+`RULE_SOURCE_REGISTER.csv`) and its treatment in `IMPROVEMENT_REGISTER.md`
+and `PHASE3_DETECTOR_EVALUATION_PLAN.md` conflated two separate claims: (a)
+the source study's finding (representational content increases with age,
+p<.001) is robust — true, and unchanged; (b) DOAR's classical handcrafted
+features can measure the same construct on genuinely free drawings — an
+untested hypothesis that had been written up as though established. Corrected
+in place across all four documents; recommendation downgraded from
+"OPERATIONAL CANDIDATE" to "RESEARCH-ONLY / HYPOTHESIS TO PILOT." Verified via
+targeted diffs that only the intended fields changed in each file.
+
+Full test suite, ruff, and compileall re-run clean after every change in this
+entry. See the next log entry for the broader literature review and
+experiment-ranking work, committed separately per instruction.
