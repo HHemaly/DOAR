@@ -1,6 +1,6 @@
 # Session Handoff
 
-Updated 2026-08-02, end of the Phase 6 working session, for a fresh Claude
+Updated 2026-08-03, end of the Phase 7 working session, for a fresh Claude
 Code session (or human) to pick up with full context. Read this before
 `CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's current and
 in what order everything happened.
@@ -12,7 +12,10 @@ in what order everything happened.
 - **Phase 3A Closure Verification** — commit `cf6512f`
 - **Phase 4: Preliminary Controlled Emotion-Model Comparison**
 - **Phase 5: Preliminary Multi-Seed Confirmation**
-- **Phase 6: Selected-Model End-to-End Integration Validation** — this session
+- **Phase 6: Selected-Model End-to-End Integration Validation**
+- **Phase 7: Extended Experiment Programme and Model-Family Feasibility
+  Review** — this session. **Proposal only — no experiment in it has been
+  run.** See `PHASE7_RESULTS.md` and `PHASE7_EXPERIMENT_MATRIX.csv`.
 - Detector implementation for currently-unavailable rules was **proposed
   only, never implemented**. It is a **future roadmap item**, not a
   numbered phase (specifically, it is **not** "Phase 3B" — that label was
@@ -41,7 +44,9 @@ been or can be pushed anywhere from this machine.
 | `73b082f` | Phase 4 | Preliminary controlled one-seed emotion-model comparison — see §4 |
 | `1542505` | Phase 5 | Preliminary multi-seed (42/123/2026) confirmation of the 3 competitive pretrained architectures + post-hoc calibration — see §4 |
 | `d0c5ca2` | Phase 5 correction | Fixed overreaching superiority/calibration claims, recorded Ruff honestly (documentation-only, no retraining, no artifacts touched) |
-| *(this session, to be committed next)* | Phase 6 | Selected-model (`efficientnet_b0`) end-to-end integration validation against the Phase 3A `mobilenet_v3_small` reference — see §4 |
+| `84623bd` | Phase 6 | Selected-model (`efficientnet_b0`) end-to-end integration validation against the Phase 3A `mobilenet_v3_small` reference — see §4 |
+| `4aeb7db` | Phase 6 correction | Disclosed that 4 test-folder images were reused for integration smoke testing across Phase 3A and Phase 6 — test split is not completely untouched (documentation-only, no rerun) |
+| *(this session, to be committed next)* | Phase 7 | Extended Experiment Programme and Model-Family Feasibility Review — proposal-only, no training run; see §4 |
 
 ---
 
@@ -101,6 +106,24 @@ been or can be pushed anywhere from this machine.
   runs re-exercising the version-history path from Phase 3A §7a with the
   new checkpoint. All 10 runs exited 0 with no errors/warnings found in the
   logs.
+- **Phase 6 correction** (commit `4aeb7db`): documentation-only. Disclosed
+  that Phase 3A and Phase 6 both reused the same 4 test-folder images for
+  individual `analyze-image` integration smoke testing, and that their
+  folder labels and predictions were inspected — the test split cannot be
+  described as completely untouched. Reworded the "3 of 4 correct" result
+  in both `PHASE6_RESULTS.md` and `SESSION_HANDOFF.md` to be explicit it is
+  not a performance estimate. No rerun, no artifact changes, no `src/doar`
+  changes.
+- **Phase 7**: **no `src/doar` code changed — proposal only, nothing
+  trained.** Produced `PHASE7_RESULTS.md` (feasibility report + research
+  programme + governance + roadmap) and `PHASE7_EXPERIMENT_MATRIX.csv` (22
+  proposed experiments across 5 families, full per-experiment
+  specification). Grounded entirely in real inspection performed this
+  phase: `pip list`, `torch.cuda` queries, `du`/`df`, exact model
+  parameter counts (`torchvision`/`timm` construction, no download), the
+  real leakage-report counts, and the existing codebase's already-built
+  infrastructure — no training, no test-split access, no dataset or code
+  changes.
 
 Everything else across all phases was documentation, CSV registers, and
 tests.
@@ -138,11 +161,12 @@ real metrics, real bilingual case reports.
 
 ---
 
-## 4. Exact Phase 3A through Phase 6 commands and results
+## 4. Exact Phase 3A through Phase 7 commands and results
 
 Full detail lives in `PHASE3A_RESULTS.md`, `PHASE4_RESULTS.md`,
-`PHASE5_RESULTS.md`, and `PHASE6_RESULTS.md` — read those directly for
-anything you plan to cite. Headline:
+`PHASE5_RESULTS.md`, `PHASE6_RESULTS.md`, and `PHASE7_RESULTS.md` +
+`PHASE7_EXPERIMENT_MATRIX.csv` — read those directly for anything you plan
+to cite. Headline:
 
 **Phase 3A**: `mobilenet_v3_small`, seed 42, 10 epochs, on the full uncleaned
 dataset (3,688 images, 0 unreadable). Validation macro-F1 0.704, accuracy
@@ -269,6 +293,37 @@ performed.** Full detail in `PHASE6_RESULTS.md`.
 confirming no new finding was introduced (`git status` showed zero tracked
 files modified during the investigation itself).
 
+**Phase 7: proposal only, nothing trained, nothing tuned, test split not
+accessed.** A feasibility-grounded research programme (`PHASE7_RESULTS.md`
++ `PHASE7_EXPERIMENT_MATRIX.csv`, 22 proposed experiments across 5
+families: deep-classifier screening, pretrained SSL embeddings,
+interpretable feature baselines, fusion, and fine-tuning ablations). Key
+feasibility findings from real (non-training) inspection this phase: 4 of
+the 8 registered architectures (`small_cnn`, `mobilenet_v3_small`,
+`resnet18`, `efficientnet_b0`) have ever been trained — `resnet50`,
+`mobilenet_v3_large`, `convnext_tiny`, and `vit_b_16` are fully wired but
+unused; `timm` (DINOv2, DenseNet, compact ViTs) and `open_clip_torch` are
+already installed and mostly already wired into `embeddings.py` but never
+exercised; the classical-feature baseline (`compare-models`, 6 model
+families) and feature-ablation tool (`run-ablation`) already exist and have
+never been run under the current manifest; early/late fusion machinery
+(`fusion/trainer.py`, `fusion/late.py`) already exists and is unused. Real
+dataset/leakage counts sourced directly from
+`outputs/phase5/deep/leakage_gate/leakage_report.json`: 324 exact +
+1,442 near cross-split duplicate groups + 48 label conflicts = 1,517/3,688
+(41.1%) flagged images, 2,171 clean; **no subject/child-level grouping
+exists in this dataset at all**, so any future "leakage-safe" partition can
+only be image-level safe, never subject-level safe. Hardware: 6.44 GB VRAM
+(Quadro P3200, confirmed), 47 GB free disk (current `outputs/phase3a`–
+`phase6` footprint ≈1.65 GB). No architecture/family in the matrix requires
+a second training framework — every new component identified (DenseNet121
+registry entry, a `timm`-backed compact-ViT loader, HOG features, focal
+loss, a "no augmentation" profile) is a small, targeted extension of
+existing modules, detailed in `PHASE7_RESULTS.md` §1.8. Estimated total
+compute for the full proposed programme: ≈5–9 hours GPU-inclusive
+wall-clock, ≈4–6 GB new storage (§6) — not currently a blocking constraint.
+**Stops after the proposal; no experiment has been approved to run.**
+
 ---
 
 ## 5. Files created or modified this session
@@ -289,9 +344,21 @@ code changes were needed this phase (see §2 above).
 corrections), `SESSION_HANDOFF.md` (v4, matching corrections). Documentation
 only.
 
-**Phase 6** (to be committed next): `PHASE6_RESULTS.md` (new),
-`SESSION_HANDOFF.md` (this file, v5). **No `src/doar` or `tests/` files
-changed** — no bug was found this phase (see §2 above).
+**Phase 6** (committed `84623bd`): `PHASE6_RESULTS.md` (new),
+`SESSION_HANDOFF.md` (v5). **No `src/doar` or `tests/` files changed** — no
+bug was found this phase (see §2 above).
+
+**Phase 6 correction** (committed `4aeb7db`): `PHASE6_RESULTS.md`
+(test-split disclosure added), `SESSION_HANDOFF.md` (v6, matching
+disclosure). Documentation only, no rerun.
+
+**Phase 7** (to be committed next): `PHASE7_RESULTS.md` (new),
+`PHASE7_EXPERIMENT_MATRIX.csv` (new, 22 rows), `SESSION_HANDOFF.md` (this
+file, v7). **No `src/doar` or `tests/` files changed — proposal only,
+nothing trained** (see §2 above). Unlike `outputs/`, both new Phase 7 files
+are **committed** (like `EXPERIMENT_PRIORITIZATION.md`,
+`DETECTOR_DEPENDENCY_MATRIX.csv` before them) since they are planning
+documents, not generated experiment artifacts.
 
 **Not committed** (git-ignored, `outputs/` rule): everything under
 `outputs/phase3a/`, `outputs/phase4/`, `outputs/phase5/`, and
@@ -300,7 +367,8 @@ and SHA-256 hashes of every artifact that matters.
 `outputs/phase4/ARTIFACT_MANIFEST.tsv` (25 rows),
 `outputs/phase5/ARTIFACT_MANIFEST.tsv` (120 rows, ≈1.22 GB), and
 `outputs/phase6/ARTIFACT_MANIFEST.tsv` (202 rows, ≈8.3 MB) cover their
-respective phases in full.
+respective phases in full. Phase 7 produced no `outputs/` directory at all
+(nothing was run).
 
 ---
 
@@ -427,37 +495,48 @@ predictions were inspected both times — see `PHASE6_RESULTS.md` §2. No
 aggregate test-split statistic exists, but these 4 specific images are no
 longer blind and must be excluded from whatever leakage-safe final
 evaluation set gets constructed. This is now a **required input** to the
-paused dataset audit (§8 below), not just a data-quality question — the
+paused dataset audit above (item 7), not just a data-quality question — the
 audit must also produce a test set disjoint from these 4 disclosed images.
+
+**Phase 7's proposal is complete and pending review (added 2026-08-03):**
+`PHASE7_RESULTS.md` + `PHASE7_EXPERIMENT_MATRIX.csv` propose 22 experiments
+across 5 families (deep-classifier screening, pretrained SSL embeddings,
+interpretable feature baselines, fusion, fine-tuning ablations), all
+grounded in real feasibility inspection of this repository, dataset,
+hardware, and installed libraries — see §4 above for the headline. **No
+experiment in it has been approved to run.** Phase 7 also names the dataset
+audit above as a hard prerequisite for its own §7 (locked final-evaluation
+protocol) — the audit and Phase 7's Stage 0/1 development-time screening
+are independent and can proceed in either order or in parallel, but Phase
+7's *final* evaluation cannot happen until the audit's leakage-safe
+partition exists.
 
 ---
 
 ## 9. Exact recommended prompt for the next session
 
-Three reasonable next steps exist; pick based on current priority. Use
+Four reasonable next steps exist; pick based on current priority. Use
 whichever prompt matches:
 
-**If proceeding toward a production-model decision for `efficientnet_b0`:**
+**If approving Phase 7's Stage 0 experiments:**
 ```
-Continue the DOAR project. Read SESSION_HANDOFF.md, PHASE5_RESULTS.md, and
-PHASE6_RESULTS.md in full before acting. Treat the repository at its
-current HEAD as the source of truth.
+Continue the DOAR project. Read SESSION_HANDOFF.md and PHASE7_RESULTS.md in
+full before acting, plus PHASE7_EXPERIMENT_MATRIX.csv for exact
+per-experiment specs. Treat the repository at its current HEAD as the
+source of truth.
 
-Phase 6 confirmed efficientnet_b0 (checkpoint at
-outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt) runs
-correctly through the full DOAR pipeline with no integration defects, on 4
-smoke-test drawings only -- this is not a performance validation. Note that
-these same 4 test-folder images were also used in Phase 3A -- both their
-labels and both checkpoints' predictions are now disclosed and no longer
-blind (PHASE6_RESULTS.md Section 2); do not treat them as available for a
-future leakage-safe final-evaluation set. Do not replace the
-production/default model without first resolving (or explicitly deciding to
-set aside) the still-inconclusive efficientnet_b0 vs. resnet18 macro-F1
-comparison from PHASE5_RESULTS.md Section 5. Ask the user how they want to
-proceed (see Section 8's open options) before taking any action that
-changes the default model, runs an aggregate evaluation on the locked test
-split, cleans the dataset, implements a detector, or activates
-psychological concerns.
+Phase 7 proposed (not run) 22 experiments across 5 families. I approve
+Stage 0 [specify which rows, e.g. "C1, C2, C3, C5, A1, A2" or "all of Stage
+0"] per PHASE7_RESULTS.md Section 5.1's execution order. Implement any
+required new component listed in PHASE7_RESULTS.md Section 1.8 for those
+rows only (e.g. the DenseNet121 registry.py entry for A1) with a matching
+regression test, following this project's existing read-verify-backup-write
+and safe-training conventions. Do not run any Stage 1/2/3 row without
+separate approval. Do not access the test split. Do not clean or modify the
+dataset. Do not implement a detector or activate psychological concerns.
+Save results under a new outputs/phase8/ (or an appropriately named)
+directory without touching outputs/phase3a-6, and produce an artifact
+manifest with SHA-256 hashes.
 ```
 
 **If resuming the paused dataset/label-quality audit instead:**
@@ -467,10 +546,14 @@ Section 8 has the paused dataset-audit's exact scope (mutually-exclusive
 exclusion counts, source-image immutability confirmation, versioned
 duplicate/exclusion/conflict manifests, cross-split leakage verification,
 class balance before/after, integrity tests, and a proposed -- not run --
-next baseline experiment). Do not clean the dataset or exclude anything
-without separate approval; the audit's job is to measure and document, not
-to modify. Do not repeat Phase 3A, Phase 4, Phase 5, or Phase 6's completed
-work. Stop for approval before running any training.
+next baseline experiment), now also including excluding the 4 test-images
+disclosed in PHASE6_RESULTS.md Section 2, and PHASE7_RESULTS.md Section 7's
+proposed locked-final-evaluation protocol (group-level re-partitioning
+using the existing leakage.py, image-level-only leakage safety since no
+subject/child ID exists in this dataset). Do not clean the dataset or
+exclude anything without separate approval; the audit's job is to measure
+and document, not to modify. Do not repeat Phase 3A through Phase 7's
+completed work. Stop for approval before running any training.
 ```
 
 **If the user wants to formally decide between efficientnet_b0 and resnet18
@@ -490,4 +573,27 @@ existing 3-seed data, (c) to pick a model on secondary criteria alone
 (calibration, runtime, size) without resolving the macro-F1 question, or
 (d) to defer the decision until after the dataset audit produces a
 leakage-safe evaluation. Do not decide this unilaterally.
+```
+
+**If proceeding toward a production-model decision for `efficientnet_b0`
+without further experiments:**
+```
+Continue the DOAR project. Read SESSION_HANDOFF.md, PHASE5_RESULTS.md,
+PHASE6_RESULTS.md, and PHASE7_RESULTS.md in full before acting. Treat the
+repository at its current HEAD as the source of truth.
+
+Phase 6 confirmed efficientnet_b0 (checkpoint at
+outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt) runs
+correctly through the full DOAR pipeline with no integration defects, on 4
+now-disclosed, non-blind smoke-test drawings only (PHASE6_RESULTS.md
+Section 2) -- this is not a performance validation. Phase 7 proposes a
+much larger experiment programme that has not been approved. Do not replace
+the production/default model without first resolving (or explicitly
+deciding to set aside) the still-inconclusive efficientnet_b0 vs. resnet18
+macro-F1 comparison from PHASE5_RESULTS.md Section 5, and without
+considering whether any part of Phase 7's programme should run first. Ask
+the user how they want to proceed before taking any action that changes the
+default model, runs an aggregate evaluation on the locked test split,
+cleans the dataset, implements a detector, or activates psychological
+concerns.
 ```
