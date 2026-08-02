@@ -151,6 +151,78 @@ begins.
 
 ---
 
+## 2026-08-02 — Literature review round 1 + Phase 3 validation-plan corrections
+
+User approved Phase 3 planning (commit `eee8e35`) and requested, before any
+detector pilot: a literature-based review of primary sources for additional
+visual-feature candidates relevant to spontaneous free drawing, a comparison
+against the existing 19 rules, and methodological corrections to the Phase 3
+validation plan. No detector implementation was authorized or attempted.
+
+**Literature review**: 6 candidates researched and recorded in
+`LITERATURE_CANDIDATE_REGISTER.csv`, 2 read directly in full text via PMC
+(`LIT_HFD_DEPRESSION_ADULT_004`, `LIT_HFD_DEPRESSION_ADULT_004`'s exact
+statistics quoted from source; `LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`,
+likewise). **No genuinely supported new psychological rule candidate was
+found** — every interpretive candidate was either directly self-contradictory
+in the literature, structurally unmeasurable from DOAR's static-image input,
+far beyond current detector scope, or population/protocol-mismatched (adults
+and/or instructed Draw-A-Person tasks, not children's spontaneous drawing).
+This is reported as a real finding, not a search failure — see
+`IMPROVEMENT_REGISTER.md` category 1. **One genuinely supported, non-
+psychological objective feature was found**: scribble-vs-representational
+developmental stage, p<.001, buildable from existing DOAR feature
+infrastructure with no new dependency — proposed as a Tier-1 descriptive
+feature / possible emotion-model covariate, never as an interpretation.
+
+**Comparison against the 19 existing rules** (`IMPROVEMENT_REGISTER.md`):
+confirmed the eye rules' and animal rules' existing weaknesses are part of a
+broader, repeated pattern (the overwhelming majority of rigorous drawing-
+interpretation literature is instructed-protocol research); recommended
+demoting face/eye detector work below its round-1 priority given how weak and
+internally inconsistent even the best available instructed-protocol evidence
+for that rule family turned out to be on closer reading; no rule was deleted,
+disabled, or had its registry content changed — only the Phase 3 priority
+ordering (a planning artifact) was revised.
+
+**Validation-plan corrections applied to `PHASE3_DETECTOR_EVALUATION_PLAN.md`**
+(marked CORRECTED in place, original text preserved, not deleted): 30–50
+image samples are now explicitly feasibility-only, never a validation result;
+annotators must be blind to folder labels and detector/model output; the
+round-1 threshold table's "detector macro-F1 must exceed human kappa" is
+retracted as statistically invalid (different metrics, not comparable
+numerically) and replaced with a prevalence/CI/cost-informed per-class process;
+final sample size is deferred to a staged design (feasibility → prevalence
+estimate → sample-size calculation → full annotation) instead of a single
+up-front number.
+
+**ESRA/ChildlikeSHAPES/SceneDAPR re-verified via primary sources, not search
+summaries**: Roboflow (ESRA) returned HTTP 403 to direct fetch — genuinely
+unverified, not just unchecked. ChildlikeSHAPES' arXiv abstract does not
+disclose drawing authenticity or licence — genuinely unconfirmed. SceneDAPR's
+GitHub page was fetched successfully and fully verified: CC BY-NC 4.0,
+access-by-request, 148 categories (6 core DAPR), 1,399 sketches (462 from
+ages 8–18, not matched to DOAR's likely population either), confirmed
+instructed DAPR protocol. Round 1's "experiment with ESRA" recommendation is
+downgraded to "defer pending manual verification"; SceneDAPR's rejection
+stands, now on verified rather than summarized grounds.
+
+**Incident during this work, self-corrected**: a one-off script intended to
+append 6 new rows to `RULE_SOURCE_REGISTER.csv` opened the file in write mode
+before its read had fully completed, and crashed on a pre-existing malformed
+row partway through — truncating the file to just its header and destroying
+all 22 existing rows. Recovered immediately via `git checkout HEAD --
+RULE_SOURCE_REGISTER.csv` (Phase 1's decision to initialize git paid for
+itself here) with zero data loss, then re-done with an append-only script
+that never reads or rewrites existing content. Recorded here per the
+transparency standard applied throughout this log, not omitted because it
+was self-corrected.
+
+Nothing was activated, enabled, downloaded, or made user-facing. Awaiting
+review before any detector implementation begins.
+
+---
+
 ## 2026-08-02 — Phase 2 complete
 
 Implemented exactly the corrected design: `tier` + `activation_status` fields added to all 19 registry rules (content unchanged, verified by diff — only cosmetic array reformatting plus the two new fields); `rules.py::_status_for()` refactored to explicit tier-aware dispatch (behavior-identical for every existing rule, verified by end-to-end test against the real registry); `evaluate_rules()` no longer discards `evidence`; `concerns.py` implements the four-level aggregation vocabulary; `CONCERNS_ENABLED` left `False`. 13 new/updated tests added (2 existing tests updated to reflect the new, spec-required `WEAK_HYPOTHESIS` behavior for correlated single-source rules, with the change documented in-line). Full suite: 204/204 passing. `ruff check`: clean. `compileall`: clean. Real end-to-end `analyze-image` run confirmed `rules.json` carries correct tier/activation_status fields and `concerns.json` stays `[]` in production. Committed separately from Phase 1. Per the user's explicit instruction: this is **not** described as scientifically validated — it is a correctness/completeness improvement to inert scaffolding. No rule produces different user-facing output than before Phase 2.

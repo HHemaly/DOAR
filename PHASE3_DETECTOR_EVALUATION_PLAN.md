@@ -2,8 +2,17 @@
 
 Status: **planning document, nothing implemented**. No detector has been adopted,
 downloaded, or enabled. No rule's `activation_status` has changed from Phase 2.
-Companion to `DETECTOR_DEPENDENCY_MATRIX.csv` (per-rule detail) and
-`DECISION_LOG.md` (approvals).
+Companion to `DETECTOR_DEPENDENCY_MATRIX.csv` (per-rule detail),
+`LITERATURE_CANDIDATE_REGISTER.csv` and `IMPROVEMENT_REGISTER.md` (literature
+review round 1), and `DECISION_LOG.md` (approvals).
+
+> **Round 2 corrections (2026-08-02)**: sections 3, 4, 6, 8, and 9 below were
+> revised after (a) a literature review round found the face/eye rule family's
+> supporting evidence to be weaker than this plan's original priority ranking
+> assumed, and (b) methodological corrections to the validation design itself
+> (annotator blinding, sample-size justification, and a statistic-comparison
+> error). Original text is preserved below each correction, marked
+> superseded, not deleted, per the project's append-only documentation policy.
 
 ---
 
@@ -71,18 +80,34 @@ question here, before any modeling work — see §5.
 
 ## 3. Prioritization
 
-| Category | Rules | Feasibility | Best candidate found | Priority |
-|---|---|---|---|---|
-| Shapes/symbols/objects | 6 | **Highest** — cheap compute, relevant public data, reuses existing DOAR code, one rule (circles) needs no model at all | QuickDraw (classifier only) over DOAR's own component crops; classical CV for circles | **1st** |
-| Person/face/eyes | 3 | Medium — mature face-detection tech exists, but eye-*state* classification has no precedent and the one promising drawing-domain dataset (ChildlikeSHAPES) has unconfirmed provenance | ChildlikeSHAPES (pending verification) or photo-domain landmarks as a weaker fallback | 2nd |
-| Animals | 4 | **Lowest** — zero matching pretrained vocabulary, no drawing-domain data found, likely genuine research problem | None confident; iNaturalist as a weak experimental starting point only | 3rd, possibly permanently deferred |
+> **CORRECTED (round 2)**: the original table below prioritized by feasibility
+> and rule-count only, as instructed at the time. A subsequent literature
+> review (`LITERATURE_CANDIDATE_REGISTER.csv`, `IMPROVEMENT_REGISTER.md`)
+> found that the broader human-figure/facial-indicator literature — not just
+> the one citation already in the eyes rules — is consistently weak,
+> instructed-protocol-only, and in at least one well-controlled study
+> internally inconsistent across statistical methods for the same feature
+> (`LIT_HFD_DEPRESSION_ADULT_004`: eye-shading significant by logistic
+> regression, p=.034, but *not* significant by ROC/AUC, p=.285). This doesn't
+> change feasibility, but it lowers the *scientific value* of ever finishing
+> the face/eye detector, since a successful detector there would still only
+> support an unusually weakly-evidenced interpretation even by this
+> literature area's own low bar. Per your instruction to prioritize scientific
+> value over rule count, face/eyes is demoted below shapes/symbols but now
+> also below the newly-found objective (non-psychological) developmental-stage
+> candidate, which has robust, uncontested evidence (p<.001) and zero new
+> dependency.
 
-This ordering is driven by feasibility and rule-count, as you asked — not by
-"scientific value" in the sense of validating any psychological claim, since
-**no candidate in any category can do that** (§1). "Value" here means: does a
-successful detector let DOAR make *any* additional honest, evidence-traceable
-geometric observation. All three categories would, equally; feasibility breaks
-the tie.
+| Category / candidate | Rules enabled if successful | Feasibility | Scientific value if successful | Priority |
+|---|---|---|---|---|
+| Objective developmental-stage feature (`LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`) | 0 rules — not tied to any Tier-2 rule; a new Tier-1 objective feature / possible emotion-model covariate | High — reuses existing DOAR features, no new dependency | **Higher than any Tier-2 rule**: robust, uncontested literature (p<.001); makes zero psychological claim, so carries none of the interpretation-validity problem every Tier-2 rule shares | **1st** (see §8) |
+| Shapes/symbols/objects | 6 | High — cheap compute, relevant public data, reuses existing DOAR code, one rule (circles) needs no model at all | Low-moderate — a working detector only ever yields a geometric observation; the attached interpretation stays unsupported (§1) regardless | **2nd** |
+| Person/face/eyes | 3 | Medium — mature face-detection tech exists, but eye-*state* classification has no precedent and the one promising drawing-domain dataset (ChildlikeSHAPES) has unconfirmed provenance | **Lowered this round** — even the best available instructed-protocol literature for this rule family is weak and internally inconsistent (see correction note above) | 3rd |
+| Animals | 4 | Lowest — zero matching pretrained vocabulary, no drawing-domain data found | Lowest — no literature at all, in any protocol, supports any of the 4 specific species interpretations | 4th, possibly permanently deferred |
+
+Original (round 1) ordering, preserved for the record: shapes/symbols 1st,
+face/eyes 2nd, animals 3rd — driven by feasibility and rule-count only, before
+the literature review existed to weigh scientific value against it.
 
 ---
 
@@ -105,47 +130,94 @@ Recommended sequence:
 3. Only then pilot the highest-priority category (shapes/symbols) against the
    sample.
 
+> **CORRECTED (round 2) — annotator blinding and staged validation**:
+> - **Annotators must be blind to the dataset's folder label (the emotion
+>   class) and to any model/detector output** when producing ground truth.
+>   Nothing in round 1 explicitly required this; it must be stated as a hard
+>   requirement, not an implied one — an annotator who can see "this image is
+>   from the `Angry` folder" or a detector's own guess could anchor on it,
+>   contaminating the very ground truth used to judge that detector.
+> - **A 30–50 image subsample is a feasibility check only** (does the
+>   pipeline run end-to-end, are crops sane, is the schema usable) — **not**
+>   a validation result and never to be reported as one. Round 1's §6
+>   thresholds table wrongly implied a small subsample could be scored
+>   against those numbers; corrected in §6 below.
+
 ---
 
 ## 5. Annotation plan (schema in `docs/PHASE3_ANNOTATION_SCHEMA.md`)
 
-- **Sample size**: propose ~150–200 images stratified across the 4 emotion
-  folders and both leakage-clean splits, drawn from the already-leakage-cleaned
-  `outputs/full_run/leakage/clean_dataset` so no annotation effort is wasted on
-  images that would be quarantined anyway.
-- **Labels per image**: face-present (bool) + face bbox; per detected
-  connected-component, a shape/symbol class from a fixed vocabulary (star,
-  circle, heart, flower, cloud, sun, vehicle, geometric-shape, none/other);
-  animal-present (bool) + species from a fixed vocabulary (tiger, wolf, fox,
-  squirrel, lion, other-animal, none).
-- **Raters**: minimum 2 independent raters per image for a subsample large
-  enough to compute Cohen's kappa (the `review.py` agreement machinery already
-  built in Phase 0/1 can be reused directly — no new code needed for this
-  part).
-- **This does not require a clinician** — these are *descriptive* labels
-  ("is there a circle here"), not psychological judgments, so any careful
-  annotator can do it; clinician time stays reserved for Phase 6's confidence-
-  ceiling validation.
+> **CORRECTED (round 2)**: round 1 proposed a single ~150–200 image sample
+> size up front. That was premature — sample size for a validation study
+> should follow from the question being asked (expected prevalence of each
+> class, the precision needed on the resulting confidence interval, and the
+> cost of a false positive vs. a false negative), none of which are known yet.
+> The staged plan below replaces the single-number proposal.
+
+- **Stage A — feasibility only (~30–50 images)**: confirms the pipeline runs
+  end-to-end (crops are sane, the schema is usable, annotators can actually
+  apply it consistently) and produces a *rough* prevalence estimate per class
+  (e.g., "roughly how often does a component even look like a recognizable
+  shape at all"). **Not used to accept or reject any detector.**
+- **Stage B — sample-size decision**: using Stage A's rough prevalence
+  estimates, compute the sample size actually needed for the confidence
+  interval width the acceptance decision requires (e.g., a rare class near
+  5% prevalence needs a much larger sample than a common class near 40% to
+  bound its precision/recall CI to a useful width) — standard proportion
+  confidence-interval sample-size calculation, done once real prevalence
+  numbers exist, not before.
+- **Stage C — full annotation** at the size Stage B determines, executed with
+  the blinding requirement from §4.
+- **Labels per image**: unchanged from round 1 — face-present (bool) + face
+  bbox; per detected connected-component, a shape/symbol class from a fixed
+  vocabulary (star, circle, heart, flower, cloud, sun, vehicle,
+  geometric-shape, none/other); animal-present (bool) + species from a fixed
+  vocabulary (tiger, wolf, fox, squirrel, lion, other-animal, none).
+- **Raters**: minimum 2 independent, blinded raters per image, large enough to
+  compute Cohen's kappa with a reportable confidence interval (`review.py`'s
+  existing agreement machinery is reused, not rebuilt).
+- **This does not require a clinician** — these are *descriptive* labels, not
+  psychological judgments; clinician time stays reserved for Phase 6.
 
 ---
 
 ## 6. Proposed acceptance thresholds
 
-Stated as *proposed starting points*, not derived from any existing DOAR data
-(none exists yet) — to be revisited once the annotation sample produces real
-inter-rater numbers:
+> **CORRECTED (round 2)**: round 1's table below stated specific numeric
+> precision/recall bars as "proposed starting points." Two problems with that,
+> per your review: (1) it compared a detector's macro-F1 directly against a
+> human inter-rater kappa as if the two were on the same scale — **they are
+> not**. Kappa is chance-corrected agreement between two raters; macro-F1 is
+> an unweighted per-class harmonic mean of precision and recall against a
+> single reference labeling. Neither is a valid stand-in for the other, and
+> "detector F1 must exceed human kappa" is not a coherent requirement. (2)
+> Thresholds should be set only after prevalence, inter-rater agreement,
+> confidence-interval width, and the real-world cost of a false positive vs.
+> false negative are known for each specific class — none of which exist yet.
+> The numeric table is retracted; below is the corrected process.
 
-| Detector | Minimum precision | Minimum recall | Notes |
-|---|---|---|---|
-| Face-presence | 0.80 | 0.70 | Binary presence is the easiest sub-task in the whole matrix |
-| Eye-state classification | macro-F1 ≥ 0.60, AND ≥ human inter-rater agreement | — | Must not exceed what humans agree on |
-| Shape/symbol classification (per class) | 0.75 | 0.65 | Per-class, not averaged — a class that fails badly should not be hidden by others doing well |
-| Vehicle detection (COCO classes) | 0.70 | 0.60 | Lower bar acknowledging untested photo-to-drawing transfer |
-| Animal species classification | Not set | Not set | Do not set a bar until human inter-rater agreement is measured (§4) |
+**Corrected acceptance process, per detector/class:**
+1. From the annotated sample (§5), compute class prevalence and the human
+   inter-rater kappa **with its confidence interval**.
+2. Compute the detector's precision, recall, and per-class confusion,
+   **each with its own confidence interval** (not a point estimate alone —
+   a small sample makes a single number misleading).
+3. State, explicitly and separately for each class, the cost of a false
+   positive (e.g., a shape/animal/expression wrongly reported to a parent)
+   vs. a false negative (a real signal missed) — these costs are not
+   symmetric and not the same across classes (a false "closed eyes" is a
+   different cost than a false "fox").
+4. Only then set a numeric acceptance bar for that specific class, informed
+   by 1–3 — not a single blanket 0.75/0.65-style number applied uniformly
+   across unrelated classes, which round 1 incorrectly proposed.
+5. A rule only leaves `DETECTOR_UNAVAILABLE` if its detector clears the bar
+   set this way *and* you separately approve enabling it — detector
+   validation alone remains insufficient, unchanged from round 1.
 
-A rule only leaves `DETECTOR_UNAVAILABLE` if its detector clears its bar *and*
-you separately approve enabling it (per your standing instruction — detector
-validation alone is not sufficient).
+Original (round 1) numeric table, preserved for the record as an example of
+the retracted approach: face-presence P≥0.80/R≥0.70; eye-state macro-F1≥0.60
+"and ≥ human inter-rater agreement" (the invalid comparison); shape/symbol
+per-class P≥0.75/R≥0.65; vehicles P≥0.70/R≥0.60; animals — none set.
 
 ---
 
@@ -168,43 +240,73 @@ to piloting.
 
 ## 8. Recommended first experiment
 
-**Circles, via classical CV (contour circularity on existing connected
-components), validated against a ~30–50 image hand-labeled subsample.** This is
-the only candidate in the entire matrix that needs no new dependency, no
-download, and no model — it directly tests whether DOAR's existing
-segmentation pipeline produces clean enough component crops to make *any*
-shape classification approach viable at all, which is a prerequisite finding
-for every other shape/symbol rule regardless of which classifier is eventually
-used for them. If this fails (e.g., because real children's circles rarely
-form one clean connected component), that is itself the most valuable thing to
-learn before investing in QuickDraw-classifier or ESRA-dataset integration
-work.
+> **REVISED (round 2)**: see the final chat report for the full reasoning.
+> Short version — the literature review found a non-psychological objective
+> feature (`LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`, scribble-vs-representational
+> developmental stage) with more robust, uncontested evidence than anything
+> backing the Tier-2 rules any detector here would eventually serve, and zero
+> interpretation-validity ceiling to run into. This is presented as an
+> **alternative** first-experiment candidate for your decision, not a
+> unilateral change — the original circles recommendation below stands as the
+> "if we're piloting a Tier-2-rule detector" answer.
+
+**If the goal is Phase-3 Tier-2 detector groundwork**: circles, via classical
+CV (contour circularity on existing connected components), feasibility-checked
+against a ~30–50 image subsample per the corrected §5 process (not treated as
+a validation result). This is the only candidate in the entire matrix that
+needs no new dependency, no download, and no model — it directly tests
+whether DOAR's existing segmentation pipeline produces clean enough component
+crops to make *any* shape classification approach viable at all. If this
+fails (e.g., real children's circles rarely form one clean connected
+component), that is itself the most valuable thing to learn before investing
+in QuickDraw-classifier or ESRA-dataset integration work.
+
+**If the goal is the highest scientific-value-per-effort experiment overall**:
+the scribble-vs-representational objective feature (§3's new 1st-priority row)
+— equally cheap, equally zero-dependency, but grounded in a robust,
+unconflicted p<.001 finding rather than an eventually-still-unvalidated
+psychological rule, and it produces something usable (a descriptive feature,
+a possible model covariate) even in the best case, not just a prerequisite
+check for later work.
 
 ---
 
 ## 9. Better alternative discovered this session
 
-Two datasets surfaced during research that were not in the original
-architecture proposal and are plausibly better starting points than the
-QuickDraw-only assumption in `PROPOSED_ARCHITECTURE.md` §4:
+> **UPDATED (round 2) — primary-source verification actually attempted**, per
+> your instruction not to recommend these on search-summary claims alone.
 
-- **ESRA** (Roboflow Universe) — directly "objects inside kids' drawings,"
-  the closest on-domain match found for the shapes/symbols/vehicles category.
-  Not yet verified for licence or annotation quality.
-- **ChildlikeSHAPES** (Meta, 2025) — the closest domain match found for
-  figure/face structure, but its authenticity as real child-drawn data is
-  unconfirmed and must be checked before relying on it.
-- **SceneDAPR** (ACM Web Conference 2024) — considered and **not recommended**:
-  it is scene-level free-hand drawing data including children, but it is
-  fundamentally a Draw-A-Person-in-the-Rain dataset — an *instructed*,
-  prompt-specific psychological test. Per the project's own free-drawing
-  constraint (`SCIENTIFIC_LIMITATIONS.md` §4), training on instructed-prompt
-  data risks learning compositional conventions (a person, rain, sometimes an
-  umbrella) that don't generalize to genuinely spontaneous drawings, and using
-  it would blur exactly the line the project is built to keep clean. Access
-  also requires a non-commercial research agreement via direct email request,
-  which is a decision for you, not something to pursue without your sign-off.
+- **ESRA** (Roboflow Universe) — **verification attempted and blocked**: the
+  Roboflow Universe page returned HTTP 403 to a direct fetch this session.
+  Its licence, real annotation quality, and exact category list remain
+  **genuinely unverified**, more so than round 1's "unverified" note implied —
+  this was an active attempt, not an omission. Do not rely on it without a
+  human visiting the page directly (or an authenticated tool) to confirm
+  terms before any download.
+- **ChildlikeSHAPES** (Meta, arXiv:2504.08022) — **verification attempted and
+  inconclusive**: the arXiv abstract page was fetched directly; it states
+  "16,000 childlike drawings with pixel-level annotations across 25 semantic
+  categories" but **does not disclose** whether these are scanned real
+  children's drawings, artist-created "childlike style" art, or synthetic
+  images, nor any licence/availability terms. This requires the full paper or
+  project page, not yet fetched. Authenticity remains unconfirmed.
+- **SceneDAPR** (ACM Web Conference 2024) — **fully verified via its GitHub
+  page this session**: licence is **CC BY-NC 4.0** (non-commercial only,
+  access requires emailing the authors with project details, ~7 day
+  response); exactly **148 total object categories**, of which 6 are the
+  core DAPR categories (Person, Rain, Umbrella, Cloud, Puddle, Lightning);
+  **1,399 scene sketches total** — 462 from children & adolescents (ages
+  8–18, 33%), 650 from adults (46%), 287 from seniors (20%); protocol is
+  explicitly the instructed Draw-A-Person-in-the-Rain task, confirmed not
+  free drawing; ships with pretrained YOLOv8 detection weights and
+  SVG/COCO/YOLO format-conversion utilities. This confirms round 1's rejection
+  on stronger grounds than before: the "children" group is specifically
+  8–18-year-olds (adolescent-inclusive, not matched to DOAR's likely younger
+  population either), and the task is unambiguously instructed, not free.
+  **Reject stands, now on verified rather than search-summarized facts.**
 
-Recommendation: **experiment** with ESRA (cheap to check), **defer**
-ChildlikeSHAPES pending provenance verification, **reject** SceneDAPR for
-this project's purposes despite its relevance to the broader field.
+Recommendation, revised: do **not** experiment with ESRA or ChildlikeSHAPES
+until their licence/provenance is actually confirmed by a human visiting the
+source (both blocked automated verification this session) — round 1's
+"experiment"/"defer" recommendations are downgraded to **defer both** pending
+that manual step. **Reject SceneDAPR stands**, now fully verified.
