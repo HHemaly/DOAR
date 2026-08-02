@@ -267,3 +267,45 @@ targeted diffs that only the intended fields changed in each file.
 Full test suite, ruff, and compileall re-run clean after every change in this
 entry. See the next log entry for the broader literature review and
 experiment-ranking work, committed separately per instruction.
+
+---
+
+## 2026-08-02 — Literature review round 2 + experiment prioritization
+
+Broader, reproducibly-logged pass (`LITERATURE_SEARCH_LOG.md`: method
+statement, 10 pre-specified queries across the 7 requested topic areas,
+screening decisions, verified-vs-search-summary-only status per source) — see
+`IMPROVEMENT_REGISTER.md`'s 2026-08-02 round-2 entry for the full 6-category
+comparison against the 19 existing rules. Headline findings: `LIT_EMOTION_FACE_ENCODING_007`
+(standard facial-feature conventions for depicted emotion) is the most
+promising unverified lead across both rounds — better matched to DOAR's
+actual mandate (expression depiction, not personality traits) than the
+existing eye rules, but full-text verification was blocked this session
+(cookie wall) and must not be acted on further until secured.
+`LIT_MATERIAL_MEDIUM_CONFOUND_010` (paper size/drawing medium effects) is a
+genuinely new, previously-undocumented limitation on DOAR's own coverage/
+colour features themselves, added to `SCIENTIFIC_LIMITATIONS.md` §6a.
+`LIT_FRAGMENTATION_LOCAL_PROCESSING_013` is recorded specifically as a
+permanent do-not-pursue flag (autism-adjacent framing, explicitly prohibited)
+rather than a finding to build on.
+
+**`EXPERIMENT_PRIORITIZATION.md`** compares 4 concrete candidates spanning 3
+different `IMPLEMENTATION_PLAN.md` phases (detectors/Phase 3, model sweep/
+Phase 5, label audit/Phase 6) on scientific value, transfer validity,
+annotation burden, and feasibility. **Ranking: label-quality/duplicate audit
+first, completing the emotion-model baseline second, the objective
+scribble/fragmentation pilot third, circle/shape detection last** — reversing
+the implicit assumption that detector work was the natural next phase. Reason
+stated plainly: every Tier-2 detector serves a rule that stays scientifically
+unvalidated regardless of detector success (independently confirmed per-rule
+in `RULE_SOURCE_REGISTER.csv`), while dataset/label validation addresses a
+problem already proven real this session (41% of the raw dataset removed for
+leakage/label conflicts) and model-baseline completion extends DOAR's one
+already-demonstrated working result. No phase reordering was applied to
+`IMPLEMENTATION_PLAN.md` itself — that is presented as a recommendation
+requiring approval, not applied unilaterally.
+
+Nothing was activated, enabled, downloaded, or made user-facing. No detector
+was selected or implemented. Awaiting review.
+
+Implemented exactly the corrected design: `tier` + `activation_status` fields added to all 19 registry rules (content unchanged, verified by diff — only cosmetic array reformatting plus the two new fields); `rules.py::_status_for()` refactored to explicit tier-aware dispatch (behavior-identical for every existing rule, verified by end-to-end test against the real registry); `evaluate_rules()` no longer discards `evidence`; `concerns.py` implements the four-level aggregation vocabulary; `CONCERNS_ENABLED` left `False`. 13 new/updated tests added (2 existing tests updated to reflect the new, spec-required `WEAK_HYPOTHESIS` behavior for correlated single-source rules, with the change documented in-line). Full suite: 204/204 passing. `ruff check`: clean. `compileall`: clean. Real end-to-end `analyze-image` run confirmed `rules.json` carries correct tier/activation_status fields and `concerns.json` stays `[]` in production. Committed separately from Phase 1. Per the user's explicit instruction: this is **not** described as scientifically validated — it is a correctness/completeness improvement to inert scaffolding. No rule produces different user-facing output than before Phase 2.

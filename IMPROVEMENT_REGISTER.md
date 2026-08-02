@@ -26,15 +26,25 @@ adults not children, instructed not spontaneous). This is reported honestly
 rather than manufacturing a candidate to fill this category — see
 `LITERATURE_CANDIDATE_REGISTER.csv` for the full reasoning per candidate.
 
-**One genuinely supported addition was found, but it is explicitly
-non-psychological**: `LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006` (scribble-vs-
-representational developmental stage) is robustly evidenced (p<.001, age
-effect), buildable from DOAR's existing feature infrastructure with no new
-dependency, and directly answers the request to find "objective observations
-that improve description or model performance even when no psychological
-interpretation is justified." Recommended as a Tier-1 objective-feature
-candidate and possible emotion-model covariate — **not** as a rule with any
-emotional/personality/diagnostic interpretation attached, ever.
+**One candidate looked like a genuinely supported addition, but on review its
+transfer to DOAR is itself an unvalidated hypothesis, not an established
+fact** — correction applied 2026-08-02, see below. `LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006`
+(scribble-vs-representational developmental stage) IS robustly evidenced
+(p<.001, age effect) *in its source study's population, protocol, and
+measurement approach*. What is NOT established: the source measured this via
+CNN-extracted features on a stimulus-completion task, not DOAR's classical
+handcrafted features on unrestricted free drawings — whether DOAR's existing
+feature infrastructure can capture the same construct at all, or whether the
+finding transfers to genuinely free drawing, are both open questions
+requiring their own DOAR-specific pilot. This still directly answers the
+request to find "objective observations that improve description or model
+performance even when no psychological
+interpretation is justified" — but as a **hypothesis to pilot**, not an
+operational candidate. Downgraded from an earlier draft of this register
+that called it "recommended" without that caveat. If ever piloted, it stays
+a Tier-1 objective-feature candidate and possible emotion-model covariate at
+most — **never** a rule with any emotional/personality/diagnostic
+interpretation attached.
 
 ### 2. Duplicates or correlated indicators
 
@@ -109,6 +119,124 @@ rules catalogued (never delete, per policy), but deprioritize
 face/eye-detector work below where it was ranked in the Phase 3 plan** — a
 successful detector here would still only support a weakly-evidenced
 interpretation. See the final report for the revised priority order.
+
+---
+
+---
+
+## 2026-08-02 — Literature review round 2 (broader pass)
+
+Source material: `LITERATURE_SEARCH_LOG.md` (10 pre-specified queries across 7
+topic areas, reproducibly logged with screening decisions) and 7 new rows in
+`LITERATURE_CANDIDATE_REGISTER.csv` (candidates 007–013). Round 1's 6
+candidates are re-included below for a single complete picture. Per your
+instruction, every candidate is sorted into exactly the 6 categories you
+specified — plus a **confounders** note, which doesn't fit any of the 6
+cleanly but was too load-bearing to omit; flagged as an addition, not a
+substitution.
+
+### Useful objective observation
+
+- `LIT_DEVELOPMENTAL_STAGE_OBJECTIVE_006` (scribble-vs-representational stage)
+  — **status downgraded this session**: the underlying developmental finding
+  is robust in its source population/protocol, but transfer to DOAR's
+  classical features is an unvalidated hypothesis, not an established fact
+  (see the correction applied to both CSVs and `DECISION_LOG.md`).
+- `LIT_FRAGMENTATION_LOCAL_PROCESSING_013` (fragmentation) — the *feature*
+  (`stroke.fragmentation`) already exists in DOAR for unrelated purposes; see
+  below for why its *interpretation* is rejected outright, not merely
+  deprioritized.
+
+### Possible emotion-expression feature
+
+- `LIT_EMOTION_FACE_ENCODING_007` (standard facial-feature conventions for
+  depicted emotion: mouth/eyebrows/eyes) — **the single most promising lead
+  found across both rounds**, because it targets DOAR's actual mandate
+  (emotional-expression depiction) rather than a personality trait, unlike
+  every one of the existing 3 eye rules. Explicitly flagged
+  `SEARCH SUMMARY ONLY` — the primary source (PubMed 17165414) blocked full-
+  text verification this session (cookie wall). **Do not act on this beyond
+  cataloguing until round 3 secures the full text.**
+
+### Instructed-protocol research only
+
+`LIT_PENCIL_PRESSURE_002`, `LIT_HFD_KOPPITZ_INDICATORS_003`,
+`LIT_HFD_DEPRESSION_ADULT_004`, `LIT_KFD_VALIDITY_011`,
+`LIT_DRAWN_STORIES_MALTREATMENT_012`. Five of thirteen candidates across both
+rounds — confirming round 1's observation that this is the dominant category
+in the field, not an artifact of a small sample.
+
+### Technically unmeasurable (from DOAR's static-image input)
+
+`LIT_PENCIL_PRESSURE_002` (also instructed-protocol — the two categories
+aren't exclusive; physical pressure requires a digitizer at capture time,
+which DOAR never has).
+
+### Conflicting or unsupported
+
+`LIT_COLOUR_EMOTION_001` (directly contradictory studies),
+`LIT_SELFESTEEM_METHOD_RELIABILITY_005` (meta-analytic evidence *against* the
+method class an existing rule depends on), `LIT_FRAGMENTATION_LOCAL_PROCESSING_013`'s
+*interpretation* specifically (not its underlying feature — see below).
+
+### Irrelevant to DOAR
+
+`LIT_DRAWN_STORIES_MALTREATMENT_012` (mandatory verbal/narrative component
+outside DOAR's image-only scope) doubles into this category alongside
+instructed-protocol-only.
+
+### Confounders (cross-cutting — not one of the 6 requested categories, recorded because omitting it would be dishonest)
+
+- `LIT_CULTURAL_CONFOUND_008` — culture/country and gender-linked patterns in
+  size, pose, shading, and subject choice (e.g. vehicles). **Action**: add as
+  an explicit limitation to `PSY_AR_SIZE_*` and `PSY_AR_TRANSPORT_012`.
+- `LIT_MOTOR_SKILL_CONFOUND_009` — fine motor skill as an independent
+  predictor of drawing-assessment scores. Reinforces limitations already
+  present on some rules; not new in kind, new in citation strength.
+- `LIT_MATERIAL_MEDIUM_CONFOUND_010` — **genuinely new finding, not
+  previously documented anywhere in DOAR's registers**: paper size and
+  drawing medium (marker/tablet/finger, watercolor vs. pencil) measurably
+  affect completion, detail, and colour brightness. DOAR's `coverage_*` and
+  `colour_*` features have no way to account for this — the pipeline never
+  records capture medium or paper size. **Action**: add to
+  `SCIENTIFIC_LIMITATIONS.md` as a first-class limitation on the *objective
+  features themselves*, not just on their psychological interpretation.
+
+### A flag worth stating plainly: `LIT_FRAGMENTATION_LOCAL_PROCESSING_013`
+
+This candidate is recorded specifically as a **do-not-pursue flag**, not a
+finding to build on. A single unverified search-summary sentence associated
+drawing fragmentation with a "local processing bias" — a construct with
+autism-spectrum-cognition connotations in parts of the literature. DOAR's
+`stroke.fragmentation` feature already exists and stays in use for its
+current, unrelated, non-diagnostic purposes — but this specific
+*interpretation* must never be proposed as a rule, given the explicit,
+absolute prohibition on autism inference from a drawing
+(`SCIENTIFIC_LIMITATIONS.md` Section 3). Recorded here so a future
+contributor who finds the same association in stronger form sees this flag
+before proposing anything.
+
+### Comparison against the 19 existing rules (updating round 1's 5 categories)
+
+1. **Genuinely supported additions**: still none with full verification.
+   `LIT_EMOTION_FACE_ENCODING_007` is the first candidate across both rounds
+   worth actively pursuing full-text verification for — but it is not yet
+   supported, only promising.
+2. **Duplicates/correlated indicators**: `LIT_CULTURAL_CONFOUND_008` and
+   `LIT_MOTOR_SKILL_CONFOUND_009` correlate with limitations several existing
+   rules already list in general terms — round 2 supplies citable specifics.
+3. **Instructed-protocol-only**: confirmed again as the dominant pattern (5 of
+   7 new candidates).
+4. **Unsupported rules where detector development has little scientific
+   value**: unchanged from round 1 — the 4 animal rules remain the clearest
+   case; no new evidence this round changes that.
+5. **Retired from implementation priority**: unchanged from round 1 (face/eye
+   rules demoted) — **but note the tension**: `LIT_EMOTION_FACE_ENCODING_007`
+   is about EXPRESSION depiction (well-matched to DOAR's mandate) while the
+   existing 3 eye rules are about PERSONALITY TRAITS (poorly matched,
+   correctly demoted). If round 3 verifies candidate 007, it would justify a
+   *new*, differently-worded Tier-2 rule — not un-deprioritizing the existing
+   trait-based ones, which stay demoted on their own (separate) merits.
 
 ---
 

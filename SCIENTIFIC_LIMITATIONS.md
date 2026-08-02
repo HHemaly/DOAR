@@ -55,6 +55,27 @@ Two things this fix does *not* do, stated explicitly so neither is assumed: it d
 
 41% of the raw local dataset (1,517 of 3,688 images) was removed this session for cross-split duplication or contradictory labeling (the same image filed under two different emotions) — see `CURRENT_STATE_AUDIT.md` §2 and §4. This is disclosed here because it directly bounds what can be claimed: a dataset with this much internal inconsistency cannot be assumed to carry high-quality ground truth for the remaining images either. Per Section 12 of the working spec, remaining labels should be treated as "dataset labels of uncertain quality," not verified psychological truth, until a label-quality audit (multi-model disagreement, out-of-fold ranking, blind professional review) is built and run — this does not exist yet (see `IMPLEMENTATION_PLAN.md`).
 
+## 6a. Capture-medium and material confounds (added 2026-08-02, literature review round 2)
+
+DOAR's objective features — `coverage_*` (page-coverage/bounding-box) and
+`colour_*` (colour proportions, dominant colour) most directly — are computed
+from a final flattened image with no record of how it was produced. Literature
+found this session (`LIT_MATERIAL_MEDIUM_CONFOUND_010`) reports that paper
+size (small paper measurably limits completion/detail; oversized paper leaves
+excess blank space that would read as low "coverage") and drawing medium
+(marker vs. touchscreen-finger vs. stylus; watercolor pens vs. pencils
+measurably differ in colour brightness) materially affect exactly these
+features, independent of anything psychological. DOAR's `Combined_Drawing`
+dataset almost certainly aggregates images captured under inconsistent
+conditions (scans, phone photos, different paper sizes) with no metadata
+recording which — meaning a `coverage_small` or `colour.dominant_colour`
+reading could reflect the physical page or the drawing tool as easily as
+anything about the child. This is a first-class limitation on the *objective
+features themselves*, not only on the psychological interpretations attached
+to them, and it existed before this literature review — it was simply not
+previously documented. No fix is proposed here beyond disclosure; a future
+fix would mean capturing (or estimating) paper size/medium at intake time.
+
 ## 7. External AI (if/when added)
 
 No external LLM is currently wired into DOAR (`CURRENT_STATE_AUDIT.md` §7). If one is added later (per the spec's Section 13, for translation/explanation/Q&A phrasing only), it must never originate a measurement, count, mask, probability, rule activation, or citation — only rephrase what deterministic code already computed, subject to a deterministic post-hoc validator that rejects any claim not traceable to a stored evidence ID. This is a design requirement for future work, not a current capability to describe.
