@@ -65,7 +65,8 @@ been or can be pushed anywhere from this machine.
 | `8f6d135` | Phase 7A | Leakage-Safe Dataset Readiness and Partition Design — dataset analysis and split construction only, no model trained; see §4 |
 | `ef86d40` | Phase 7B | Duplicate-Policy Validation and Final Partition Refinement — blinded pair audit, dHash adopted over aHash, new (now-provisional) partition; see §4 |
 | `5d4c56f` | Phase 7B (continuation) | Correction: dHash threshold 6 found insufficiently evidenced; complete-linkage comparison; human-review package produced; no partition locked; see §4 |
-| *(this session, to be committed next)* | Phase 7B (second continuation) | Interactive blind human-review application (225 pairs, 4 nav sections), export logic, provisional conservative-policy comparison; no partition locked; see §4 |
+| `fac795e` | Phase 7B (second continuation) | Interactive blind human-review application (225 pairs, 4 nav sections), export logic, provisional conservative-policy comparison; no partition locked; see §4 |
+| *(this session, to be committed next)* | Phase 7B (documentation touch-up) | Self-reference fix in this commit table only (commit hash `fac795e` was not yet known when the second continuation's own files were committed) |
 
 ---
 
@@ -629,14 +630,15 @@ trained, tuned, calibrated, or evaluated.
 correction of the prior part's own conclusion**, not new independent work —
 see §4 above.
 
-**Phase 7B second continuation** (to be committed next): `src/doar/human_review.py`
+**Phase 7B second continuation** (committed `fac795e`): `src/doar/human_review.py`
 (new, core review/export logic), `phase7b_review_app.py` (new, Streamlit
 UI), `tests/test_human_review.py` (new, 29 tests), `main.py` (help-text
 correction only), `PHASE7B_DUPLICATE_POLICY.md` (new §§24-25),
 `RUN_GUIDE_WINDOWS.md` (new §11, compileall/ruff file lists extended),
 `outputs/phase7b/human_review/README.md` (updated with launch
-instructions), `SESSION_HANDOFF.md` (this file, v11). No model trained, no
-partition regenerated or locked.
+instructions), `SESSION_HANDOFF.md` (this file, v11, plus a follow-up
+documentation-only commit fixing this commit table's self-reference). No
+model trained, no partition regenerated or locked.
 
 **Not committed** (git-ignored, `outputs/` rule): everything under
 `outputs/phase3a/`, `outputs/phase4/`, `outputs/phase5/`, `outputs/phase6/`,
