@@ -259,7 +259,10 @@ def main() -> None:
                                 "or dataset.DHASH_THRESHOLD (6) for dhash")
     partition.add_argument("--hash-field", choices=("phash", "dhash"), default="phash",
                            help="Near-dup hash to use: phash (aHash, original) or dhash "
-                                "(Phase 7B's evidence-based final policy)")
+                                "(Phase 7B's candidate replacement -- NOT an approved final "
+                                "policy; see PHASE7B_DUPLICATE_POLICY.md Sections 14-17 and "
+                                "the human-review package before treating any dhash threshold "
+                                "as final)")
     partition.add_argument("--exposed-image-ids", default="",
                            help="Comma-separated image_id values already disclosed as "
                                 "non-blind (Phase 6); their duplicate groups are kept out "

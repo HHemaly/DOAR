@@ -51,8 +51,8 @@ open-clip · `ui`=streamlit · `ingest`=pypdf · `dev`=pytest/ruff/mypy.
 ```powershell
 python --version                                  # expect 3.11.x
 python -c "import numpy, PIL, sklearn, torch, torchvision; print('imports OK, cuda=', torch.cuda.is_available())"
-python -m compileall src main.py streamlit_app.py
-python -m ruff check src tests main.py streamlit_app.py
+python -m compileall src main.py streamlit_app.py phase7b_review_app.py
+python -m ruff check src tests main.py streamlit_app.py phase7b_review_app.py
 python -m unittest discover -s tests -p "test_*.py"      # full suite
 
 # Real GPU verification (forward+backward+step+inference; reports peak VRAM).
@@ -263,6 +263,25 @@ In the sidebar, set the **Case folder** to a case directory (e.g.
 ```powershell
 python main.py review-agreement --master "outputs\review_master.csv" --output "outputs\agreement"
 ```
+
+## 11. Launch the Phase 7B duplicate-pair human-review interface
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m streamlit run phase7b_review_app.py
+```
+Open the local URL Streamlit prints (normally **http://localhost:8501**).
+Each pair is shown blind (no label, split, hash distance, or Claude's
+preliminary judgment); pick one of 4 decisions per pair across the app's 4
+tabs. Decisions save immediately to
+`outputs\phase7b\human_review\app_data\decisions.json` — safe to close and
+resume anytime. Use the sidebar's **Export** button to write
+`human_pair_reviews.csv`, `human_group_reviews.csv`,
+`reviewer_agreement_report.json`, `threshold_precision_summary.json`, and
+`unresolved_items.csv` to `outputs\phase7b\human_review\exports\`. See
+`outputs\phase7b\human_review\README.md` for details. This does **not**
+select or lock a duplicate-detection policy or regenerate a partition —
+see `PHASE7B_DUPLICATE_POLICY.md` Sections 14-17.
 
 ---
 

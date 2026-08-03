@@ -22,6 +22,14 @@ case for switching hash methods remains accurate and is not retracted —
 only the specific numeric conclusion "threshold 6 is the right choice" is
 withdrawn, replaced by the more careful analysis in §§14–17.
 
+**Second continuation, same phase: an interactive human-review application
+now exists (§24), and the human-review package's static CSVs (§17) are
+superseded by it as the recommended way to record decisions.** A
+provisional, evidence-grounded comparison of conservative policies (exact
+duplicates + dHash ≤2, ≤3, and a selectively-reviewed distance-4 tier) is
+in §25 — explicitly a comparison, not a selection; no threshold or
+clustering policy is approved and no partition has been regenerated.
+
 ---
 
 ## 1. Separating reproduction, provisional partition, and final policy
@@ -627,6 +635,11 @@ confirmed/corrected ground truth rather than AI-preliminary annotations
 alone. Only after that should `main.py build-partition` be re-run to
 produce a genuinely final partition.
 
+**Superseded by §24 (second continuation):** editing these CSVs by hand is
+no longer the recommended workflow — an interactive, point-and-click
+review application now exists for exactly this purpose. The CSVs above
+remain as a read-only snapshot of Claude's original preliminary judgments.
+
 ---
 
 ## 18. Dataset root and full verification (this continuation)
@@ -714,22 +727,41 @@ re-checked once §17's review concludes and any new partition exists.**
   established baseline. No new finding introduced (confirmed via `git
   status`).
 
+**Second continuation (the interactive review app, §24-25)**: added
+`src/doar/human_review.py` (new module) and `tests/test_human_review.py`
+(new, 29 tests covering Wilson-interval math, the blinding guarantee,
+incremental decision save/reload, agreement-rate computation, and all five
+export files' correctness against synthetic registries). `pytest tests/`
+— **289 passed** (260 prior + 29 new), 9 pre-existing warnings, 0
+failures. `compileall src main.py streamlit_app.py phase7b_review_app.py`
+— exit 0. `ruff check src tests main.py streamlit_app.py
+phase7b_review_app.py` — 0 findings in the touched files; `ruff check .`
+repo-wide — 792 findings, exit 1, identical to the established baseline
+(no new finding introduced). The Streamlit app was also smoke-tested
+headlessly (`streamlit run ... --server.headless true`), confirmed to
+serve HTTP 200 and pass its own health check, and confirmed to create no
+`decisions.json` or other file until a decision is actually saved — no
+partition, model, or dataset file was touched by this verification.
+
 ---
 
 ## 22. Deliverables and artifact locations
 
-All under `outputs/phase7b/` (gitignored; `ARTIFACT_MANIFEST.tsv` — 158
-files, ≈10.1 MB — is the durable hash record, rebuilt this continuation):
+All under `outputs/phase7b/` (gitignored; `ARTIFACT_MANIFEST.tsv` — 255
+files, ≈15.1 MB — is the durable hash record, rebuilt this continuation):
 
 1. This document, `PHASE7B_DUPLICATE_POLICY.md` (committed).
 2. `outputs/phase7b/threshold_audit_detailed.json` — per-threshold audit (§2).
 3. `outputs/phase7b/blind_audit/` — round-1 audit, 87 pairs (§3).
 4. `outputs/phase7b/boundary_audit/` — round-2 targeted dHash audit, 42 pairs (§14, new this continuation).
 5. `outputs/phase7b/contact_sheets/` — `component_17_dhash6.jpg`, `component_17_complete_linkage_subclusters.jpg`, `threshold_growth_t{2,3,4,6}.jpg`, `ambiguous_boundary_pairs_d4_5_6.jpg` (§15–17, new this continuation).
-6. `outputs/phase7b/human_review/` — `pair_review.csv` (129 rows), `group_review.csv` (50 rows), `README.md` (§17, new this continuation).
-7. `outputs/phase7b/final_partition/` — the threshold-6 partition from earlier in this session, preserved but **explicitly not final** (§8, §17).
-8. `PHASE7_EXPERIMENT_MATRIX_REVISION.md` (Phase 7A, unchanged) + §20 above — provisionally revised Phase 7 experiment recommendation.
-9. `SESSION_HANDOFF.md` (updated separately, see the commit).
+6. `outputs/phase7b/human_review/` — `pair_review.csv` (129 rows), `group_review.csv` (50 rows), `README.md` (§17, superseded as the primary workflow by §24), plus `app_data/items_registry.json` (225 items) and `app_data/decisions.json` (created on first save) and `exports/` (created on first export) — new this continuation.
+7. `outputs/phase7b/human_review/review_pairs/` — 96 new anonymized composite images for the 17-image component (47), the policy-change sample (20), and the distance-4 worklist (29), new this continuation.
+8. `src/doar/human_review.py` + `phase7b_review_app.py` (Streamlit) — the interactive review application (§24), new this continuation.
+9. `tests/test_human_review.py` — 29 tests for the review application's core logic, new this continuation.
+10. `outputs/phase7b/final_partition/` — the threshold-6 partition from earlier in this session, preserved but **explicitly not final** (§8, §17).
+11. `PHASE7_EXPERIMENT_MATRIX_REVISION.md` (Phase 7A, unchanged) + §20 above — provisionally revised Phase 7 experiment recommendation.
+12. `SESSION_HANDOFF.md` (updated separately, see the commit).
 
 ---
 
@@ -743,8 +775,142 @@ claiming subject-level independence; silently modifying
 `PHASE7_EXPERIMENT_MATRIX.csv`; regenerating or locking a final partition
 (§17); starting Stage 0 or any other Phase 7 experiment.
 
+---
+
+## 24. Interactive human-review application (second continuation)
+
+**Why:** the CSV-editing workflow in §17 works but is tedious and offers
+no structural guarantee against accidentally revealing label/split/hash/AI
+information while reviewing. A local, point-and-click alternative removes
+both problems: it enforces blinding in code (`blind_item_for_display` in
+`src/doar/human_review.py` is the single function allowed to decide what
+the reviewer's screen receives) and saves every decision immediately.
+
+**What it covers — 225 pairs across the same 4 navigation sections the
+instruction specified**, built from real, computed data (never guessed):
+
+| Tab | Pairs | Source |
+|---|---|---|
+| Ambiguous pairs | 87 | Round 1 blind audit (§3), unchanged |
+| Threshold-boundary pairs | 71 | Round 2's 42 pairs (§14) + all 29 remaining dataset-wide dHash-distance-4 edges not already covered elsewhere (of 43 total; see §25) |
+| The 17-image component | 47 | Every real near-dup edge (dHash ≤6) connecting two of the 17 members — the complete internal edge set, not a sample |
+| Groups that change between candidate thresholds 2/4/6 | 20 | A seeded, cross-label-prioritized sample of dataset-wide bridging edges whose distance falls strictly between two candidate thresholds (2<d≤4 or 4<d≤6), excluding the 17-image component (already covered exhaustively) |
+
+**Blinding**: each pair is shown as an anonymized side-by-side composite
+image with no emotion label, split, hash distance, or Claude's preliminary
+judgment. The reviewer picks one of exactly 4 decisions (`Definite
+duplicate` / `Same underlying drawing with transformation` / `Different
+drawings` / `Uncertain`) plus optional notes. Nothing is preselected; a
+previously-recorded decision is shown again only when the reviewer
+navigates back to an item *they themselves already decided* (so they can
+revise it), never derived from or defaulted to Claude's judgment. An
+optional "reveal hidden details" panel is gated so it only unlocks **after**
+a decision for that item is already saved — it cannot influence an answer
+that no longer needs to be given.
+
+**Persistence**: every click writes immediately (atomic file replace) to
+`outputs/phase7b/human_review/app_data/decisions.json`. Closing the
+browser tab or terminal loses nothing; re-launching resumes exactly where
+you left off, including per-tab progress and a "jump to first unreviewed
+item" shortcut.
+
+**Launch it** (Windows PowerShell, from the repository root):
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m streamlit run phase7b_review_app.py
+```
+Open the local URL Streamlit prints — normally **http://localhost:8501**.
+Full instructions: `outputs/phase7b/human_review/README.md` and
+`RUN_GUIDE_WINDOWS.md` §11.
+
+**Export** (sidebar button, safe to run at any point, repeatedly, including
+mid-review) writes to `outputs/phase7b/human_review/exports/`:
+`human_pair_reviews.csv` (one row per pair, AI-preliminary and human
+columns side by side), `human_group_reviews.csv` (per-member verdict for
+the 17-image component + per-transition verdict for the policy-change
+sample), `reviewer_agreement_report.json` (AI-vs-human agreement, only
+where the AI actually pre-judged), `threshold_precision_summary.json`
+(precision-by-exact-distance with Wilson 95% CIs, computed separately from
+real human decisions and from Claude's preliminary judgments so the two
+are never conflated), and `unresolved_items.csv` (never-reviewed +
+marked-`uncertain` items).
+
+**Tests**: `tests/test_human_review.py` (29 tests) cover the blinding
+guarantee, incremental save/reload, decision validation, agreement-rate
+math, Wilson-interval math, and all five export files' row-level
+correctness, using synthetic registries — no dependency on this session's
+specific 225 real pairs, so the logic stays covered even as items change.
+
+**No policy is selected or locked by this tool.** It produces evidence;
+choosing a threshold and clustering method from that evidence remains a
+separate, explicit human decision (§17), after which `main.py
+build-partition` would need to be re-run.
+
+---
+
+## 25. Conservative-policy comparison — provisional, pending human review
+
+**This is a comparison of options, not a recommendation to adopt any one
+of them, and not a locked policy.** Real human review (§24) has not
+happened yet as of this writing — the numbers below combine (a) dataset-
+wide structural counts, which are exact and reproducible, and (b) the two
+prior audits' AI-preliminary judgments as a provisional precision estimate,
+explicitly not equivalent to human-confirmed ground truth. Once the review
+app's decisions exist, re-run `compute_precision_by_distance`/
+`build_threshold_precision_summary` (`src/doar/human_review.py`) with
+`judgment_source="human"` for the real answer.
+
+**AI-preliminary precision by exact dHash distance** (Round 2 boundary
+audit, n=6 per bucket, Wilson 95% CI — small samples, wide intervals):
+
+| Distance | Precision | 95% CI |
+|---|---|---|
+| 2 | 100.0% | 61.0%–100.0% |
+| 3 | 100.0% | 61.0%–100.0% |
+| 4 | 50.0% | 18.8%–81.2% |
+| 5 | 0.0% | 0.0%–39.0% |
+| 6 | 33.3% | 9.7%–70.0% |
+| 7 | 33.3% | 9.7%–70.0% |
+| 8 | 16.7% | 3.0%–56.4% |
+
+**Structural comparison of candidate thresholds** (computed on the real
+manifest, exact sha256 duplicates always merge regardless of threshold
+since identical files always have dHash distance 0):
+
+| Policy | Largest component | Near-dup edges included | Cross-label edge ratio | Images in a conflicted group |
+|---|---|---|---|---|
+| exact + dHash ≤2 | 9 | 2,103 | 9.9% | 293 |
+| exact + dHash ≤3 | 9 | 2,184 | 9.9% | 301 |
+| exact + dHash ≤4 (blanket, shown only for contrast) | 9 | 2,227 | 10.0% | 311 |
+| exact + dHash ≤6 (§8's provisional, not-approved partition) | 17 | 2,290 | — | 338 |
+
+Distances 2 and 3 both show 100% AI-preliminary precision (small n) and
+near-identical structural cost (largest component stays at 9; cross-label
+ratio and conflict counts barely move between them) — **either is a
+plausible conservative floor**, with ≤3 recovering slightly more usable
+data for a similar apparent risk. Distance 4 is where precision visibly
+splits (50% in the small sample) without yet showing the sharp structural
+blow-up seen at 6, which is exactly why it is treated as a selective,
+edge-by-edge tier rather than blanket-included.
+
+**The "selectively reviewed distance-4" policy, concretely**: include
+distance ≤3 automatically; for distance-4 edges, include a specific edge
+in a duplicate group *only if* a human has reviewed and confirmed it.
+There are **43 such edges dataset-wide**, all now included in the review
+app's "Threshold-boundary pairs" tab (6 from the original Round 2 sample,
+plus all 29 remaining ones added this continuation) — a fully tractable,
+bounded review task, not a sample extrapolated from 6 pairs.
+
+**What this does NOT do**: select a threshold, choose single- vs.
+complete-linkage, or regenerate/lock `outputs/phase7b/final_partition/`.
+Those remain explicit next steps, gated on the human review this section's
+evidence is meant to inform.
+
+---
+
 **This phase stops here**, per explicit instruction, after producing the
 (intentionally non-final) threshold recommendation, the comparison
-artifacts, the human-review package, the completed tests, and this updated
+artifacts, the human-review package and its interactive application, the
+conservative-policy comparison, the completed tests, and this updated
 report. No duplicate-detection policy has been approved; no partition has
-been locked.
+been locked; no model was trained or evaluated.

@@ -64,7 +64,8 @@ been or can be pushed anywhere from this machine.
 | `526c146` | Phase 7 | Extended Experiment Programme and Model-Family Feasibility Review — proposal-only, no training run; see §4 |
 | `8f6d135` | Phase 7A | Leakage-Safe Dataset Readiness and Partition Design — dataset analysis and split construction only, no model trained; see §4 |
 | `ef86d40` | Phase 7B | Duplicate-Policy Validation and Final Partition Refinement — blinded pair audit, dHash adopted over aHash, new (now-provisional) partition; see §4 |
-| *(this session, to be committed next)* | Phase 7B (continuation) | Correction: dHash threshold 6 found insufficiently evidenced; complete-linkage comparison; human-review package produced; no partition locked; see §4 |
+| `5d4c56f` | Phase 7B (continuation) | Correction: dHash threshold 6 found insufficiently evidenced; complete-linkage comparison; human-review package produced; no partition locked; see §4 |
+| *(this session, to be committed next)* | Phase 7B (second continuation) | Interactive blind human-review application (225 pairs, 4 nav sections), export logic, provisional conservative-policy comparison; no partition locked; see §4 |
 
 ---
 
@@ -208,6 +209,28 @@ been or can be pushed anywhere from this machine.
   dataset root (`C:\Users\Ahmed\Downloads\Combined_Drawing\Combined_Drawing`,
   confirmed two independent ways) and that all 3,688 manifest paths
   resolve (0 missing).
+- **Phase 7B, second continuation** (`src/doar/human_review.py` [new],
+  `phase7b_review_app.py` [new, Streamlit], `tests/test_human_review.py`
+  [new, 29 tests], `main.py` [help-text correction only, no behavior
+  change]): no model trained, no partition regenerated. Built a local,
+  blind, point-and-click human-review interface covering 225 pairs across
+  the same 4 categories the user specified (87 ambiguous, 71
+  threshold-boundary — including an exhaustive add-on of every remaining
+  dataset-wide dHash-distance-4 edge, 47 for the 17-image component's
+  complete internal edge set, 20 sampled policy-change bridging edges).
+  Blinding is enforced in code (`blind_item_for_display` is the one
+  function allowed to decide what the reviewer's screen shows); decisions
+  save immediately and incrementally; navigation supports back/forward,
+  jump-to-item, and resume-where-you-left-off. Added export logic for 5
+  files (`human_pair_reviews.csv`, `human_group_reviews.csv`,
+  `reviewer_agreement_report.json`, `threshold_precision_summary.json` with
+  Wilson 95% CIs, `unresolved_items.csv`) — none of which select or lock a
+  policy. Produced a provisional (AI-preliminary-evidence-only, since no
+  real human review has happened yet) comparison of conservative policies
+  (exact+dHash≤2, ≤3, and a selectively-reviewed distance-4 tier) in
+  `PHASE7B_DUPLICATE_POLICY.md` §25 — explicitly a comparison, not a
+  selection. Rebuilt `outputs/phase7b/ARTIFACT_MANIFEST.tsv` (255 files,
+  ≈15.1 MB). `outputs/phase7b/final_partition/` remains untouched.
 
 Everything else across all phases was documentation, CSV registers, and
 tests.
@@ -517,6 +540,32 @@ manifest paths resolve (0 missing). **No threshold or clustering policy
 is approved. Do not use `outputs/phase7b/final_partition/` as if it were
 final until the human-review package has been reviewed.**
 
+**Phase 7B second continuation — built the interactive review app and a
+provisional conservative-policy comparison, still no policy locked.** The
+static CSV human-review package above was hard to actually use, so
+`phase7b_review_app.py` (Streamlit, backed by `src/doar/human_review.py`)
+now presents all 225 pairs (87 ambiguous + 71 threshold-boundary,
+including an exhaustive add-on covering every one of the 43 dataset-wide
+dHash-distance-4 edges + 47 for the 17-image component's complete internal
+edge set + 20 sampled policy-change bridges) blind, one at a time, with
+incremental save, resume, and a 5-file export
+(`human_pair_reviews.csv`/`human_group_reviews.csv`/
+`reviewer_agreement_report.json`/`threshold_precision_summary.json` with
+Wilson CIs/`unresolved_items.csv`). A **provisional** (AI-preliminary
+evidence only — no real human review has happened yet) comparison of
+exact+dHash≤2, ≤3, and a selectively-reviewed distance-4 tier is in
+`PHASE7B_DUPLICATE_POLICY.md` §25: distances 2-3 show 100% precision (n=6,
+wide CI) with near-identical structural cost (largest component stays 9);
+distance 4 is where precision visibly splits (50%, n=6) without yet
+showing threshold-6's structural blow-up (component 17, cross-label ratio
+jump) — which is exactly why it's a candidate for edge-by-edge review
+rather than blanket inclusion. **This is a comparison of options, not a
+recommendation adopted by the project; no threshold, clustering method, or
+partition has been selected or locked.** Launch:
+`.\.venv\Scripts\Activate.ps1` then `python -m streamlit run
+phase7b_review_app.py`, open http://localhost:8501 (see RUN_GUIDE_WINDOWS.md
+§11).
+
 ---
 
 ## 5. Files created or modified this session
@@ -572,13 +621,22 @@ split-construction tooling.
 `PHASE7B_DUPLICATE_POLICY.md` (new), `SESSION_HANDOFF.md` (v9). No model
 trained, tuned, calibrated, or evaluated.
 
-**Phase 7B continuation** (to be committed next): `src/doar/partition.py`
+**Phase 7B continuation** (committed `5d4c56f`): `src/doar/partition.py`
 (additive: `refine_with_complete_linkage`), `tests/test_partition_phase7b.py`
 (+5 tests, `CompleteLinkageRefinementTests`), `PHASE7B_DUPLICATE_POLICY.md`
 (extensive correction — new §§14-18, renumbered §§9-13 → §§19-23),
-`SESSION_HANDOFF.md` (this file, v10). No model trained. **This is a
+`SESSION_HANDOFF.md` (v10). No model trained. **This is a
 correction of the prior part's own conclusion**, not new independent work —
 see §4 above.
+
+**Phase 7B second continuation** (to be committed next): `src/doar/human_review.py`
+(new, core review/export logic), `phase7b_review_app.py` (new, Streamlit
+UI), `tests/test_human_review.py` (new, 29 tests), `main.py` (help-text
+correction only), `PHASE7B_DUPLICATE_POLICY.md` (new §§24-25),
+`RUN_GUIDE_WINDOWS.md` (new §11, compileall/ruff file lists extended),
+`outputs/phase7b/human_review/README.md` (updated with launch
+instructions), `SESSION_HANDOFF.md` (this file, v11). No model trained, no
+partition regenerated or locked.
 
 **Not committed** (git-ignored, `outputs/` rule): everything under
 `outputs/phase3a/`, `outputs/phase4/`, `outputs/phase5/`, `outputs/phase6/`,
@@ -589,9 +647,10 @@ for exact paths, sizes, and SHA-256 hashes of every artifact that matters.
 `outputs/phase5/ARTIFACT_MANIFEST.tsv` (120 rows, ≈1.22 GB),
 `outputs/phase6/ARTIFACT_MANIFEST.tsv` (202 rows, ≈8.3 MB),
 `outputs/phase7a/ARTIFACT_HASHES.json` (12 files), and
-`outputs/phase7b/ARTIFACT_MANIFEST.tsv` (158 files, ≈10.1 MB, rebuilt this
+`outputs/phase7b/ARTIFACT_MANIFEST.tsv` (255 files, ≈15.1 MB, rebuilt this
 continuation) cover their respective phases in full. Phase 7B's human-review
-package (`outputs/phase7b/human_review/`) and contact sheets
+package (`outputs/phase7b/human_review/`, including the interactive
+review app's item registry and new composite images) and contact sheets
 (`outputs/phase7b/contact_sheets/`) are included in that same manifest.
 
 ---
@@ -764,14 +823,24 @@ Complete-linkage was implemented and shown to help but not fully resolve
 this. **`outputs/phase7b/final_partition/` (built at threshold 6) is NOT
 approved and must not be adopted as the standard split.** A human-review
 package now exists (`outputs/phase7b/human_review/pair_review.csv` [129
-rows], `group_review.csv` [50 rows], plus contact sheets) — reviewing it is
-the concrete next step. **Five concrete open decisions now exist:**
-1. **(supersedes the old "adopt Phase 7B's split" decision)** Review
-   `outputs/phase7b/human_review/` and decide a final near-dup threshold
-   and clustering policy (single-linkage, complete-linkage, or something
-   else) from that review — only then should a partition be regenerated
-   and locked via `main.py build-partition`. Do not adopt
-   `outputs/phase7b/final_partition/` (threshold 6) as-is.
+rows], `group_review.csv` [50 rows], plus contact sheets), and **a second
+continuation built an interactive, blind, point-and-click review app**
+(`phase7b_review_app.py` — launch with `python -m streamlit run
+phase7b_review_app.py` after activating the venv, open
+http://localhost:8501) covering 225 pairs across 4 categories with
+incremental save and a 5-file export — this is now the recommended way to
+actually do the review, not editing the CSVs by hand. A **provisional**
+(AI-preliminary-evidence-only) comparison of conservative policies
+(exact+dHash≤2, ≤3, selectively-reviewed distance-4) exists in
+`PHASE7B_DUPLICATE_POLICY.md` §25 — a comparison, not a selection.
+Reviewing the app's pairs is the concrete next step. **Five concrete open
+decisions now exist:**
+1. **(supersedes the old "adopt Phase 7B's split" decision)** Use the
+   review app to decide a final near-dup threshold and clustering policy
+   (single-linkage, complete-linkage, or something else) — only then
+   should a partition be regenerated and locked via `main.py
+   build-partition`. Do not adopt `outputs/phase7b/final_partition/`
+   (threshold 6) as-is.
 2. Whether to accept `PHASE7_EXPERIMENT_MATRIX_REVISION.md`'s proposed
    changes (ConvNeXt-Tiny downgraded to probe-first; DINOv2/OpenCLIP
    strengthened) — these were reaffirmed using the (now provisional)
@@ -786,10 +855,10 @@ the concrete next step. **Five concrete open decisions now exist:**
    (inverse-group-size sample weighting for `train`'s remaining
    within-group duplication) and its proposed single ablation — design
    only, not implemented, not yet approved.
-5. Whether to review and correct the AI's preliminary pair/group judgments
-   in `outputs/phase7b/human_review/` yourself, or have a future session
-   help organize/summarize them for your review (the actual
-   approve/correct decisions require a human, not another AI pass).
+5. Whether to do the review yourself using `phase7b_review_app.py`, or have
+   a future session help organize/summarize the exported results for your
+   review (the actual approve/correct decisions require a human, not
+   another AI pass — the app itself never preselects or infers an answer).
 
 None of Phase 7's Stage 0 experiments have started; this is unchanged from
 before Phase 7A/7B.
@@ -810,11 +879,17 @@ before any option below that depends on "the split" can actually run.
 (the actual next step, recommended first):**
 ```
 Continue the DOAR project. Read SESSION_HANDOFF.md Section 2's "Phase 7B
-continuation" entry and PHASE7B_DUPLICATE_POLICY.md Sections 14-17 in full
-before acting. I have reviewed (or want help organizing/summarizing, but
-not resolving) outputs/phase7b/human_review/pair_review.csv and
-group_review.csv against the contact sheets in
-outputs/phase7b/contact_sheets/. My decision on the near-dup threshold is
+second continuation" entry and PHASE7B_DUPLICATE_POLICY.md Sections 14-17,
+24-25 in full before acting. I have reviewed (or want help
+organizing/summarizing, but not resolving) my decisions from
+phase7b_review_app.py's export at
+outputs/phase7b/human_review/exports/human_pair_reviews.csv,
+human_group_reviews.csv, reviewer_agreement_report.json, and
+threshold_precision_summary.json. (If I have not run the app yet: launch
+it with `.\.venv\Scripts\Activate.ps1` then `python -m streamlit run
+phase7b_review_app.py`, open http://localhost:8501, and tell me to do the
+review before proceeding -- do not regenerate a partition on
+AI-preliminary evidence alone.) My decision on the near-dup threshold is
 [state: e.g. "use dHash threshold 3", "use dHash threshold 4 with
 complete-linkage clustering", etc.] and on clustering method is
 [single-linkage / complete-linkage / other -- state which]. Regenerate the
