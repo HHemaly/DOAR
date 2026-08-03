@@ -151,6 +151,99 @@ def compute_duplicate_groups(
     }
 
 
+def refine_with_complete_linkage(rows: list[dict], single_linkage_result: dict, hash_field: str = "dhash") -> dict:
+    """Phase 7B (continued): a constrained alternative to unrestricted
+    single-linkage transitive closure, evaluated specifically to check
+    whether it resolves heterogeneous ("chained") components without
+    discarding genuine duplicate clusters.
+
+    For every single-linkage component with 3+ members, this re-clusters
+    ONLY that component's own members using complete-linkage agglomerative
+    clustering: two (sub)clusters may only merge if EVERY cross-pair between
+    their members is within `near_dup_threshold` (i.e. the merged cluster's
+    diameter -- its single worst-case pairwise distance -- stays within the
+    threshold), rather than single-linkage's "at least one edge" rule. Exact
+    sha256 duplicates are always kept together regardless of hash distance
+    (they are definitionally identical content, not a near-dup judgment
+    call). Singleton and 2-member components are returned unchanged --
+    complete- and single-linkage cannot differ for fewer than 3 members.
+
+    This does NOT replace compute_duplicate_groups's single-linkage result
+    for the project's own leakage-safety default (see
+    PHASE7B_DUPLICATE_POLICY.md for why single-linkage was retained) -- it
+    exists to produce a concrete, evidence-based comparison on the actual
+    data, specifically for components already flagged as heterogeneous.
+    """
+    by_id = {r["image_id"]: r for r in rows}
+    near_dup_threshold = single_linkage_result["near_dup_threshold"]
+
+    exact_pairs: set[frozenset] = set()
+    for e in single_linkage_result["exact_edges"]:
+        exact_pairs.add(frozenset((e["a"], e["b"])))
+
+    new_groups = []
+    split_report = []
+    for gr in single_linkage_result["groups"]:
+        members = gr["image_ids"]
+        if len(members) < 3:
+            new_groups.append({"group_id": gr["group_id"], "size": len(members), "image_ids": members})
+            continue
+
+        # All-pairs Hamming distance within this (small) component.
+        dist = {}
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                a, b = members[i], members[j]
+                if frozenset((a, b)) in exact_pairs:
+                    d = 0
+                else:
+                    ha, hb = by_id[a].get(hash_field, ""), by_id[b].get(hash_field, "")
+                    d = _hamming(ha, hb) if ha and hb else 999
+                dist[frozenset((a, b))] = d
+
+        # Complete-linkage agglomeration: start with singleton clusters,
+        # repeatedly merge the pair of clusters with the smallest maximum
+        # cross-distance, but only while that maximum stays <= threshold.
+        clusters = [[m] for m in members]
+        while True:
+            best = None
+            best_diam = None
+            for i in range(len(clusters)):
+                for j in range(i + 1, len(clusters)):
+                    max_d = max(dist[frozenset((a, b))] for a in clusters[i] for b in clusters[j])
+                    if max_d <= near_dup_threshold and (best_diam is None or max_d < best_diam):
+                        best, best_diam = (i, j), max_d
+            if best is None:
+                break
+            i, j = best
+            clusters[i] = clusters[i] + clusters[j]
+            del clusters[j]
+
+        if len(clusters) == 1:
+            new_groups.append({"group_id": gr["group_id"], "size": len(members), "image_ids": sorted(members)})
+        else:
+            split_report.append({
+                "original_group_id": gr["group_id"], "original_size": len(members),
+                "n_subclusters": len(clusters), "subcluster_sizes": sorted(len(c) for c in clusters),
+            })
+            for k, sub in enumerate(sorted(clusters, key=lambda c: sorted(c)[0])):
+                new_groups.append({
+                    "group_id": f"{gr['group_id']}_cl{k}", "size": len(sub), "image_ids": sorted(sub),
+                })
+
+    group_of = {}
+    for gr in new_groups:
+        for m in gr["image_ids"]:
+            group_of[m] = gr["group_id"]
+
+    return {
+        "group_of": group_of, "groups": new_groups,
+        "near_dup_threshold": near_dup_threshold, "hash_field": hash_field,
+        "n_images": sum(gr["size"] for gr in new_groups), "n_groups": len(new_groups),
+        "n_components_split": len(split_report), "split_report": split_report,
+    }
+
+
 def assess_group_label_conflicts(rows: list[dict], group_of: dict[str, str]) -> dict:
     """A group is an 'unresolved label conflict' if its members carry more
     than one distinct class label. This is a strictly broader check than

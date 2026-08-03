@@ -189,5 +189,78 @@ class EndToEndPhase7BTests(unittest.TestCase):
             self.assertEqual(img0["new_split"], "train")
 
 
+class CompleteLinkageRefinementTests(unittest.TestCase):
+    def test_singleton_and_pair_components_unchanged(self):
+        from doar.partition import compute_duplicate_groups, refine_with_complete_linkage
+        rows = [
+            _row("a", "train", "Happy", "sha_a", dhash="00000000000000f0"),
+            _row("b", "train", "Happy", "sha_b", dhash="0000000000000001"),
+            _row("c", "valid", "Sad", "sha_c", dhash="ffffffffffffffff"),
+        ]
+        g = compute_duplicate_groups(rows, near_dup_threshold=2, hash_field="dhash")
+        refined = refine_with_complete_linkage(rows, g, hash_field="dhash")
+        self.assertEqual(refined["n_groups"], g["n_groups"])
+        self.assertEqual(refined["n_components_split"], 0)
+
+    def test_heterogeneous_chain_gets_split(self):
+        # A~B close, B~C close, but A~C far apart -- single-linkage chains
+        # all three into one group; complete-linkage must split C out,
+        # because the merged {A,B,C} cluster's diameter (A-C) exceeds the
+        # threshold.
+        from doar.partition import compute_duplicate_groups, refine_with_complete_linkage
+        rows = [
+            _row("A", "train", "Happy", "sha_A", dhash="00000000000000f0"),
+            _row("B", "train", "Happy", "sha_B", dhash="00000000000000f3"),  # dist(A,B)=2
+            _row("C", "train", "Sad", "sha_C", dhash="00000000000000f7"),    # dist(B,C)=2, dist(A,C)=3
+        ]
+        g = compute_duplicate_groups(rows, near_dup_threshold=2, hash_field="dhash")
+        # Single-linkage: all 3 in one group (transitive closure via B).
+        self.assertEqual(g["group_of"]["A"], g["group_of"]["C"])
+        refined = refine_with_complete_linkage(rows, g, hash_field="dhash")
+        # Complete-linkage: A-C distance (3) exceeds threshold (2), so they
+        # cannot share a cluster -- the 3-member component must split.
+        self.assertNotEqual(refined["group_of"]["A"], refined["group_of"]["C"])
+        self.assertEqual(refined["n_components_split"], 1)
+
+    def test_exact_duplicates_always_merge_regardless_of_hash_distance(self):
+        from doar.partition import compute_duplicate_groups, refine_with_complete_linkage
+        rows = [
+            _row("a", "train", "Happy", "sha_same", dhash="00000000000000f0"),
+            _row("b", "valid", "Happy", "sha_same", dhash="ffffffffffffffff"),  # exact dup despite far dhash
+            _row("c", "train", "Sad", "sha_other", dhash="0000000000000001"),
+        ]
+        g = compute_duplicate_groups(rows, near_dup_threshold=1, hash_field="dhash")
+        refined = refine_with_complete_linkage(rows, g, hash_field="dhash")
+        self.assertEqual(refined["group_of"]["a"], refined["group_of"]["b"])
+
+    def test_split_report_records_subcluster_sizes(self):
+        from doar.partition import compute_duplicate_groups, refine_with_complete_linkage
+        rows = [
+            _row("A", "train", "Happy", "sha_A", dhash="00000000000000f0"),
+            _row("B", "train", "Happy", "sha_B", dhash="00000000000000f3"),
+            _row("C", "train", "Sad", "sha_C", dhash="00000000000000f7"),
+        ]
+        g = compute_duplicate_groups(rows, near_dup_threshold=2, hash_field="dhash")
+        refined = refine_with_complete_linkage(rows, g, hash_field="dhash")
+        self.assertEqual(len(refined["split_report"]), 1)
+        entry = refined["split_report"][0]
+        self.assertEqual(entry["original_size"], 3)
+        self.assertEqual(sum(entry["subcluster_sizes"]), 3)
+
+    def test_every_image_still_appears_exactly_once(self):
+        from doar.partition import compute_duplicate_groups, refine_with_complete_linkage
+        rows = [
+            _row("A", "train", "Happy", "sha_A", dhash="00000000000000f0"),
+            _row("B", "train", "Happy", "sha_B", dhash="00000000000000f3"),
+            _row("C", "train", "Sad", "sha_C", dhash="00000000000000f7"),
+            _row("D", "train", "Fear", "sha_D", dhash="1111111111111111"),
+        ]
+        g = compute_duplicate_groups(rows, near_dup_threshold=2, hash_field="dhash")
+        refined = refine_with_complete_linkage(rows, g, hash_field="dhash")
+        all_ids = {iid for gr in refined["groups"] for iid in gr["image_ids"]}
+        self.assertEqual(all_ids, {"A", "B", "C", "D"})
+        self.assertEqual(set(refined["group_of"].keys()), {"A", "B", "C", "D"})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

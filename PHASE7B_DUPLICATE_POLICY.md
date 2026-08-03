@@ -3,9 +3,24 @@
 **Status: dataset analysis and split construction only. No model was
 trained, tuned, calibrated, or evaluated in this phase.** The original
 dataset was never modified (re-verified, see §9). Every Phase 3–7A artifact
-and commit is unchanged. The Phase 7A threshold-5 partition is **provisional**
-— this phase supersedes it with an evidence-based final policy, without
-deleting or altering the Phase 7A artifacts themselves.
+and commit is unchanged.
+
+**IMPORTANT CORRECTION (same session, continuation): the dHash-threshold-6
+policy and the unrestricted-single-linkage clustering described in §§4–8
+below are NOT finalized.** A closer, purpose-built audit (§14) found that
+threshold 6 was chosen from an insufficiently targeted evidence base and is
+very likely too permissive; a genuinely heterogeneous, multi-template
+17-image component was found at threshold 6 (§15); and unrestricted
+single-linkage was found to under-perform a complete-linkage constraint on
+that same component (§16). **`outputs/phase7b/final_partition/` — built at
+threshold 6 in the prior part of this session — remains on disk for
+reference but must NOT be treated as final or locked.** No partition has
+been regenerated in this continuation; §17 explains why, and what is needed
+before one can be. Everything in §§2–13 that reports the *original* aHash
+threshold-5 reproduction, the existence of chaining, and the qualitative
+case for switching hash methods remains accurate and is not retracted —
+only the specific numeric conclusion "threshold 6 is the right choice" is
+withdrawn, replaced by the more careful analysis in §§14–17.
 
 ---
 
@@ -210,6 +225,17 @@ modest audit sample (45 pairs with both hash distances measured) and should
 be revisited if a larger audit becomes available in the future — stated
 honestly as a provisional-but-evidenced choice, not a definitive one.
 
+**§14 CORRECTION: this "should be revisited" caveat turned out to matter.**
+The 45-pair sample above was drawn from pairs that aHash *already* flagged
+as near-duplicates (at various aHash distances), with dHash distance
+recorded only incidentally for those same pairs — it is not a sample of
+what dHash itself considers close across its own full distance range. A
+second, purpose-built audit sampling directly at dHash distances 2–8 (§14)
+found precision already falls to 50% at distance 4 and further at 5–8 —
+materially earlier than this section implied. **Threshold 6 is likely too
+permissive; see §14 for the corrected evidence and §17 for why no new
+threshold has been locked in yet.**
+
 **Implementation**: `dataset._difference_hash()` (new), `dataset.DHASH_THRESHOLD = 6` (new constant, kept separate from the pre-existing `NEAR_DUP_THRESHOLD = 5` so the original aHash reproduction stays exactly reproducible), `partition.compute_dhash_column()` (new), `partition.compute_duplicate_groups(..., hash_field=...)` (extended, defaults to `"phash"` for backward compatibility).
 
 ---
@@ -241,6 +267,18 @@ policy retains the most images** — the chosen policy (dHash, threshold 6)
 in fact retains *fewer* raw conflict-excluded images than a naively looser
 policy would, and the decision was locked in before computing what the
 resulting split sizes would be.
+
+**§16 CORRECTION: single-linkage was retained too quickly here.** Direct
+inspection of the 17-image dHash-6 component (§15) found it is not one
+coherent cluster but a chain of at least 4 visually distinct sub-groups
+plus several clearly-unrelated singletons swept in transitively. §16
+implements and tests complete-linkage on this exact component: it correctly
+isolates the clearest outlier and tightens the largest sub-cluster, but
+does **not** fully resolve two remaining pairs where the underlying hash
+distance itself (not the linkage rule) is misleadingly small for two
+visually unrelated images. Complete-linkage is a real improvement, not a
+complete fix — see §16 for the concrete evidence and §17 for the combined,
+still-not-finalized recommendation.
 
 ---
 
@@ -310,6 +348,16 @@ governance rules (`PHASE7_RESULTS.md` §4).
 ---
 
 ## 8. Final partition
+
+**§17 CORRECTION: despite the section title, this partition is NOT final
+and is NOT locked.** It was built at dHash threshold 6 earlier in this
+session; §14–16's corrected evidence indicates threshold 6 is likely too
+permissive and that single-linkage alone leaves residual heterogeneous
+groups. The artifacts below remain on disk, byte-verified and untouched,
+for reference and comparison — but no training, evaluation, or downstream
+use should treat `outputs/phase7b/final_partition/` as the approved split
+until the human-review package (§17) is reviewed and a policy is
+explicitly approved.
 
 ### Configuration
 
@@ -391,99 +439,312 @@ kind has been computed from it in this phase.**
 
 ---
 
-## 9. Original data and prior-phase preservation — verified, not assumed
+## 14. Targeted dHash boundary audit and corrected threshold evidence
 
-- Re-hashed the same already-disclosed smoke-test image
-  (`2-1_jpg.rf.f967ea55654e6fa4badbe2906373b7f7.jpg`) directly from disk
-  this phase: SHA-256 prefix `56238adc1155eafb`, matching every prior
-  phase's recorded value exactly.
-- Re-verified all 12 Phase 7A artifact hashes
-  (`outputs/phase7a/ARTIFACT_HASHES.json`) against the files currently on
-  disk: **ALL MATCH** — Phase 7A's provisional partition and analysis are
-  untouched by this phase.
-- `git status` at the end of this phase shows only the files listed in §11
-  changed or added — no file under `outputs/`, no prior-phase `.md`, and no
-  previously-existing test file was modified (`test_partition.py` from
-  Phase 7A is untouched; Phase 7B's additions are a new file,
-  `test_partition_phase7b.py`, plus new, additive functions in
-  `partition.py`/`dataset.py`).
+**Why a second audit was needed.** §3–4's comparison of aHash against dHash
+was computed on 45 pairs that were originally selected because aHash
+flagged them as near-duplicates at various aHash distances — dHash
+distance was only recorded *incidentally* for those same pairs. That is a
+biased sample for choosing a dHash-specific threshold: it says how dHash
+scores pairs aHash already likes, not how precision behaves across dHash's
+own distance range. A second, purpose-built audit was run: **42 new pairs,
+sampled directly from dHash's own near-dup edges at each exact distance 2
+through 8** (6 pairs per distance, oversampling cross-label pairs),
+composited and judged with the same blinding procedure as §3
+(`outputs/phase7b/boundary_audit/pair_metadata.json` / `judgments.json`).
+
+### Results
+
+| dHash distance | n | True-duplicate-like | Precision | 95% Wilson CI |
+|---|---|---|---|---|
+| 2 | 6 | 6 | 100.0% | [61.0%, 100%] |
+| 3 | 6 | 6 | 100.0% | [61.0%, 100%] |
+| **4** | 6 | 3 | **50.0%** | [18.8%, 81.2%] |
+| **5** | 6 | 0 | **0.0%** | [0.0%, 39.0%] |
+| 6 | 6 | 2 | 33.3% | [9.7%, 70.0%] |
+| 7 | 6 | 2 | 33.3% | [9.7%, 70.0%] |
+| 8 | 6 | 1 | 16.7% | [3.0%, 56.4%] |
+
+**Precision falls sharply between distance 3 and distance 4 — not between
+distance 5 and 16 as §4's aHash-conditioned sample implied.** Distances 6–7
+show a partial rebound to 33% in this small sample, most plausibly sampling
+noise (n=6 per bucket, wide overlapping CIs) rather than a genuine
+non-monotonic effect — the honest reading is "precision is already
+compromised from distance 4 onward," not "there is a safe plateau at 6–7."
+
+**This directly contradicts §4's chosen threshold of 6.** §4's claim that
+"every true-duplicate-like pair had dHash distance ≤5; every false-positive
+pair had dHash distance ≥16" was accurate for its own (confounded) sample,
+but did not generalize — this targeted sample shows real false positives
+already appearing at distance 4–5, well before 16.
+
+**Full-dataset cross-check**: `outputs/phase7b/dhash_threshold_sensitivity.txt`
+(§4) shows the largest single-linkage component stays at 9 images through
+threshold 4, then jumps to 17 at threshold 6 — consistent with this
+section's finding that something changes for the worse in the 4-to-6
+range, not smoothly.
+
+**Revised reading of the evidence**: thresholds 2–3 are well-supported (100%
+precision in both this and considering the population-level cross-label
+edge ratio, §2, which is lowest at low thresholds). Threshold 4 is
+borderline (50%, wide CI). Threshold 6 — this phase's prior choice — sits
+in a zone with materially lower demonstrated precision than assumed.
+**No single threshold is locked in by this document** (§17) — the human
+reviewer should weigh recall (a stricter threshold catches fewer true
+near-duplicates) against this precision evidence.
 
 ---
 
-## 10. Phase 7 experiment-feasibility reassessment (revision 2)
+## 15. The 17-image cross-label component, inspected directly
+
+The single dHash-threshold-6 component that spans multiple classes (flagged
+as a conflict group in §7/§8) was extracted and rendered as a labeled
+contact sheet: `outputs/phase7b/contact_sheets/component_17_dhash6.jpg`.
+
+**Direct visual inspection finds it is not one coherent duplicate cluster.**
+It contains at least four distinguishable sub-groups:
+
+1. **A tight, genuinely-duplicate-looking cluster** (≈5 images) — the same
+   "angry twig-figure with triangle-toothed face and scattered triangles"
+   drawing, appearing in near-identical framing across multiple files.
+2. **A second, related but distinct cluster** (≈2–3 images) — the same
+   twig-figure template *without* the face/triangle elements.
+3. **A third, distinct simple-face template** (≈2 images) — a plain oval
+   with two dot eyes and a curved mouth, unrelated in actual content to
+   clusters 1–2 despite superficial low-entropy similarity.
+4. **Several clearly-unrelated singletons swept in transitively**: a noisy,
+   low-legibility scribble on a glittery/speckled surface; a notebook-paper
+   portrait sketch; a photo of a child crouching/hugging their knees. None
+   of these three resemble any other member of the component.
+
+This confirms, on real data, the general chaining mechanism already
+described in §2/§14: locally-real similarity (cluster 1's members really do
+look alike) gets transitively bridged through weaker intermediate links
+into a component that is globally heterogeneous. **The threshold-growth
+trace makes this concrete**
+(`outputs/phase7b/contact_sheets/threshold_growth_t{2,3,4,6}.jpg`,
+tracing the same 17 images' largest shared group across thresholds): 2
+images at threshold 2 → 5 at threshold 3 (all visually identical to each
+other) → 9 at threshold 4 (visually coherent except one questionable
+inclusion) → all 17 at threshold 6 (visually heterogeneous, as above).
+
+---
+
+## 16. Complete-linkage vs. unrestricted single-linkage — a direct comparison
+
+`partition.refine_with_complete_linkage()` (new) re-clusters every
+single-linkage component of 3+ members using complete-linkage agglomeration
+(two sub-clusters may only merge if *every* cross-pair between their
+members stays within the threshold — i.e. the merged cluster's diameter,
+not just one edge, must satisfy the threshold). Exact SHA-256 duplicates
+are always kept together regardless of measured hash distance, since they
+are definitionally identical content, not a near-dup judgment call.
+
+**Full-dataset result** (dHash, threshold 6): of 2,303 single-linkage
+components, only **5 actually change** under complete-linkage — most
+components are already internally coherent, so this constraint costs
+almost nothing where it isn't needed. Of the 5 that split:
+
+| Original component | Original size | Sub-clusters after complete-linkage |
+|---|---|---|
+| The 17-image component (§15) | 17 | 6 sub-clusters: sizes 5, 4, 3, 2, 2, 1 |
+| 4 other components | 3–7 each | 2 sub-clusters each |
+
+**Contact sheet** (color-coded by resulting sub-cluster):
+`outputs/phase7b/contact_sheets/component_17_complete_linkage_subclusters.jpg`.
+
+**Complete-linkage measurably improves the 17-image component**: the
+clearest outlier (the noisy glitter-surface scribble) is correctly isolated
+as its own singleton sub-cluster, and the tightest, most visually coherent
+5-image cluster (§15's cluster 1) is preserved intact and separated from
+the rest.
+
+**But it does not fully solve the problem.** Two of the six resulting
+sub-clusters still pair visually unrelated images:
+- One 2-member sub-cluster pairs a twig-figure drawing with a photo of a
+  child crouching/hugging their knees — visually unrelated, yet their
+  *measured* hash distance is within the threshold, so complete-linkage's
+  "all pairs must be close" rule cannot separate them (with only 2
+  members, that rule reduces to checking the single pairwise distance,
+  identical to single-linkage's own criterion for a pair).
+- A 4-member sub-cluster mixes a simple face template, a twig-figure
+  variant, and a notebook-paper portrait — again, all pairwise distances
+  among these 4 are within the threshold per the hash itself.
+
+**Conclusion**: complete-linkage fixes *chaining* (transitive bridging
+through weak intermediate links) but cannot fix *individual hash
+mismeasurement* (two directly-compared images whose hash distance is
+misleadingly small). These are two different failure modes needing two
+different remedies — a stricter threshold (§14) addresses the second;
+complete-linkage addresses the first; **neither alone is sufficient, and
+the two residual mismatched pairs identified above are exactly the kind of
+case flagged for human review (§17), not resolved by any automated method
+tried here.**
+
+---
+
+## 17. Human-review package and why no partition has been (re)locked
+
+**Per explicit instruction, no partition was regenerated or locked in this
+continuation.** `outputs/phase7b/final_partition/` (threshold 6,
+single-linkage, built earlier in this session) remains on disk unmodified,
+but is explicitly **not** endorsed as final given §14–16's findings.
+Building a new "final" partition now, before a human has weighed in on the
+specific ambiguous pairs and groups this session surfaced, would repeat the
+same mistake this correction is fixing — picking a number and moving on
+without adequate evidence.
+
+**Everything AI-judged in this phase — both the original 87-pair audit
+(§3) and this continuation's 42-pair boundary audit (§14) — is a
+preliminary annotation, not independent ground truth.** All judgments were
+made by the same AI system that designed the sampling and thresholds, not
+an independent human or expert rater; no inter-rater reliability statistic
+exists. This was already stated in §3 and is restated here because it
+governs how the human-review package below should be used: as a
+**starting point to correct or confirm**, not a result to accept as-is.
+
+**Human-review package**: `outputs/phase7b/human_review/`
+(see `README.md` there for full usage instructions):
+
+- **`pair_review.csv`** (129 rows) — every pair from both audits, with the
+  AI's preliminary judgment, a link to the anonymized composite image, and
+  empty `human_judgment`/`human_notes` columns to fill in.
+- **`group_review.csv`** (50 rows) — the 17-image component's 6
+  complete-linkage sub-clusters, plus its threshold-growth trace (2/3/4/6),
+  with empty `human_decision`/`human_notes` columns.
+- Supporting contact sheets in `outputs/phase7b/contact_sheets/`:
+  `component_17_dhash6.jpg` (all 17, unsorted),
+  `component_17_complete_linkage_subclusters.jpg` (color-coded by
+  sub-cluster), `threshold_growth_t{2,3,4,6}.jpg` (the core cluster's
+  growth), and `ambiguous_boundary_pairs_d4_5_6.jpg` (the 18
+  boundary-audit pairs at the specific distances — 4, 5, 6 — where
+  precision was most uncertain).
+
+**What is needed before a partition can be locked**: a human reviewer
+completing (in whole or in part) `pair_review.csv`/`group_review.csv`, from
+which a final threshold and clustering policy can be chosen with actual
+confirmed/corrected ground truth rather than AI-preliminary annotations
+alone. Only after that should `main.py build-partition` be re-run to
+produce a genuinely final partition.
+
+---
+
+## 18. Dataset root and full verification (this continuation)
+
+**Dataset root**, determined two independent ways from
+`outputs/phase5/manifest.csv`'s `path` column and cross-checked against its
+`relative_path` column: **`C:\Users\Ahmed\Downloads\Combined_Drawing\Combined_Drawing`**.
+Both `os.path.commonpath()` over all 3,688 `path` values and subtracting
+each row's own `relative_path` suffix from its `path` agree exactly on this
+root.
+
+**Path resolution**: every one of the 3,688 manifest rows' `path` values
+was checked directly against the filesystem this continuation — **0
+missing, 3,688/3,688 resolve** to a real, readable file.
+
+**Full test suite**: `pytest tests/` — **260 passed** (255 prior + 5 new
+`CompleteLinkageRefinementTests`), 9 pre-existing warnings, 0 failures.
+
+**compileall**: exit 0.
+
+**Ruff**: `ruff check .` — **792 findings, exit 1**, identical to the
+established baseline (confirmed via `git status`: only
+`src/doar/partition.py` [extended with `refine_with_complete_linkage`] and
+`tests/test_partition_phase7b.py` [5 new tests] changed this continuation
+— no new Ruff finding was introduced).
+
+---
+
+## 19. Original data and prior-phase preservation — verified, not assumed
+
+- Re-hashed the same already-disclosed smoke-test image
+  (`2-1_jpg.rf.f967ea55654e6fa4badbe2906373b7f7.jpg`) directly from disk:
+  SHA-256 prefix `56238adc1155eafb`, matching every prior phase's recorded
+  value exactly (checked again in this continuation, §18).
+- Re-verified all 12 Phase 7A artifact hashes
+  (`outputs/phase7a/ARTIFACT_HASHES.json`) against the files currently on
+  disk: **ALL MATCH** — Phase 7A's provisional partition and analysis are
+  untouched.
+- `git status` at the end of this continuation shows only
+  `src/doar/partition.py` (extended) and `tests/test_partition_phase7b.py`
+  (5 new tests) changed — no file under `outputs/`, no prior-phase `.md`,
+  and no previously-existing test file besides the ones just named was
+  modified.
+
+---
+
+## 20. Phase 7 experiment-feasibility reassessment (revision 2)
 
 Given the improved effective training size (1,414 independent groups vs.
-Phase 7A's 1,273) and cleaner partition:
+Phase 7A's 1,273) and cleaner partition **as it stood before §14–17's
+correction**:
 
 - **Classical baselines (C1–C5)**: unchanged, still Recommended — unaffected by this data-quality improvement either way.
 - **DenseNet121 (A1)**: still Recommended; the params-to-independent-group ratio improves marginally (≈4,950 vs. Phase 7A's ≈5,500 params/group) but not enough to change the assessment materially.
 - **ConvNeXt-Tiny (A2)**: **stays downgraded to Optional, probe-first** (per `PHASE7_EXPERIMENT_MATRIX_REVISION.md`) — the params/group ratio (≈19,660) remains unfavorable even with the improved partition; this is not reversed just because more data survived.
 - **DINOv2/OpenCLIP frozen representations (B1–B4)**: still relatively favorable versus full fine-tuning; unchanged.
 - **Transformer probes (A3–A5)**: unchanged, still capped/conditional.
-- **Fusion experiments (D1–D4)**: unchanged in design; must now use `outputs/phase7b/final_partition/` specifically (superseding Phase 7A's split as the development-time reference).
-- **Three-seed screening vs. stronger shortlist confirmation**: the underlying data-quality concern that motivated caution is now measurably reduced (a verified, audit-backed near-dup definition instead of an untested inherited default) — this supports, as an optional strengthening rather than a requirement, allocating more seeds (e.g. 5 instead of 3) specifically for the **final shortlist confirmation** stage once one is reached, since the partition itself is now on firmer evidential footing. Initial screening can remain at 3 seeds.
+- **Fusion experiments (D1–D4)**: unchanged in design; must use whichever partition is eventually approved (§17) as the development-time reference, not necessarily `outputs/phase7b/final_partition/` as-is.
+- **Three-seed screening vs. stronger shortlist confirmation**: this recommendation is **now itself provisional** pending §17's review — it assumed the threshold-6 partition's data quality, which §14–16 found to be less certain than stated. Revisit once a reviewed policy exists.
 
 **No experiment is added or removed in this revision** beyond what
 `PHASE7_EXPERIMENT_MATRIX_REVISION.md` already proposed — this section only
-updates the *reasoning* behind those proposals with the final partition's
-actual numbers. `PHASE7_EXPERIMENT_MATRIX.csv` remains unmodified.
+updates the *reasoning* behind those proposals; `PHASE7_EXPERIMENT_MATRIX.csv`
+remains unmodified. **This entire section's specific numbers should be
+re-checked once §17's review concludes and any new partition exists.**
 
 ---
 
-## 11. Verification (tests, Ruff, compileall)
+## 21. Verification (tests, Ruff, compileall)
 
-- **New/extended code**: `src/doar/dataset.py` (`_difference_hash`,
-  `DHASH_THRESHOLD` — additive, `_average_hash`/`NEAR_DUP_THRESHOLD`
-  unchanged), `src/doar/partition.py` (`hash_field` parameter on
-  `compute_duplicate_groups`, `compute_dhash_column`,
-  `identify_exposed_groups`, `exposed_group_ids` support in
-  `build_group_disjoint_partition`/`build_partition_manifest_rows`,
-  `verify_no_exposed_group_in_valid_or_test`, `run_partition_design`
-  extended with `hash_field`/`exposed_image_ids`), `main.py`
-  (`build-partition` gains `--hash-field` and `--exposed-image-ids`).
-- **New tests**: `tests/test_partition_phase7b.py` — 9 tests covering dHash
-  determinism, `hash_field` selection, exposed-group identification and
-  precedence-over-conflict, the new verification check, and an end-to-end
-  `run_partition_design` determinism test under the full Phase 7B policy
-  (dhash + threshold 6 + exposed images).
-- **Test suite**: `pytest tests/` — **255 passed** (246 pre-existing + 9
-  new), 9 pre-existing warnings, 0 failures.
+- **New/extended code (this continuation)**: `src/doar/partition.py` gains
+  `refine_with_complete_linkage()` (§16). No other function was modified;
+  `compute_duplicate_groups`, `build_group_disjoint_partition`, and every
+  other Phase 7A/7B function are unchanged from the prior commit.
+- **New tests**: `tests/test_partition_phase7b.py` gains a
+  `CompleteLinkageRefinementTests` class (5 tests): singleton/pair
+  components pass through unchanged, a synthetic heterogeneous chain
+  correctly splits, exact duplicates always merge regardless of measured
+  hash distance, the split report records correct sub-cluster sizes, and
+  every image still appears exactly once after refinement.
+- **Test suite**: `pytest tests/` — **260 passed** (255 prior + 5 new), 9
+  pre-existing warnings, 0 failures. See §18 for the full report.
 - **compileall**: exit 0.
 - **Ruff**: `ruff check .` — **792 findings, exit 1**, identical to the
-  established Phase 5–7A baseline. No new finding introduced by this
-  phase's code changes (confirmed via `git status` — only the files listed
-  above changed).
+  established baseline. No new finding introduced (confirmed via `git
+  status`).
 
 ---
 
-## 12. Deliverables and artifact locations
+## 22. Deliverables and artifact locations
 
-All under `outputs/phase7b/` (gitignored; `ARTIFACT_MANIFEST.tsv` — 104
-files, ≈7.4 MB — is the durable hash record):
+All under `outputs/phase7b/` (gitignored; `ARTIFACT_MANIFEST.tsv` — 158
+files, ≈10.1 MB — is the durable hash record, rebuilt this continuation):
 
 1. This document, `PHASE7B_DUPLICATE_POLICY.md` (committed).
 2. `outputs/phase7b/threshold_audit_detailed.json` — per-threshold audit (§2).
-3. `outputs/phase7b/blind_audit/` — `pair_0001.jpg`…`pair_0087.jpg`, `pair_metadata.json`, `judgments.json` (§3).
-4. `outputs/phase7a/large_group_composition.json` (Phase 7A, reused, not recomputed) + this phase's direct-edge/shortcut audit samples (§2–3) — chaining analysis.
-5. `outputs/phase7b/final_partition/partition_config.json` — final duplicate-policy configuration.
-6. `outputs/phase7b/final_partition/partition_manifest.csv` — revised train/valid/test/excluded_conflict manifest.
-7. `outputs/phase7b/final_partition/label_conflict_review.csv` — exposed-image handling is recorded in `partition_manifest.csv`'s `exposed_status` column; no separate exposed-only manifest file was needed since only 4 already-small groups were affected (§6).
-8. `outputs/phase7b/final_partition/leakage_verification_report.json` — leakage-verification report.
-9. `PHASE7_EXPERIMENT_MATRIX_REVISION.md` (Phase 7A, unchanged) + §10 above — revised Phase 7 experiment recommendation.
-10. `SESSION_HANDOFF.md` (updated separately, see the commit).
+3. `outputs/phase7b/blind_audit/` — round-1 audit, 87 pairs (§3).
+4. `outputs/phase7b/boundary_audit/` — round-2 targeted dHash audit, 42 pairs (§14, new this continuation).
+5. `outputs/phase7b/contact_sheets/` — `component_17_dhash6.jpg`, `component_17_complete_linkage_subclusters.jpg`, `threshold_growth_t{2,3,4,6}.jpg`, `ambiguous_boundary_pairs_d4_5_6.jpg` (§15–17, new this continuation).
+6. `outputs/phase7b/human_review/` — `pair_review.csv` (129 rows), `group_review.csv` (50 rows), `README.md` (§17, new this continuation).
+7. `outputs/phase7b/final_partition/` — the threshold-6 partition from earlier in this session, preserved but **explicitly not final** (§8, §17).
+8. `PHASE7_EXPERIMENT_MATRIX_REVISION.md` (Phase 7A, unchanged) + §20 above — provisionally revised Phase 7 experiment recommendation.
+9. `SESSION_HANDOFF.md` (updated separately, see the commit).
 
 ---
 
-## 13. Explicitly out of scope for this phase (per user instruction)
+## 23. Explicitly out of scope for this phase (per user instruction)
 
 The following were **not** done and should not be inferred from this
 document: training, tuning, calibrating, or evaluating any model; using the
-new test split for model or hyperparameter selection; inspecting individual
+test split for model or hyperparameter selection; inspecting individual
 test-split predictions; activating any psychological interpretation;
 claiming subject-level independence; silently modifying
-`PHASE7_EXPERIMENT_MATRIX.csv`; starting Stage 0 or any other Phase 7
-experiment.
+`PHASE7_EXPERIMENT_MATRIX.csv`; regenerating or locking a final partition
+(§17); starting Stage 0 or any other Phase 7 experiment.
 
-**This phase stops here**, per explicit instruction, pending review of the
-duplicate policy, the regenerated partition, and the revised experiment
-recommendation.
+**This phase stops here**, per explicit instruction, after producing the
+(intentionally non-final) threshold recommendation, the comparison
+artifacts, the human-review package, the completed tests, and this updated
+report. No duplicate-detection policy has been approved; no partition has
+been locked.

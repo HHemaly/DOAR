@@ -1,9 +1,9 @@
 # Session Handoff
 
-Updated 2026-08-03, end of the Phase 7B working session, for a fresh Claude
-Code session (or human) to pick up with full context. Read this before
-`CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's current and
-in what order everything happened.
+Updated 2026-08-03, end of a Phase 7B continuation session, for a fresh
+Claude Code session (or human) to pick up with full context. Read this
+before `CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's
+current and in what order everything happened.
 
 **Canonical phase terminology (preserve exactly, do not rename):**
 - **Phase 1: Pipeline and Data-Safety Corrections**
@@ -19,15 +19,18 @@ in what order everything happened.
 - **Phase 7A: Leakage-Safe Dataset Readiness and Partition Design** —
   dataset analysis and split construction only, no model trained. See
   `PHASE7A_DATASET_READINESS.md` and `PHASE7_EXPERIMENT_MATRIX_REVISION.md`.
-  **Its threshold-5 partition was explicitly provisional and is now
-  superseded for development use by Phase 7B (below), though its own
-  artifacts are preserved unchanged.**
+  **Its threshold-5 partition was explicitly provisional.**
 - **Phase 7B: Duplicate-Policy Validation and Final Partition Refinement**
-  — this session. **Dataset analysis and split construction only — no
-  model was trained, tuned, calibrated, or evaluated.** Validated the
-  near-duplicate detector via a blinded manual pair audit, switched from
-  aHash to dHash (threshold 6) based on that evidence, and produced a new
-  final partition. See `PHASE7B_DUPLICATE_POLICY.md`.
+  — dataset analysis and split construction only, no model trained, tuned,
+  calibrated, or evaluated. First part of this phase validated the
+  near-duplicate detector via a blinded manual pair audit and adopted dHash
+  (threshold 6) over aHash. **A same-phase continuation then found that
+  choice was based on an insufficiently targeted sample and is likely too
+  permissive** — see `PHASE7B_DUPLICATE_POLICY.md`, especially §§14–17.
+  **No threshold or clustering policy is finalized. No partition is
+  locked.** A human-review package now exists
+  (`outputs/phase7b/human_review/`) and is the required next step before
+  any partition can be locked.
 - Detector implementation for currently-unavailable rules was **proposed
   only, never implemented**. It is a **future roadmap item**, not a
   numbered phase (specifically, it is **not** "Phase 3B" — that label was
@@ -60,7 +63,8 @@ been or can be pushed anywhere from this machine.
 | `4aeb7db` | Phase 6 correction | Disclosed that 4 test-folder images were reused for integration smoke testing across Phase 3A and Phase 6 — test split is not completely untouched (documentation-only, no rerun) |
 | `526c146` | Phase 7 | Extended Experiment Programme and Model-Family Feasibility Review — proposal-only, no training run; see §4 |
 | `8f6d135` | Phase 7A | Leakage-Safe Dataset Readiness and Partition Design — dataset analysis and split construction only, no model trained; see §4 |
-| *(this session, to be committed next)* | Phase 7B | Duplicate-Policy Validation and Final Partition Refinement — blinded pair audit, dHash adopted over aHash, new final partition; see §4 |
+| `ef86d40` | Phase 7B | Duplicate-Policy Validation and Final Partition Refinement — blinded pair audit, dHash adopted over aHash, new (now-provisional) partition; see §4 |
+| *(this session, to be committed next)* | Phase 7B (continuation) | Correction: dHash threshold 6 found insufficiently evidenced; complete-linkage comparison; human-review package produced; no partition locked; see §4 |
 
 ---
 
@@ -181,6 +185,29 @@ been or can be pushed anywhere from this machine.
   Phase 7A's own artifacts and the original `_average_hash`/
   `NEAR_DUP_THRESHOLD` reproduction path are unmodified and re-verified
   unchanged.
+- **Phase 7B continuation** (`src/doar/partition.py` [additive:
+  `refine_with_complete_linkage`], `tests/test_partition_phase7b.py`
+  [+5 tests]): no model trained. **Corrected the prior part's own
+  threshold-6 conclusion.** A second, purpose-built blinded audit (42
+  pairs, sampled directly at dHash distances 2–8, unlike the first audit's
+  aHash-conditioned sample) found precision falls to 50% at distance 4 and
+  to 0% at distance 5 — materially earlier than the first audit implied.
+  Directly inspected the 17-image dHash-6 cross-label component
+  (contact-sheet visual review): it is not one coherent cluster but a
+  chain of ≥4 visually distinct sub-groups plus several clearly-unrelated
+  singletons swept in transitively. Implemented and tested complete-linkage
+  as a constrained alternative to single-linkage: it correctly isolates the
+  clearest outlier and tightens the core cluster, but does not fully fix
+  two remaining pairs where the underlying hash distance itself (not the
+  clustering rule) is misleadingly small. Produced a full human-review
+  package (`outputs/phase7b/human_review/pair_review.csv` [129 rows],
+  `group_review.csv` [50 rows]) with every AI judgment explicitly labeled
+  preliminary, not ground truth. **`outputs/phase7b/final_partition/`
+  (threshold 6) was NOT regenerated or re-locked** — it remains on disk,
+  byte-verified unchanged, for reference only. Also verified the exact
+  dataset root (`C:\Users\Ahmed\Downloads\Combined_Drawing\Combined_Drawing`,
+  confirmed two independent ways) and that all 3,688 manifest paths
+  resolve (0 missing).
 
 Everything else across all phases was documentation, CSV registers, and
 tests.
@@ -458,6 +485,38 @@ original aHash reproduction path are unmodified and re-verified unchanged.
 **Stops after the duplicate policy and regenerated partition are
 verified; no Phase 7 Stage 0 experiment has started.**
 
+**Phase 7B continuation — CORRECTION, same phase: dHash threshold 6 is
+NOT finalized, no partition is locked.** The comparison above ("every
+true-dup pair had dHash distance ≤5, every false-positive ≥16") was
+computed on a sample confounded by construction: those 45 pairs were
+originally selected because *aHash* flagged them as near-dup, with dHash
+distance recorded only incidentally. A second, purpose-built audit sampled
+directly from dHash's own near-dup edges at each exact distance 2–8 (42
+new pairs, same blinding procedure): **precision was 100% at distance 2–3,
+but fell to 50% at distance 4 and 0% at distance 5** — materially earlier
+than the first comparison implied. Direct visual inspection of the
+17-image dHash-6 cross-label component (contact sheet) found it is a chain
+of at least 4 visually distinct sub-groups plus several clearly-unrelated
+singletons (a noisy scribble, a notebook portrait, an unrelated photo), not
+one coherent duplicate cluster. Implemented and tested **complete-linkage**
+as a constrained alternative to single-linkage on this exact component: it
+correctly isolates the clearest outlier and tightens the tightest
+sub-cluster, but 2 of 6 resulting sub-clusters still pair visually
+unrelated images because their *measured* hash distance (not the
+clustering rule) is misleadingly small — complete-linkage fixes chaining
+but not individual hash mismeasurement. **Produced a full human-review
+package** (`outputs/phase7b/human_review/pair_review.csv` [129 rows],
+`group_review.csv` [50 rows], plus supporting contact sheets) with every
+AI judgment from both audits explicitly labeled a preliminary annotation,
+not ground truth. `outputs/phase7b/final_partition/` (built at threshold 6
+in the prior part of this session) was **not** regenerated or re-locked —
+it remains on disk for reference only. Also verified: the exact dataset
+root is `C:\Users\Ahmed\Downloads\Combined_Drawing\Combined_Drawing`
+(confirmed two independent ways from the manifest), and all 3,688
+manifest paths resolve (0 missing). **No threshold or clustering policy
+is approved. Do not use `outputs/phase7b/final_partition/` as if it were
+final until the human-review package has been reviewed.**
+
 ---
 
 ## 5. Files created or modified this session
@@ -504,16 +563,22 @@ command), `PHASE7A_DATASET_READINESS.md` (new),
 no model was trained or evaluated — this is dataset analysis and
 split-construction tooling.
 
-**Phase 7B** (to be committed next): `src/doar/dataset.py` (additive:
+**Phase 7B** (committed `ef86d40`): `src/doar/dataset.py` (additive:
 `_difference_hash`, `DHASH_THRESHOLD`), `src/doar/partition.py` (extended:
 `hash_field`, `compute_dhash_column`, `identify_exposed_groups`,
 `exposed_group_ids` support, `verify_no_exposed_group_in_valid_or_test`),
 `tests/test_partition_phase7b.py` (new, 9 tests), `main.py`
 (`build-partition` gains `--hash-field`/`--exposed-image-ids`),
-`PHASE7B_DUPLICATE_POLICY.md` (new), `SESSION_HANDOFF.md` (this file, v9).
-No model trained, tuned, calibrated, or evaluated — the blinded pair audit
-was a manual visual judgment task, not a model-training or model-evaluation
-step.
+`PHASE7B_DUPLICATE_POLICY.md` (new), `SESSION_HANDOFF.md` (v9). No model
+trained, tuned, calibrated, or evaluated.
+
+**Phase 7B continuation** (to be committed next): `src/doar/partition.py`
+(additive: `refine_with_complete_linkage`), `tests/test_partition_phase7b.py`
+(+5 tests, `CompleteLinkageRefinementTests`), `PHASE7B_DUPLICATE_POLICY.md`
+(extensive correction — new §§14-18, renumbered §§9-13 → §§19-23),
+`SESSION_HANDOFF.md` (this file, v10). No model trained. **This is a
+correction of the prior part's own conclusion**, not new independent work —
+see §4 above.
 
 **Not committed** (git-ignored, `outputs/` rule): everything under
 `outputs/phase3a/`, `outputs/phase4/`, `outputs/phase5/`, `outputs/phase6/`,
@@ -524,8 +589,10 @@ for exact paths, sizes, and SHA-256 hashes of every artifact that matters.
 `outputs/phase5/ARTIFACT_MANIFEST.tsv` (120 rows, ≈1.22 GB),
 `outputs/phase6/ARTIFACT_MANIFEST.tsv` (202 rows, ≈8.3 MB),
 `outputs/phase7a/ARTIFACT_HASHES.json` (12 files), and
-`outputs/phase7b/ARTIFACT_MANIFEST.tsv` (104 files, ≈7.4 MB) cover their
-respective phases in full.
+`outputs/phase7b/ARTIFACT_MANIFEST.tsv` (158 files, ≈10.1 MB, rebuilt this
+continuation) cover their respective phases in full. Phase 7B's human-review
+package (`outputs/phase7b/human_review/`) and contact sheets
+(`outputs/phase7b/contact_sheets/`) are included in that same manifest.
 
 ---
 
@@ -682,34 +749,47 @@ unchanged. This substantially advanced the paused dataset audit above:
 items 1, 3, 4 (partial), and 7 got real, verified answers; items 2, 5
 (partial), and 6 remain open.
 
-**Phase 7B's duplicate-policy validation is complete and pending review
-(added 2026-08-03):** `PHASE7B_DUPLICATE_POLICY.md` — see §4 above for the
-headline. A blinded manual pair audit found the original aHash
-near-duplicate detector's precision collapses to 0% at its own default
-threshold (5), and that switching to dHash (threshold 6, no more complex,
-no new dependency) resolves this with a far cleaner duplicate structure
-(largest chained component 17 vs. 137) while recovering more usable data
-(fewer conflict-excluded images, 338 vs. 674). **Four concrete open
-decisions now exist:**
-1. Whether to adopt the Phase 7B final split
-   (`outputs/phase7b/final_partition/partition_manifest.csv`) as the
-   standard split for all future Family A–E development work — this
-   supersedes decision 1 from the Phase 7A entry above, which should be
-   treated as answered "use Phase 7B's split instead" rather than acted on
-   separately.
+**Phase 7B's duplicate-policy work is NOT complete — a same-phase
+continuation corrected its own initial conclusion (added 2026-08-03):**
+`PHASE7B_DUPLICATE_POLICY.md` — see §4 above for the headline. The first
+part's blinded manual pair audit found the original aHash near-duplicate
+detector's precision collapses to 0% at its own default threshold (5), and
+that switching to dHash appeared to resolve this. **A second, more
+targeted audit then found the specific choice of dHash threshold 6 was
+based on a confounded sample and is likely too permissive** (precision
+already falls to 50% at distance 4, 0% at distance 5 in the corrected,
+properly-sampled evidence) **, and that unrestricted single-linkage leaves
+a genuinely heterogeneous 17-image component even at threshold 6.**
+Complete-linkage was implemented and shown to help but not fully resolve
+this. **`outputs/phase7b/final_partition/` (built at threshold 6) is NOT
+approved and must not be adopted as the standard split.** A human-review
+package now exists (`outputs/phase7b/human_review/pair_review.csv` [129
+rows], `group_review.csv` [50 rows], plus contact sheets) — reviewing it is
+the concrete next step. **Five concrete open decisions now exist:**
+1. **(supersedes the old "adopt Phase 7B's split" decision)** Review
+   `outputs/phase7b/human_review/` and decide a final near-dup threshold
+   and clustering policy (single-linkage, complete-linkage, or something
+   else) from that review — only then should a partition be regenerated
+   and locked via `main.py build-partition`. Do not adopt
+   `outputs/phase7b/final_partition/` (threshold 6) as-is.
 2. Whether to accept `PHASE7_EXPERIMENT_MATRIX_REVISION.md`'s proposed
    changes (ConvNeXt-Tiny downgraded to probe-first; DINOv2/OpenCLIP
-   strengthened), reaffirmed by Phase 7B §10 using the final partition's
-   actual numbers — `PHASE7_EXPERIMENT_MATRIX.csv` itself remains
-   unmodified pending this decision.
-3. What (if anything) to do about the 338 excluded-conflict images (down
-   from Phase 7A's 674) — every one is still flagged
-   `exclude_pending_human_review` in `partition_manifest.csv`'s
-   `conflict_status` column; no review has happened yet.
-4. Whether to adopt Phase 7B §7's recommended default (inverse-group-size
-   sample weighting for `train`'s remaining within-group duplication) and
-   its proposed single ablation — design only, not implemented, not yet
-   approved.
+   strengthened) — these were reaffirmed using the (now provisional)
+   threshold-6 partition's numbers in `PHASE7B_DUPLICATE_POLICY.md` §20;
+   revisit once a reviewed partition exists. `PHASE7_EXPERIMENT_MATRIX.csv`
+   itself remains unmodified.
+3. What (if anything) to do about the excluded-conflict images (338 under
+   the provisional threshold-6 policy, subject to change once a reviewed
+   policy is adopted) — every one is still flagged
+   `exclude_pending_human_review`; no review has happened yet.
+4. Whether to adopt `PHASE7B_DUPLICATE_POLICY.md` §7's recommended default
+   (inverse-group-size sample weighting for `train`'s remaining
+   within-group duplication) and its proposed single ablation — design
+   only, not implemented, not yet approved.
+5. Whether to review and correct the AI's preliminary pair/group judgments
+   in `outputs/phase7b/human_review/` yourself, or have a future session
+   help organize/summarize them for your review (the actual
+   approve/correct decisions require a human, not another AI pass).
 
 None of Phase 7's Stage 0 experiments have started; this is unchanged from
 before Phase 7A/7B.
@@ -718,25 +798,55 @@ before Phase 7A/7B.
 
 ## 9. Exact recommended prompt for the next session
 
-Five reasonable next steps exist; pick based on current priority. Use
-whichever prompt matches:
+Six reasonable next steps exist; pick based on current priority. Use
+whichever prompt matches. **Note:** as of the Phase 7B continuation
+(2026-08-03), no near-dup threshold or clustering policy is approved and
+`outputs/phase7b/final_partition/` (built at dHash threshold 6) must NOT be
+treated as usable — a same-phase re-audit found it likely too permissive.
+The human-review package must be resolved and a partition regenerated
+before any option below that depends on "the split" can actually run.
 
-**If approving Phase 7's Stage 0 experiments (on the new Phase 7B final split):**
+**If completing the human review of Phase 7B's duplicate-policy package
+(the actual next step, recommended first):**
+```
+Continue the DOAR project. Read SESSION_HANDOFF.md Section 2's "Phase 7B
+continuation" entry and PHASE7B_DUPLICATE_POLICY.md Sections 14-17 in full
+before acting. I have reviewed (or want help organizing/summarizing, but
+not resolving) outputs/phase7b/human_review/pair_review.csv and
+group_review.csv against the contact sheets in
+outputs/phase7b/contact_sheets/. My decision on the near-dup threshold is
+[state: e.g. "use dHash threshold 3", "use dHash threshold 4 with
+complete-linkage clustering", etc.] and on clustering method is
+[single-linkage / complete-linkage / other -- state which]. Regenerate the
+partition via `main.py build-partition` with these exact settings, verify
+it with the existing verification functions in src/doar/partition.py, and
+update PHASE7B_DUPLICATE_POLICY.md to record this as the final, approved
+policy (not provisional). Do not change the threshold/method yourself --
+use exactly what I specify above. Do not train or evaluate any model in
+this session.
+```
+
+**If approving Phase 7's Stage 0 experiments (only once a reviewed,
+approved partition exists per the option above -- do NOT use
+outputs/phase7b/final_partition/ as-is):**
 ```
 Continue the DOAR project. Read SESSION_HANDOFF.md, PHASE7_RESULTS.md,
 PHASE7A_DATASET_READINESS.md, PHASE7B_DUPLICATE_POLICY.md, and
 PHASE7_EXPERIMENT_MATRIX_REVISION.md in full before acting, plus
 PHASE7_EXPERIMENT_MATRIX.csv for exact per-experiment specs. Treat the
-repository at its current HEAD as the source of truth.
+repository at its current HEAD as the source of truth. Confirm that the
+Phase 7B human-review package has actually been resolved and a partition
+regenerated/approved (see PHASE7B_DUPLICATE_POLICY.md's final-policy
+section) before proceeding -- if not, stop and ask instead of using
+outputs/phase7b/final_partition/ as-is.
 
 I approve [the revision in PHASE7_EXPERIMENT_MATRIX_REVISION.md, reaffirmed
-by PHASE7B_DUPLICATE_POLICY.md Section 10 / specific parts of it -- state
+by PHASE7B_DUPLICATE_POLICY.md Section 20 / specific parts of it -- state
 which] and Stage 0 [specify which rows, e.g. "C1, C2, C3, C5, A1" or "all
 of Stage 0 as revised"] per PHASE7_RESULTS.md Section 5.1's execution
-order. Use the Phase 7B final split
-(outputs/phase7b/final_partition/partition_manifest.csv, new_split column)
-for all new training/evaluation -- this supersedes Phase 7A's own split,
-which was explicitly provisional. Exclude any row with new_split ==
+order. Use the reviewed, approved Phase 7B partition (new_split column) for
+all new training/evaluation -- this supersedes Phase 7A's own split, which
+was explicitly provisional. Exclude any row with new_split ==
 "excluded_conflict". Implement any required new component listed in
 PHASE7_RESULTS.md Section 1.8 for those rows only (e.g. the DenseNet121
 registry.py entry for A1) with a matching regression test, following this
@@ -751,20 +861,26 @@ outputs/phase8/ (or an appropriately named) directory without touching
 outputs/phase3a-7b, and produce an artifact manifest with SHA-256 hashes.
 ```
 
-**If resolving the 338 excluded-conflict images (Phase 7B's label-conflict review):**
+**If resolving the excluded-conflict images (Phase 7B's label-conflict review
+-- note this list is provisional, computed under the not-yet-approved
+threshold-6 policy, and will change once a partition is regenerated per the
+option above):**
 ```
 Continue the DOAR project. Read SESSION_HANDOFF.md and
-PHASE7B_DUPLICATE_POLICY.md in full before acting, plus
+PHASE7B_DUPLICATE_POLICY.md (including Sections 14-17 on the still-open
+threshold/clustering decision) in full before acting, plus
 outputs/phase7b/final_partition/partition_manifest.csv (filter
 conflict_status == "unresolved_label_conflict", 338 images across 103
-groups, every one currently excluded from train/valid/test). Do not
-resolve any conflict automatically or by heuristic -- this requires actual
-human review of specific images/groups. Help review a batch [specify size]
-if asked to summarize/organize the conflicts, but do not change any label,
-do not move any image, and do not modify
-outputs/phase7b/final_partition/partition_manifest.csv without an explicit,
-documented decision for each group reviewed. Preserve full audit trail of
-any resolution.
+groups under the provisional threshold-6 policy -- treat this count as
+illustrative, not final, since it will likely change once a reviewed
+threshold/clustering policy is adopted). Do not resolve any conflict
+automatically or by heuristic -- this requires actual human review of
+specific images/groups. Help review a batch [specify size] if asked to
+summarize/organize the conflicts, but do not change any label, do not move
+any image, and do not modify outputs/phase7b/final_partition/ (it is
+provisional and superseded once a new partition is built) without an
+explicit, documented decision for each group reviewed. Preserve full audit
+trail of any resolution.
 ```
 
 **If resuming the remaining paused dataset/label-quality audit items:**
@@ -801,9 +917,9 @@ instead ask the user whether they want (a) more seeds under the current
 preliminary protocol, (b) a formal statistical comparison run on the
 existing 3-seed data, (c) to pick a model on secondary criteria alone
 (calibration, runtime, size) without resolving the macro-F1 question, or
-(d) to defer the decision until the Phase 7B final split (or a resolved
-audit) supports a more defensible comparison. Do not decide this
-unilaterally.
+(d) to defer the decision until a reviewed, approved Phase 7B partition
+(the threshold-6 split is not yet approved -- see Section 8 above) supports
+a more defensible comparison. Do not decide this unilaterally.
 ```
 
 **If proceeding toward a production-model decision for `efficientnet_b0`
@@ -820,14 +936,17 @@ correctly through the full DOAR pipeline with no integration defects, on 4
 now-disclosed, non-blind smoke-test drawings only (PHASE6_RESULTS.md
 Section 2) -- this is not a performance validation. Phase 7 proposes a much
 larger experiment programme (revised by Phase 7A/7B) that has not been
-approved, and Phase 7B has produced a cleaner, evidence-validated
-development split that has not yet been used for anything. Do not replace
-the production/default model without first resolving (or explicitly
-deciding to set aside) the still-inconclusive efficientnet_b0 vs. resnet18
-macro-F1 comparison from PHASE5_RESULTS.md Section 5, and without
-considering whether any part of Phase 7/7A/7B's programme should run
-first. Ask the user how they want to proceed before taking any action that
-changes the default model, runs an aggregate evaluation on the locked test
-split, cleans the dataset, implements a detector, or activates
-psychological concerns.
+approved. Phase 7B produced a candidate development split (dHash threshold
+6, single-linkage) that a same-phase continuation found likely too
+permissive and not yet approved -- see SESSION_HANDOFF.md Section 8 and
+PHASE7B_DUPLICATE_POLICY.md Sections 14-17 -- so there is currently no
+validated split ready to use. Do not replace the production/default model
+without first resolving (or explicitly deciding to set aside) the
+still-inconclusive efficientnet_b0 vs. resnet18 macro-F1 comparison from
+PHASE5_RESULTS.md Section 5, and without considering whether any part of
+Phase 7/7A/7B's programme (including the still-open duplicate-policy
+decision) should run first. Ask the user how they want to proceed before
+taking any action that changes the default model, runs an aggregate
+evaluation on the locked test split, cleans the dataset, implements a
+detector, or activates psychological concerns.
 ```
