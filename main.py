@@ -250,6 +250,12 @@ def main() -> None:
     readiness.add_argument("--manifest")
     readiness.add_argument("--features")
     readiness.add_argument("--embeddings")
+    partition = commands.add_parser("build-partition")
+    partition.add_argument("--manifest", required=True, help="Existing manifest CSV to partition")
+    partition.add_argument("--output", required=True)
+    partition.add_argument("--seed", type=int, default=42)
+    partition.add_argument("--near-dup-threshold", type=int, default=None,
+                           help="Defaults to dataset.NEAR_DUP_THRESHOLD (5)")
     args = parser.parse_args()
     supplied = {
         token[2:].replace("-", "_") for token in sys.argv[1:]
@@ -613,6 +619,13 @@ def main() -> None:
         print(json.dumps(check_training_readiness(
             args.dataset, args.output, args.manifest, args.features, args.embeddings
         ), indent=2))
+    elif args.command == "build-partition":
+        from doar.partition import run_partition_design
+        from doar.dataset import NEAR_DUP_THRESHOLD
+        threshold = args.near_dup_threshold if args.near_dup_threshold is not None else NEAR_DUP_THRESHOLD
+        print(json.dumps(run_partition_design(
+            args.manifest, args.output, seed=args.seed, near_dup_threshold=threshold,
+        ), indent=2, default=str))
 
 
 if __name__ == "__main__":
