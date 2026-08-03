@@ -30,9 +30,17 @@ import random
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from .dataset import NEAR_DUP_THRESHOLD, _hamming
+from .dataset import NEAR_DUP_THRESHOLD, _difference_hash, _hamming
 
 _DEGENERATE_PHASH = {"0000000000000000", "ffffffffffffffff"}
+
+
+def compute_dhash_column(rows: list[dict]) -> None:
+    """Phase 7B: compute and attach a 'dhash' field to every row in place,
+    reading each image once from its recorded `path`. Does not touch the
+    original image files (read-only) or the existing `phash` (aHash) column."""
+    for r in rows:
+        r["dhash"] = _difference_hash(Path(r["path"])) or ""
 
 
 class _UnionFind:
@@ -61,12 +69,21 @@ class _UnionFind:
                 self.parent[ra] = rb
 
 
-def compute_duplicate_groups(rows: list[dict], near_dup_threshold: int = NEAR_DUP_THRESHOLD) -> dict:
-    """Union-find over sha256 exact matches AND phash near-matches, computed
+def compute_duplicate_groups(
+    rows: list[dict], near_dup_threshold: int = NEAR_DUP_THRESHOLD, hash_field: str = "phash",
+) -> dict:
+    """Union-find over sha256 exact matches AND near-dup hash matches, computed
     across the entire dataset (all 3 splits combined -- deliberately NOT
     restricted to cross-split pairs, because building a NEW partition from
     scratch requires knowing which images must stay together regardless of
     which split they eventually land in).
+
+    `hash_field` selects which perceptual-hash column to use for the near-dup
+    comparison -- defaults to "phash" (the pre-existing aHash column, used
+    for Phase 7A's reproduction of the original leakage analysis). Phase 7B's
+    final policy passes `hash_field="dhash"` explicitly, so which hash method
+    produced a given result is always visible at the call site rather than
+    implied by silently renaming a column before calling this function.
 
     Transitive chaining: this uses single-linkage-style transitive closure
     (if A~B and B~C, then A/B/C are one group even if A and C are not a
@@ -98,13 +115,13 @@ def compute_duplicate_groups(rows: list[dict], near_dup_threshold: int = NEAR_DU
             uf.union(members_sorted[0], other)
             exact_edges.append({"a": members_sorted[0], "b": other, "sha256": sha})
 
-    hashed = [r for r in rows if r.get("phash") and r["phash"] not in _DEGENERATE_PHASH]
+    hashed = [r for r in rows if r.get(hash_field) and r[hash_field] not in _DEGENERATE_PHASH]
     hashed.sort(key=lambda r: r["image_id"])  # deterministic pair order
     near_edges = []
     for i in range(len(hashed)):
         for j in range(i + 1, len(hashed)):
             a, b = hashed[i], hashed[j]
-            dist = _hamming(a["phash"], b["phash"])
+            dist = _hamming(a[hash_field], b[hash_field])
             if dist <= near_dup_threshold:
                 uf.union(a["image_id"], b["image_id"])
                 near_edges.append({"a": a["image_id"], "b": b["image_id"], "hamming": dist})
@@ -221,6 +238,7 @@ _DEFAULT_SPLIT_RATIOS = (2821 / 3688, 310 / 3688, 557 / 3688)  # this dataset's 
 def build_group_disjoint_partition(
     rows: list[dict], group_of: dict[str, str], conflict_group_ids: set[str],
     seed: int = 42, split_ratios: tuple[float, float, float] = _DEFAULT_SPLIT_RATIOS,
+    exposed_group_ids: frozenset[str] = frozenset(),
 ) -> dict:
     """Deterministically assign every CLEAN (non-conflict) duplicate group to
     exactly one of train/valid/test, stratified by class, using a
@@ -230,6 +248,14 @@ def build_group_disjoint_partition(
     allows. Conflict groups are assigned split="excluded_conflict" -- a
     structurally separate value, not just a flag, so they cannot accidentally
     end up inside a supervised train/valid/test loader.
+
+    `exposed_group_ids` (Phase 7B): duplicate groups containing an image whose
+    label/prediction has already been disclosed as non-blind (the 4 Phase 6
+    smoke-test images -- see PHASE6_RESULTS.md Section 2). Every clean
+    (non-conflict) exposed group is force-assigned to "train" -- never
+    "valid" or "test" -- since training does not require blindness, only
+    evaluation does. Conflict status takes precedence: a group that is both
+    exposed and an unresolved conflict stays "excluded_conflict", not "train".
 
     Determinism: given the same rows/group_of/conflict_group_ids/seed, this
     always returns the identical assignment (Python's random.Random(seed) is
@@ -251,10 +277,12 @@ def build_group_disjoint_partition(
     for gid in sorted(group_members):
         if gid in conflict_group_ids:
             assignment[gid] = "excluded_conflict"
+        elif gid in exposed_group_ids:
+            assignment[gid] = "train"
 
     by_class: dict[str, list[tuple[str, int]]] = defaultdict(list)
     for gid, members in group_members.items():
-        if gid in conflict_group_ids:
+        if gid in conflict_group_ids or gid in exposed_group_ids:
             continue
         cls = by_id[members[0]]["class"]
         by_class[cls].append((gid, len(members)))
@@ -282,9 +310,17 @@ def build_group_disjoint_partition(
     }
 
 
+def identify_exposed_groups(group_of: dict[str, str], exposed_image_ids: set[str]) -> frozenset[str]:
+    """Every duplicate group containing at least one already-disclosed,
+    non-blind image (Phase 6's 4 smoke-test images) is an "exposed group" --
+    the whole group, not just the disclosed image, must be kept out of
+    valid/test (see build_group_disjoint_partition's docstring)."""
+    return frozenset(group_of[iid] for iid in exposed_image_ids if iid in group_of)
+
+
 def build_partition_manifest_rows(
     rows: list[dict], group_of: dict[str, str], assignment: dict[str, str],
-    conflict_group_ids: set[str],
+    conflict_group_ids: set[str], exposed_group_ids: frozenset[str] = frozenset(),
 ) -> list[dict]:
     """Per-image output rows for the new partition manifest. Every original
     image appears exactly once; `new_split` is one of train/valid/test/
@@ -306,9 +342,11 @@ def build_partition_manifest_rows(
             "class": r["class"],
             "sha256": r["sha256"],
             "phash": r.get("phash", ""),
+            "dhash": r.get("dhash", ""),
             "group_id": gid,
             "group_size": len(group_members[gid]),
             "conflict_status": "unresolved_label_conflict" if gid in conflict_group_ids else "clean",
+            "exposed_status": "previously_exposed" if gid in exposed_group_ids else "not_exposed",
             "new_split": new_split,
             "include_in_supervised_training": new_split != "excluded_conflict",
         })
@@ -339,6 +377,14 @@ def verify_no_image_in_multiple_partitions(partition_rows: list[dict]) -> dict:
 def verify_no_conflict_in_supervised_split(partition_rows: list[dict]) -> dict:
     bad = [r["image_id"] for r in partition_rows
            if r["conflict_status"] != "clean" and r["new_split"] != "excluded_conflict"]
+    return {"ok": not bad, "violations": bad}
+
+
+def verify_no_exposed_group_in_valid_or_test(partition_rows: list[dict]) -> dict:
+    """Phase 7B requirement: no previously-exposed image (or any duplicate-
+    group member of one) may enter the new valid or test split."""
+    bad = [r["image_id"] for r in partition_rows
+           if r.get("exposed_status") == "previously_exposed" and r["new_split"] in ("valid", "test")]
     return {"ok": not bad, "violations": bad}
 
 
@@ -381,35 +427,54 @@ def run_partition_design(
     manifest_csv: str | Path, output: str | Path, seed: int = 42,
     near_dup_threshold: int = NEAR_DUP_THRESHOLD,
     split_ratios: tuple[float, float, float] = _DEFAULT_SPLIT_RATIOS,
+    hash_field: str = "phash",
+    exposed_image_ids: set[str] = frozenset(),
 ) -> dict:
     """End-to-end, reproducible entry point (also used by `main.py
     build-partition`): load an existing manifest, compute duplicate groups,
     assess label conflicts, build a group-disjoint stratified partition, write
     every manifest, and verify the required invariants before returning.
     Raises AssertionError if any invariant fails -- this function never
-    silently writes an inconsistent partition."""
+    silently writes an inconsistent partition.
+
+    `hash_field` (Phase 7B): which near-dup hash column to use -- "phash"
+    (aHash, the pre-existing default) or "dhash" (Phase 7B's evidence-based
+    final policy). If "dhash" is requested and the manifest does not already
+    carry a "dhash" column, it is computed here (one read per image, no
+    write to the original files) and reused for the rest of this run.
+    `exposed_image_ids` (Phase 7B): image IDs already disclosed as non-blind
+    (see PHASE6_RESULTS.md Section 2) -- their duplicate groups, if clean,
+    are force-assigned to train and excluded from valid/test.
+    """
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     with open(manifest_csv, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    g = compute_duplicate_groups(rows, near_dup_threshold=near_dup_threshold)
+    if hash_field == "dhash" and not (rows and rows[0].get("dhash")):
+        compute_dhash_column(rows)
+
+    g = compute_duplicate_groups(rows, near_dup_threshold=near_dup_threshold, hash_field=hash_field)
     conflicts = assess_group_label_conflicts(rows, g["group_of"])
     conflict_group_ids = set(conflicts["conflict_group_ids"])
+    exposed_group_ids = identify_exposed_groups(g["group_of"], set(exposed_image_ids))
     effective = compute_effective_counts(rows, g["group_of"], conflict_group_ids)
     part = build_group_disjoint_partition(
-        rows, g["group_of"], conflict_group_ids, seed=seed, split_ratios=split_ratios)
+        rows, g["group_of"], conflict_group_ids, seed=seed, split_ratios=split_ratios,
+        exposed_group_ids=exposed_group_ids)
     manifest_rows = build_partition_manifest_rows(
-        rows, g["group_of"], part["assignment"], conflict_group_ids)
+        rows, g["group_of"], part["assignment"], conflict_group_ids, exposed_group_ids)
 
     v1 = verify_no_group_crosses_partitions(manifest_rows)
     v2 = verify_no_image_in_multiple_partitions(manifest_rows)
     v3 = verify_no_conflict_in_supervised_split(manifest_rows)
     v4 = verify_counts_match_manifest(manifest_rows)
+    v5 = verify_no_exposed_group_in_valid_or_test(manifest_rows)
     assert v1["ok"], f"group crossed partitions: {v1['violations']}"
     assert v2["ok"], f"image in multiple partitions: {v2['duplicates']}"
     assert v3["ok"], f"unresolved conflict entered a supervised split: {v3['violations']}"
     assert v4["ok"], "partition count tally inconsistency"
+    assert v5["ok"], f"exposed group entered valid/test: {v5['violations']}"
 
     by_id = {r["image_id"]: r for r in rows}
     group_class_lookup = {c["group_id"]: ";".join(c["classes"]) for c in conflicts["conflicts"]}
@@ -449,16 +514,19 @@ def run_partition_design(
     hashes["partition_manifest.csv"] = write_csv(
         output / "partition_manifest.csv", manifest_rows,
         fieldnames=["image_id", "path", "relative_path", "original_split", "class", "sha256",
-                    "phash", "group_id", "group_size", "conflict_status", "new_split",
-                    "include_in_supervised_training"])
+                    "phash", "dhash", "group_id", "group_size", "conflict_status", "exposed_status",
+                    "new_split", "include_in_supervised_training"])
     hashes["effective_counts.json"] = write_json(output / "effective_counts.json", effective)
     hashes["partition_config.json"] = write_json(output / "partition_config.json", {
         "seed": part["seed"], "split_ratios": part["split_ratios"], "algorithm": part["algorithm"],
-        "near_dup_threshold": g["near_dup_threshold"], "source_manifest": str(manifest_csv),
+        "near_dup_threshold": g["near_dup_threshold"], "hash_field": hash_field,
+        "source_manifest": str(manifest_csv), "n_exposed_image_ids": len(exposed_image_ids),
+        "n_exposed_groups": len(exposed_group_ids),
     })
     verification_report = {
         "no_group_crosses_partitions": v1, "no_image_in_multiple_partitions": v2,
         "no_conflict_in_supervised_split": v3, "counts_match_manifest": v4,
+        "no_exposed_group_in_valid_or_test": v5,
         "split_totals": dict(Counter(r["new_split"] for r in manifest_rows)),
         "split_class_totals": {f"{s}/{c}": n for (s, c), n in
                                 Counter((r["new_split"], r["class"]) for r in manifest_rows).items()},
@@ -471,6 +539,7 @@ def run_partition_design(
         "n_images": g["n_images"], "n_groups": g["n_groups"],
         "n_conflict_groups": conflicts["n_conflict_groups"],
         "n_conflict_images": conflicts["n_conflict_images"],
+        "n_exposed_groups": len(exposed_group_ids),
         "split_totals": verification_report["split_totals"],
         "verification": verification_report,
         "artifact_hashes": hashes,

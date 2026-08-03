@@ -31,6 +31,34 @@ def _average_hash(path: Path) -> str | None:
         return None
 
 
+# Phase 7B: a difference-hash (dHash) alternative, evaluated against aHash via
+# a blinded manual pair audit (see PHASE7B_DUPLICATE_POLICY.md). dHash compares
+# adjacent-pixel gradients instead of thresholding against the image mean, and
+# showed a much cleaner separation between true and false near-duplicates on
+# this dataset (audited true-duplicate distances 0-5 vs. audited false-positive
+# distances 16+, no overlap in the sampled pairs) -- not adopted merely for
+# being more complex; it is no more complex than _average_hash, same
+# dependency-light 64-bit approach. DHASH_THRESHOLD is Phase 7B's own
+# evidence-based default, deliberately separate from the pre-existing
+# NEAR_DUP_THRESHOLD (aHash, threshold 5) so the original aHash-based
+# leakage-analysis reproduction remains exactly reproducible and unchanged.
+DHASH_THRESHOLD = 6
+
+
+def _difference_hash(path: Path, hash_size: int = _PHASH_SIZE) -> str | None:
+    """Dependency-light difference-hash (dHash) for near-duplicate detection."""
+    try:
+        import numpy as np
+        with Image.open(path) as image:
+            small = image.convert("L").resize((hash_size + 1, hash_size), Image.BILINEAR)
+            pixels = np.asarray(small, dtype=np.float64)
+        diff = pixels[:, 1:] > pixels[:, :-1]
+        bits = "".join("1" if v else "0" for v in diff.flatten())
+        return f"{int(bits, 2):016x}"
+    except Exception:
+        return None
+
+
 def _hamming(a: str, b: str) -> int:
     try:
         return bin(int(a, 16) ^ int(b, 16)).count("1")

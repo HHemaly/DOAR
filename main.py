@@ -255,7 +255,15 @@ def main() -> None:
     partition.add_argument("--output", required=True)
     partition.add_argument("--seed", type=int, default=42)
     partition.add_argument("--near-dup-threshold", type=int, default=None,
-                           help="Defaults to dataset.NEAR_DUP_THRESHOLD (5)")
+                           help="Defaults to dataset.NEAR_DUP_THRESHOLD (5) for phash, "
+                                "or dataset.DHASH_THRESHOLD (6) for dhash")
+    partition.add_argument("--hash-field", choices=("phash", "dhash"), default="phash",
+                           help="Near-dup hash to use: phash (aHash, original) or dhash "
+                                "(Phase 7B's evidence-based final policy)")
+    partition.add_argument("--exposed-image-ids", default="",
+                           help="Comma-separated image_id values already disclosed as "
+                                "non-blind (Phase 6); their duplicate groups are kept out "
+                                "of valid/test")
     args = parser.parse_args()
     supplied = {
         token[2:].replace("-", "_") for token in sys.argv[1:]
@@ -621,10 +629,15 @@ def main() -> None:
         ), indent=2))
     elif args.command == "build-partition":
         from doar.partition import run_partition_design
-        from doar.dataset import NEAR_DUP_THRESHOLD
-        threshold = args.near_dup_threshold if args.near_dup_threshold is not None else NEAR_DUP_THRESHOLD
+        from doar.dataset import NEAR_DUP_THRESHOLD, DHASH_THRESHOLD
+        if args.near_dup_threshold is not None:
+            threshold = args.near_dup_threshold
+        else:
+            threshold = DHASH_THRESHOLD if args.hash_field == "dhash" else NEAR_DUP_THRESHOLD
+        exposed_ids = {v.strip() for v in args.exposed_image_ids.split(",") if v.strip()}
         print(json.dumps(run_partition_design(
             args.manifest, args.output, seed=args.seed, near_dup_threshold=threshold,
+            hash_field=args.hash_field, exposed_image_ids=exposed_ids,
         ), indent=2, default=str))
 
 

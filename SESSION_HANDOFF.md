@@ -1,6 +1,6 @@
 # Session Handoff
 
-Updated 2026-08-03, end of the Phase 7A working session, for a fresh Claude
+Updated 2026-08-03, end of the Phase 7B working session, for a fresh Claude
 Code session (or human) to pick up with full context. Read this before
 `CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's current and
 in what order everything happened.
@@ -16,10 +16,18 @@ in what order everything happened.
 - **Phase 7: Extended Experiment Programme and Model-Family Feasibility
   Review** — proposal only, no experiment in it has been run. See
   `PHASE7_RESULTS.md` and `PHASE7_EXPERIMENT_MATRIX.csv`.
-- **Phase 7A: Leakage-Safe Dataset Readiness and Partition Design** — this
-  session. **Dataset analysis and split construction only — no model was
-  trained or evaluated.** See `PHASE7A_DATASET_READINESS.md` and
-  `PHASE7_EXPERIMENT_MATRIX_REVISION.md`.
+- **Phase 7A: Leakage-Safe Dataset Readiness and Partition Design** —
+  dataset analysis and split construction only, no model trained. See
+  `PHASE7A_DATASET_READINESS.md` and `PHASE7_EXPERIMENT_MATRIX_REVISION.md`.
+  **Its threshold-5 partition was explicitly provisional and is now
+  superseded for development use by Phase 7B (below), though its own
+  artifacts are preserved unchanged.**
+- **Phase 7B: Duplicate-Policy Validation and Final Partition Refinement**
+  — this session. **Dataset analysis and split construction only — no
+  model was trained, tuned, calibrated, or evaluated.** Validated the
+  near-duplicate detector via a blinded manual pair audit, switched from
+  aHash to dHash (threshold 6) based on that evidence, and produced a new
+  final partition. See `PHASE7B_DUPLICATE_POLICY.md`.
 - Detector implementation for currently-unavailable rules was **proposed
   only, never implemented**. It is a **future roadmap item**, not a
   numbered phase (specifically, it is **not** "Phase 3B" — that label was
@@ -51,7 +59,8 @@ been or can be pushed anywhere from this machine.
 | `84623bd` | Phase 6 | Selected-model (`efficientnet_b0`) end-to-end integration validation against the Phase 3A `mobilenet_v3_small` reference — see §4 |
 | `4aeb7db` | Phase 6 correction | Disclosed that 4 test-folder images were reused for integration smoke testing across Phase 3A and Phase 6 — test split is not completely untouched (documentation-only, no rerun) |
 | `526c146` | Phase 7 | Extended Experiment Programme and Model-Family Feasibility Review — proposal-only, no training run; see §4 |
-| *(this session, to be committed next)* | Phase 7A | Leakage-Safe Dataset Readiness and Partition Design — dataset analysis and split construction only, no model trained; see §4 |
+| `8f6d135` | Phase 7A | Leakage-Safe Dataset Readiness and Partition Design — dataset analysis and split construction only, no model trained; see §4 |
+| *(this session, to be committed next)* | Phase 7B | Duplicate-Policy Validation and Final Partition Refinement — blinded pair audit, dHash adopted over aHash, new final partition; see §4 |
 
 ---
 
@@ -147,6 +156,31 @@ been or can be pushed anywhere from this machine.
   build-partition` twice and diffing hashes, now regression-tested. Ruff
   transiently gained 2 findings (unused imports in the new module) and was
   fixed back to the established 792 baseline before finalizing.
+- **Phase 7B** (`src/doar/dataset.py` [additive: `_difference_hash`,
+  `DHASH_THRESHOLD`], `src/doar/partition.py` [extended: `hash_field`
+  parameter, `compute_dhash_column`, `identify_exposed_groups`,
+  `exposed_group_ids` support, `verify_no_exposed_group_in_valid_or_test`],
+  `tests/test_partition_phase7b.py` [new, 9 tests], `main.py`
+  [`build-partition` gains `--hash-field`/`--exposed-image-ids`]): no model
+  trained, tuned, calibrated, or evaluated. Ran a blinded manual pair audit
+  (87 pairs, metadata held separate from judgment) that found aHash
+  precision drops from 100% (Hamming 0-1) to 0% (Hamming 5, the existing
+  default's own boundary), directly inspected the Phase 7A 137-image
+  chained component (its direct edges were 3/3 real duplicates, its
+  non-adjacent members were 0/3 related — chaining, not detector failure,
+  confirmed mechanistically), and found dHash (difference hash, no more
+  complex than the existing aHash, no new dependency) separates true from
+  false near-duplicates far more cleanly on this dataset. Adopted dHash,
+  threshold 6, keeping single-linkage clustering (the audit showed the
+  threshold/method was the problem, not the linkage rule). Regenerated the
+  partition: more usable data recovered (2,564 vs. Phase 7A's 2,305 train
+  images) with fewer unnecessary exclusions (338 vs. 674 conflict images)
+  and a far cleaner duplicate structure (largest component 17 vs. 137).
+  Added previously-exposed-image group exclusion (the 4 Phase 6 smoke-test
+  images' duplicate groups are force-assigned to train, never valid/test).
+  Phase 7A's own artifacts and the original `_average_hash`/
+  `NEAR_DUP_THRESHOLD` reproduction path are unmodified and re-verified
+  unchanged.
 
 Everything else across all phases was documentation, CSV registers, and
 tests.
@@ -185,13 +219,13 @@ real metrics, real bilingual case reports.
 
 ---
 
-## 4. Exact Phase 3A through Phase 7A commands and results
+## 4. Exact Phase 3A through Phase 7B commands and results
 
 Full detail lives in `PHASE3A_RESULTS.md`, `PHASE4_RESULTS.md`,
 `PHASE5_RESULTS.md`, `PHASE6_RESULTS.md`, `PHASE7_RESULTS.md` +
-`PHASE7_EXPERIMENT_MATRIX.csv`, and `PHASE7A_DATASET_READINESS.md` +
-`PHASE7_EXPERIMENT_MATRIX_REVISION.md` — read those directly for anything
-you plan to cite. Headline:
+`PHASE7_EXPERIMENT_MATRIX.csv`, `PHASE7A_DATASET_READINESS.md` +
+`PHASE7_EXPERIMENT_MATRIX_REVISION.md`, and `PHASE7B_DUPLICATE_POLICY.md` —
+read those directly for anything you plan to cite. Headline:
 
 **Phase 3A**: `mobilenet_v3_small`, seed 42, 10 epochs, on the full uncleaned
 dataset (3,688 images, 0 unreadable). Validation macro-F1 0.704, accuracy
@@ -385,6 +419,45 @@ frozen-embedding experiments relatively strengthened for the same reason.
 **Stops after dataset-readiness verification; no Phase 7 Stage 0 experiment
 has started.**
 
+**Phase 7B: dataset analysis and split construction only, no model
+trained, tuned, calibrated, or evaluated.** Treated Phase 7A's aHash-5
+partition as explicitly provisional and validated it with a blinded manual
+pair audit: 87 anonymized side-by-side pairs (exact duplicates, near-dup
+pairs at every aHash Hamming distance 0-5, hard negatives at distance 6,
+small groups, and direct/non-adjacent samples from the 3 largest chained
+groups), judged with all split/label/category metadata held in a separate
+file never opened during judgment. **Result: aHash precision was 100%
+(Hamming 0-1, 95% Wilson CI [64.6%, 100%]) but fell to 0% at Hamming 5 —
+the existing default's own boundary (95% CI [0%, 27.8%])** — corroborated
+by a population-wide cross-label-edge ratio that climbs from 9.6% to 25.8%
+across the same range. Directly inspected the 137-image component from
+Phase 7A: its 3 sampled direct graph edges were all real duplicates; its 3
+sampled non-adjacent members were all unrelated — confirmed the mechanism
+is single-linkage chaining through a handful of recurring, low-visual-
+entropy templates (a "sad face in rain" sketch, a generic circle-face
+template, a branching "twig-person" sketch), not a wholesale detector
+failure. Compared aHash against dHash (difference hash — equally simple,
+no new dependency) on the same audit pairs: **every true-duplicate-like
+pair had dHash distance <=5; every false-positive pair had dHash distance
+>=16**, a clean separation aHash never showed. Adopted **dHash, threshold
+6** (validated at full-dataset scale: largest component only 17 images,
+vs. aHash-5's 137), keeping single-linkage clustering unchanged (the
+audit showed the threshold/method was the problem, not the linkage rule).
+Added previously-exposed-image handling: the 4 Phase 6 smoke-test images'
+duplicate groups are force-assigned to train, verified to never enter
+valid/test. Regenerated the partition: **train 2,564 images / 1,414
+independent groups, valid 282 (all singleton), test 504 (all singleton,
+newly locked, not inspected or predicted on), 338 excluded pending
+conflict review (down from Phase 7A's 674)** — more usable data recovered
+with a measurably cleaner duplicate structure, not just a different
+threshold pick. Proposed (design only, not implemented) inverse-group-size
+sample weighting as the default correction for train's remaining
+within-group duplication, plus one limited future ablation (weighted vs.
+unweighted, 3 seeds, one architecture). Phase 7A's own artifacts and the
+original aHash reproduction path are unmodified and re-verified unchanged.
+**Stops after the duplicate policy and regenerated partition are
+verified; no Phase 7 Stage 0 experiment has started.**
+
 ---
 
 ## 5. Files created or modified this session
@@ -422,24 +495,37 @@ trained** (see §2 above). Unlike `outputs/`, both new Phase 7 files are
 documents, not generated experiment artifacts. Phase 7 produced no
 `outputs/` directory at all (nothing was run).
 
-**Phase 7A** (to be committed next): `src/doar/partition.py` (new module),
+**Phase 7A** (committed `8f6d135`): `src/doar/partition.py` (new module),
 `tests/test_partition.py` (new, 20 tests), `main.py` (new `build-partition`
 command), `PHASE7A_DATASET_READINESS.md` (new),
 `PHASE7_EXPERIMENT_MATRIX_REVISION.md` (new, proposes changes only —
 `PHASE7_EXPERIMENT_MATRIX.csv` itself is untouched), `SESSION_HANDOFF.md`
-(this file, v8). Real code was added this phase (unlike Phase 7's pure
-proposal), but no model was trained or evaluated — this is dataset
-analysis and split-construction tooling.
+(v8). Real code was added this phase (unlike Phase 7's pure proposal), but
+no model was trained or evaluated — this is dataset analysis and
+split-construction tooling.
+
+**Phase 7B** (to be committed next): `src/doar/dataset.py` (additive:
+`_difference_hash`, `DHASH_THRESHOLD`), `src/doar/partition.py` (extended:
+`hash_field`, `compute_dhash_column`, `identify_exposed_groups`,
+`exposed_group_ids` support, `verify_no_exposed_group_in_valid_or_test`),
+`tests/test_partition_phase7b.py` (new, 9 tests), `main.py`
+(`build-partition` gains `--hash-field`/`--exposed-image-ids`),
+`PHASE7B_DUPLICATE_POLICY.md` (new), `SESSION_HANDOFF.md` (this file, v9).
+No model trained, tuned, calibrated, or evaluated — the blinded pair audit
+was a manual visual judgment task, not a model-training or model-evaluation
+step.
 
 **Not committed** (git-ignored, `outputs/` rule): everything under
 `outputs/phase3a/`, `outputs/phase4/`, `outputs/phase5/`, `outputs/phase6/`,
-and `outputs/phase7a/` — see each phase's `*_RESULTS.md`/
-`PHASE7A_DATASET_READINESS.md` for exact paths, sizes, and SHA-256 hashes
-of every artifact that matters. `outputs/phase4/ARTIFACT_MANIFEST.tsv`
-(25 rows), `outputs/phase5/ARTIFACT_MANIFEST.tsv` (120 rows, ≈1.22 GB),
-`outputs/phase6/ARTIFACT_MANIFEST.tsv` (202 rows, ≈8.3 MB), and
-`outputs/phase7a/ARTIFACT_HASHES.json` (12 files) cover their respective
-phases in full.
+`outputs/phase7a/`, and `outputs/phase7b/` — see each phase's
+`*_RESULTS.md`/`PHASE7A_DATASET_READINESS.md`/`PHASE7B_DUPLICATE_POLICY.md`
+for exact paths, sizes, and SHA-256 hashes of every artifact that matters.
+`outputs/phase4/ARTIFACT_MANIFEST.tsv` (25 rows),
+`outputs/phase5/ARTIFACT_MANIFEST.tsv` (120 rows, ≈1.22 GB),
+`outputs/phase6/ARTIFACT_MANIFEST.tsv` (202 rows, ≈8.3 MB),
+`outputs/phase7a/ARTIFACT_HASHES.json` (12 files), and
+`outputs/phase7b/ARTIFACT_MANIFEST.tsv` (104 files, ≈7.4 MB) cover their
+respective phases in full.
 
 ---
 
@@ -587,28 +673,46 @@ are independent and can proceed in either order or in parallel, but Phase
 7's *final* evaluation cannot happen until the audit's leakage-safe
 partition exists.
 
-**Phase 7A's dataset-readiness work is complete and pending review (added
-2026-08-03):** `PHASE7A_DATASET_READINESS.md` +
-`PHASE7_EXPERIMENT_MATRIX_REVISION.md` — see §4 above for the headline.
-This substantially advances (does not fully replace) the paused dataset
-audit above: items 1, 3, 4 (partial), and 7 now have real, verified
-answers; items 2, 5 (partial), and 6 remain open. **Three concrete open
+**Phase 7A's dataset-readiness work is complete (added 2026-08-03), and its
+threshold-5 partition has since been explicitly superseded for development
+use by Phase 7B (below)** — `PHASE7A_DATASET_READINESS.md` +
+`PHASE7_EXPERIMENT_MATRIX_REVISION.md` remain valid as the first-pass
+analysis and are not retracted; Phase 7A's own artifacts are preserved
+unchanged. This substantially advanced the paused dataset audit above:
+items 1, 3, 4 (partial), and 7 got real, verified answers; items 2, 5
+(partial), and 6 remain open.
+
+**Phase 7B's duplicate-policy validation is complete and pending review
+(added 2026-08-03):** `PHASE7B_DUPLICATE_POLICY.md` — see §4 above for the
+headline. A blinded manual pair audit found the original aHash
+near-duplicate detector's precision collapses to 0% at its own default
+threshold (5), and that switching to dHash (threshold 6, no more complex,
+no new dependency) resolves this with a far cleaner duplicate structure
+(largest chained component 17 vs. 137) while recovering more usable data
+(fewer conflict-excluded images, 338 vs. 674). **Four concrete open
 decisions now exist:**
-1. Whether to adopt the Phase 7A clean split
-   (`outputs/phase7a/partition_manifest.csv`) as the standard split for all
-   future Family A–E development work (recommended in
-   `PHASE7A_DATASET_READINESS.md` §8, not yet approved).
-2. Whether to accept the proposed revision to the Phase 7 experiment
-   matrix (ConvNeXt-Tiny downgraded to probe-first; DINOv2/OpenCLIP
-   strengthened) — `PHASE7_EXPERIMENT_MATRIX.csv` itself remains
+1. Whether to adopt the Phase 7B final split
+   (`outputs/phase7b/final_partition/partition_manifest.csv`) as the
+   standard split for all future Family A–E development work — this
+   supersedes decision 1 from the Phase 7A entry above, which should be
+   treated as answered "use Phase 7B's split instead" rather than acted on
+   separately.
+2. Whether to accept `PHASE7_EXPERIMENT_MATRIX_REVISION.md`'s proposed
+   changes (ConvNeXt-Tiny downgraded to probe-first; DINOv2/OpenCLIP
+   strengthened), reaffirmed by Phase 7B §10 using the final partition's
+   actual numbers — `PHASE7_EXPERIMENT_MATRIX.csv` itself remains
    unmodified pending this decision.
-3. What (if anything) to do about the 674 excluded-conflict images
-   (18.3% of the dataset) — `outputs/phase7a/label_conflict_review.csv`
-   has every one flagged `exclude_pending_human_review`; no review has
-   happened yet.
+3. What (if anything) to do about the 338 excluded-conflict images (down
+   from Phase 7A's 674) — every one is still flagged
+   `exclude_pending_human_review` in `partition_manifest.csv`'s
+   `conflict_status` column; no review has happened yet.
+4. Whether to adopt Phase 7B §7's recommended default (inverse-group-size
+   sample weighting for `train`'s remaining within-group duplication) and
+   its proposed single ablation — design only, not implemented, not yet
+   approved.
 
 None of Phase 7's Stage 0 experiments have started; this is unchanged from
-before Phase 7A.
+before Phase 7A/7B.
 
 ---
 
@@ -617,64 +721,69 @@ before Phase 7A.
 Five reasonable next steps exist; pick based on current priority. Use
 whichever prompt matches:
 
-**If approving Phase 7's Stage 0 experiments (on the new Phase 7A clean split):**
+**If approving Phase 7's Stage 0 experiments (on the new Phase 7B final split):**
 ```
 Continue the DOAR project. Read SESSION_HANDOFF.md, PHASE7_RESULTS.md,
-PHASE7A_DATASET_READINESS.md, and PHASE7_EXPERIMENT_MATRIX_REVISION.md in
-full before acting, plus PHASE7_EXPERIMENT_MATRIX.csv for exact
-per-experiment specs. Treat the repository at its current HEAD as the
-source of truth.
+PHASE7A_DATASET_READINESS.md, PHASE7B_DUPLICATE_POLICY.md, and
+PHASE7_EXPERIMENT_MATRIX_REVISION.md in full before acting, plus
+PHASE7_EXPERIMENT_MATRIX.csv for exact per-experiment specs. Treat the
+repository at its current HEAD as the source of truth.
 
-I approve [the revision in PHASE7_EXPERIMENT_MATRIX_REVISION.md / specific
-parts of it -- state which] and Stage 0 [specify which rows, e.g. "C1, C2,
-C3, C5, A1" or "all of Stage 0 as revised"] per PHASE7_RESULTS.md Section
-5.1's execution order. Use the Phase 7A clean split
-(outputs/phase7a/partition_manifest.csv, new_split column) for all new
-training/evaluation, not the original contaminated split -- exclude any row
-with new_split == "excluded_conflict". Implement any required new component
-listed in PHASE7_RESULTS.md Section 1.8 for those rows only (e.g. the
-DenseNet121 registry.py entry for A1) with a matching regression test,
-following this project's existing read-verify-backup-write and
-safe-training conventions. Do not run any Stage 1/2/3 row without separate
-approval. Do not access the new_split == "test" images for anything. Do not
-clean or modify the dataset. Do not implement a detector or activate
-psychological concerns. Save results under a new outputs/phase8/ (or an
-appropriately named) directory without touching outputs/phase3a-7a, and
-produce an artifact manifest with SHA-256 hashes.
+I approve [the revision in PHASE7_EXPERIMENT_MATRIX_REVISION.md, reaffirmed
+by PHASE7B_DUPLICATE_POLICY.md Section 10 / specific parts of it -- state
+which] and Stage 0 [specify which rows, e.g. "C1, C2, C3, C5, A1" or "all
+of Stage 0 as revised"] per PHASE7_RESULTS.md Section 5.1's execution
+order. Use the Phase 7B final split
+(outputs/phase7b/final_partition/partition_manifest.csv, new_split column)
+for all new training/evaluation -- this supersedes Phase 7A's own split,
+which was explicitly provisional. Exclude any row with new_split ==
+"excluded_conflict". Implement any required new component listed in
+PHASE7_RESULTS.md Section 1.8 for those rows only (e.g. the DenseNet121
+registry.py entry for A1) with a matching regression test, following this
+project's existing read-verify-backup-write and safe-training conventions.
+Do not run any Stage 1/2/3 row without separate approval. Do not access the
+new_split == "test" images for anything. Do not clean or modify the
+dataset. Do not implement a detector or activate psychological concerns.
+Consider (but do not implement without separate confirmation)
+PHASE7B_DUPLICATE_POLICY.md Section 7's inverse-group-size sample
+weighting recommendation for train. Save results under a new
+outputs/phase8/ (or an appropriately named) directory without touching
+outputs/phase3a-7b, and produce an artifact manifest with SHA-256 hashes.
 ```
 
-**If resolving the 674 excluded-conflict images (Phase 7A's label-conflict review):**
+**If resolving the 338 excluded-conflict images (Phase 7B's label-conflict review):**
 ```
 Continue the DOAR project. Read SESSION_HANDOFF.md and
-PHASE7A_DATASET_READINESS.md in full before acting, plus
-outputs/phase7a/label_conflict_review.csv (674 rows, one per conflicting
-image, every one currently flagged exclude_pending_human_review). Do not
+PHASE7B_DUPLICATE_POLICY.md in full before acting, plus
+outputs/phase7b/final_partition/partition_manifest.csv (filter
+conflict_status == "unresolved_label_conflict", 338 images across 103
+groups, every one currently excluded from train/valid/test). Do not
 resolve any conflict automatically or by heuristic -- this requires actual
 human review of specific images/groups. Help review a batch [specify size]
-if asked to summarize/organize the review manifest, but do not change any
-label, do not move any image, and do not modify
-outputs/phase7a/partition_manifest.csv without an explicit, documented
-decision for each group reviewed. Preserve full audit trail of any
-resolution.
+if asked to summarize/organize the conflicts, but do not change any label,
+do not move any image, and do not modify
+outputs/phase7b/final_partition/partition_manifest.csv without an explicit,
+documented decision for each group reviewed. Preserve full audit trail of
+any resolution.
 ```
 
 **If resuming the remaining paused dataset/label-quality audit items:**
 ```
-Continue the DOAR project. Read SESSION_HANDOFF.md and
-PHASE7A_DATASET_READINESS.md in full before acting. Phase 7A substantially
-advanced the paused dataset audit in Section 8 (items 1, 3, 4 partial, and
-7 now have verified answers -- see PHASE7A_DATASET_READINESS.md). What
-remains open: item 2 (confirmation that no original image/label was ever
-deleted/moved/renamed/overwritten/auto-relabeled -- Phase 7A confirmed the
-dataset is unchanged THIS session via hash spot-checks, but the full
+Continue the DOAR project. Read SESSION_HANDOFF.md, PHASE7A_DATASET_READINESS.md,
+and PHASE7B_DUPLICATE_POLICY.md in full before acting. Phase 7A/7B
+substantially advanced the paused dataset audit in Section 8 (items 1, 3,
+4 partial, and 7 now have verified answers). What remains open: item 2
+(confirmation that no original image/label was ever
+deleted/moved/renamed/overwritten/auto-relabeled -- Phase 7A/7B confirmed
+the dataset is unchanged THIS session via hash spot-checks, but the full
 historical confirmation since the dataset's original ingestion is still
-open), item 5 (some integrity tests exist via tests/test_partition.py, but
-group-leakage/reproducibility tests for the ORIGINAL contaminated split
-specifically were not added), and item 6 (a proposed next baseline
-experiment beyond what Phase 7/7A already proposed). Do not clean the
-dataset or exclude anything further without separate approval. Do not
-repeat Phase 3A through Phase 7A's completed work. Stop for approval before
-running any training.
+open), item 5 (integrity tests exist via tests/test_partition.py and
+tests/test_partition_phase7b.py, but group-leakage/reproducibility tests
+for the ORIGINAL contaminated split specifically were not added), and item
+6 (a proposed next baseline experiment beyond what Phase 7/7A/7B already
+proposed). Do not clean the dataset or exclude anything further without
+separate approval. Do not repeat Phase 3A through Phase 7B's completed
+work. Stop for approval before running any training.
 ```
 
 **If the user wants to formally decide between efficientnet_b0 and resnet18
@@ -692,7 +801,7 @@ instead ask the user whether they want (a) more seeds under the current
 preliminary protocol, (b) a formal statistical comparison run on the
 existing 3-seed data, (c) to pick a model on secondary criteria alone
 (calibration, runtime, size) without resolving the macro-F1 question, or
-(d) to defer the decision until the Phase 7A clean split (or a resolved
+(d) to defer the decision until the Phase 7B final split (or a resolved
 audit) supports a more defensible comparison. Do not decide this
 unilaterally.
 ```
@@ -701,23 +810,24 @@ unilaterally.
 without further experiments:**
 ```
 Continue the DOAR project. Read SESSION_HANDOFF.md, PHASE5_RESULTS.md,
-PHASE6_RESULTS.md, PHASE7_RESULTS.md, and PHASE7A_DATASET_READINESS.md in
-full before acting. Treat the repository at its current HEAD as the source
-of truth.
+PHASE6_RESULTS.md, PHASE7_RESULTS.md, PHASE7A_DATASET_READINESS.md, and
+PHASE7B_DUPLICATE_POLICY.md in full before acting. Treat the repository at
+its current HEAD as the source of truth.
 
 Phase 6 confirmed efficientnet_b0 (checkpoint at
 outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt) runs
 correctly through the full DOAR pipeline with no integration defects, on 4
 now-disclosed, non-blind smoke-test drawings only (PHASE6_RESULTS.md
 Section 2) -- this is not a performance validation. Phase 7 proposes a much
-larger experiment programme (revised by Phase 7A) that has not been
-approved, and Phase 7A has produced a cleaner development split that has
-not yet been used for anything. Do not replace the production/default
-model without first resolving (or explicitly deciding to set aside) the
-still-inconclusive efficientnet_b0 vs. resnet18 macro-F1 comparison from
-PHASE5_RESULTS.md Section 5, and without considering whether any part of
-Phase 7/7A's programme should run first. Ask the user how they want to
-proceed before taking any action that changes the default model, runs an
-aggregate evaluation on the locked test split, cleans the dataset,
-implements a detector, or activates psychological concerns.
+larger experiment programme (revised by Phase 7A/7B) that has not been
+approved, and Phase 7B has produced a cleaner, evidence-validated
+development split that has not yet been used for anything. Do not replace
+the production/default model without first resolving (or explicitly
+deciding to set aside) the still-inconclusive efficientnet_b0 vs. resnet18
+macro-F1 comparison from PHASE5_RESULTS.md Section 5, and without
+considering whether any part of Phase 7/7A/7B's programme should run
+first. Ask the user how they want to proceed before taking any action that
+changes the default model, runs an aggregate evaluation on the locked test
+split, cleans the dataset, implements a detector, or activates
+psychological concerns.
 ```
