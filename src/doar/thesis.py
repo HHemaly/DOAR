@@ -14,6 +14,79 @@ import json
 import shutil
 from pathlib import Path
 
+# The three data-provenance labels a cross-family comparison row may carry.
+# EXPERIMENT_PROTOCOL.md Phase 8: "Never place these in the same table
+# without explicit labels" -- build_cross_family_model_comparison() below
+# REQUIRES the caller to pick exactly one per scan, never infers it, and
+# stamps every row so a reader can never lose track of which is which.
+DATA_PROVENANCE_LABELS = (
+    "preliminary_contaminated_split",  # outputs/phase5/manifest.csv-family runs; leakage-gate overridden
+    "clean_development_split",         # a gate-approved, frozen, duplicate-controlled train/valid split
+    "locked_test",                     # a --unlock-test/--confirm-final-evaluation evaluation
+    "smoke_test_not_a_result",         # synthetic/tiny pipeline-verification data; never a finding
+)
+
+# family_name -> (leaderboard filename to search for, JSON key holding the
+# list of per-configuration result rows, key names for the metric/label
+# fields within each row).
+_FAMILY_LEADERBOARDS = {
+    "A_objective_features": ("validation_leaderboard.json", "leaderboard", "model", "mean_macro_f1"),
+    "B_handcrafted_groups": ("handcrafted_group_leaderboard.json", "leaderboard", "configuration", "mean_macro_f1"),
+    "C_frozen_embeddings": ("embedding_classifier_leaderboard.json", "leaderboard", "model", "mean_macro_f1"),
+    "D_E_deep_image_models": ("deep_comparison.json", "leaderboard", "model", "mean_valid_macro_f1"),
+    "F_fusion": ("fusion_leaderboard.json", "leaderboard", "method", "mean_macro_f1"),
+}
+
+
+def build_cross_family_model_comparison(
+    output_root: str | Path, *, data_provenance: str, output_path: str | Path | None = None,
+) -> dict:
+    """Scan `output_root` (recursively) for each family's own leaderboard
+    JSON and pull out its single best (top-ranked) row into one unified,
+    explicitly-labeled comparison table. Never mixes provenance labels
+    within one call -- run this once per split/provenance and compare the
+    written tables side by side, never merge them by hand into one file."""
+    if data_provenance not in DATA_PROVENANCE_LABELS:
+        raise ValueError(f"data_provenance must be one of {DATA_PROVENANCE_LABELS}, got {data_provenance!r}")
+    root = Path(output_root)
+    rows, missing = [], []
+    for family, (filename, list_key, label_key, metric_key) in _FAMILY_LEADERBOARDS.items():
+        matches = sorted(root.rglob(filename))
+        if not matches:
+            missing.append(f"{family}: {filename} not found under {root}")
+            continue
+        try:
+            data = json.loads(matches[0].read_text(encoding="utf-8"))
+            leaderboard = data.get(list_key) or []
+            if not leaderboard:
+                missing.append(f"{family}: {matches[0]} has no {list_key!r} entries")
+                continue
+            best = leaderboard[0]  # every family's own leaderboard is already sorted best-first
+            rows.append({
+                "family": family, "best_configuration": best.get(label_key),
+                "mean_macro_f1": best.get(metric_key),
+                "std_macro_f1": best.get("std_macro_f1") or best.get("std_valid_macro_f1"),
+                "data_provenance": data_provenance,
+                "source_file": str(matches[0]),
+                "test_used": best.get("test_used", False),
+            })
+        except Exception as exc:
+            missing.append(f"{family}: failed to read {matches[0]} ({exc})")
+
+    result = {
+        "data_provenance": data_provenance,
+        "warning": (
+            "This table is NOT a clean-split scientific result." if data_provenance != "clean_development_split"
+            else "Clean-split development result -- still not the locked test set."
+        ),
+        "rows": rows, "missing_families": missing,
+    }
+    if output_path is not None:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return result
+
 
 def _mpl():
     try:
@@ -94,6 +167,30 @@ def generate_thesis_outputs(output_root) -> dict:
             plt, data["results"], "mean_macro_f1", "configuration", "std_macro_f1",
             "Feature ablation (validation)", "macro-F1")
         _emit(plt, fig, thesis, "ablation", p, data["results"], manifest)
+
+    # Experiment A: objective-feature classical-classifier comparison.
+    p, data = _load("validation_leaderboard.json")
+    if plt and data and data.get("leaderboard"):
+        fig = _bar_from_leaderboard(
+            plt, data["leaderboard"], "mean_macro_f1", "model", "std_macro_f1",
+            "Objective-feature classifier comparison (validation)", "macro-F1")
+        _emit(plt, fig, thesis, "objective_feature_classifiers", p, data["leaderboard"], manifest)
+
+    # Experiment B: HOG / colour / geometry handcrafted-feature ablation.
+    p, data = _load("handcrafted_group_leaderboard.json")
+    if plt and data and data.get("leaderboard"):
+        fig = _bar_from_leaderboard(
+            plt, data["leaderboard"], "mean_macro_f1", "configuration", "std_macro_f1",
+            "Handcrafted feature group comparison: HOG/colour/geometry (validation)", "macro-F1")
+        _emit(plt, fig, thesis, "handcrafted_group_comparison", p, data["leaderboard"], manifest)
+
+    # Experiment C: frozen-embedding classifier comparison.
+    p, data = _load("embedding_classifier_leaderboard.json")
+    if plt and data and data.get("leaderboard"):
+        fig = _bar_from_leaderboard(
+            plt, data["leaderboard"], "mean_macro_f1", "model", "std_macro_f1",
+            "Frozen-embedding classifier comparison (validation)", "macro-F1")
+        _emit(plt, fig, thesis, "embedding_classifier_comparison", p, data["leaderboard"], manifest)
 
     # Fusion comparison.
     p, data = _load("fusion_leaderboard.json")

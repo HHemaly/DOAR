@@ -13,6 +13,7 @@ after every click, so closing the tab or the terminal never loses progress.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -27,9 +28,17 @@ from doar.human_review import (  # noqa: E402
     progress_by_category, save_decision,
 )
 
-REGISTRY_PATH = ROOT / "outputs/phase7b/human_review/app_data/items_registry.json"
-DECISIONS_PATH = ROOT / "outputs/phase7b/human_review/app_data/decisions.json"
-EXPORT_DIR = ROOT / "outputs/phase7b/human_review/exports"
+# Overridable via environment variable ONLY for isolated testing (see
+# tests/test_phase7b_review_app_smoke.py) -- unset in normal use, so real
+# usage always resolves to the real production paths below. This exists so
+# tests can never write a synthetic/test decision into the real
+# decisions.json that real human-review progress lives in.
+REGISTRY_PATH = Path(os.environ.get(
+    "DOAR_PHASE7B_REGISTRY_PATH", str(ROOT / "outputs/phase7b/human_review/app_data/items_registry.json")))
+DECISIONS_PATH = Path(os.environ.get(
+    "DOAR_PHASE7B_DECISIONS_PATH", str(ROOT / "outputs/phase7b/human_review/app_data/decisions.json")))
+EXPORT_DIR = Path(os.environ.get(
+    "DOAR_PHASE7B_EXPORT_DIR", str(ROOT / "outputs/phase7b/human_review/exports")))
 
 CATEGORY_TITLES = {
     "ambiguous": "Ambiguous pairs (Round 1: broad aHash-oriented audit, 87 pairs)",
@@ -100,11 +109,25 @@ with st.sidebar:
         "whatever has been decided so far and can be re-run repeatedly. "
         "Does NOT select or lock a final duplicate-detection policy."
     )
+    review_complete = total_reviewed >= total_items
+    if not review_complete:
+        st.warning(
+            f"Review is INCOMPLETE: {total_items - total_reviewed} of {total_items} "
+            f"items still have no decision. You can still export now for a partial "
+            f"snapshot, but the dataset gate (dataset_gate.py) will not pass and no "
+            f"duplicate-detection policy may be approved until every item is decided."
+        )
     if st.button("Export human_pair_reviews.csv, human_group_reviews.csv, "
                   "reviewer_agreement_report.json, threshold_precision_summary.json, "
                   "unresolved_items.csv", type="primary"):
         summary = export_all(REGISTRY_PATH, DECISIONS_PATH, EXPORT_DIR)
-        st.success(f"Wrote {len(summary['files_written'])} files to {EXPORT_DIR}")
+        if review_complete:
+            st.success(f"Wrote {len(summary['files_written'])} files to {EXPORT_DIR}")
+        else:
+            st.warning(
+                f"Wrote {len(summary['files_written'])} files to {EXPORT_DIR} -- "
+                f"PARTIAL export, {total_items - total_reviewed} items still undecided."
+            )
         st.json(summary)
 
 tabs = st.tabs([CATEGORY_TITLES[c] for c in categories_order])

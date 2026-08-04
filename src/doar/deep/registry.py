@@ -8,7 +8,7 @@ _TV_BUILDER = {
     "mobilenet_v3_large": "mobilenet_v3_large",
     "resnet18": "resnet18", "resnet50": "resnet50",
     "efficientnet_b0": "efficientnet_b0", "convnext_tiny": "convnext_tiny",
-    "vit_b_16": "vit_b_16",
+    "vit_b_16": "vit_b_16", "densenet121": "densenet121",
 }
 
 
@@ -77,6 +77,9 @@ def build_model(name: str, classes: int = 4, pretrained=True):
     elif name == "convnext_tiny":
         model = models.convnext_tiny(weights=weights)
         model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, classes)
+    elif name == "densenet121":
+        model = models.densenet121(weights=weights)
+        model.classifier = nn.Linear(model.classifier.in_features, classes)
     else:
         model = models.vit_b_16(weights=weights)
         model.heads.head = nn.Linear(model.heads.head.in_features, classes)

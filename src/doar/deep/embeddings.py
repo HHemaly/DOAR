@@ -51,6 +51,10 @@ def _finetuned_extractor(checkpoint: str, device: str):
     elif model_name in ("mobilenet_v3_small", "mobilenet_v3_large", "efficientnet_b0",
                         "convnext_tiny"):
         model.classifier[-1] = nn.Identity()
+    elif model_name == "densenet121":
+        # DenseNet121's classifier is a single nn.Linear (not a Sequential
+        # like the models above), so it is replaced directly, not indexed.
+        model.classifier = nn.Identity()
     elif model_name == "vit_b_16":
         model.heads.head = nn.Identity()
     else:

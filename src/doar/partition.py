@@ -244,6 +244,172 @@ def refine_with_complete_linkage(rows: list[dict], single_linkage_result: dict, 
     }
 
 
+# Human-review decision values that mean "these two images ARE the same
+# underlying drawing" for graph-building purposes -- matches
+# human_review.py::DUPLICATE_LIKE_CHOICES exactly (imported there, not
+# redefined, so the two modules can never silently drift apart).
+def _duplicate_like_choices() -> frozenset[str]:
+    from .human_review import DUPLICATE_LIKE_CHOICES
+    return DUPLICATE_LIKE_CHOICES
+
+
+def compute_duplicate_groups_from_review(
+    rows: list[dict], review_registry: dict, review_decisions: dict,
+    *, auto_merge_dhash_threshold: int = 3, hash_field: str = "dhash",
+) -> dict:
+    """Builds duplicate groups from THREE evidence sources, in this
+    precedence order (highest wins):
+
+    1. Exact sha256 equality -- always merged, never a judgment call.
+    2. Explicit per-pair human-review decisions (Phase 7B's completed
+       225-pair review): `definite_duplicate`/`same_drawing_transformed`
+       FORCE a merge regardless of hash distance; `different_drawings`
+       FORCES the pair to NOT be merged by rule 3 below, even if their
+       hash distance would otherwise qualify; `uncertain` never forces
+       either outcome on its own.
+    3. An auto-merge default: dHash <= `auto_merge_dhash_threshold`
+       (default 3 -- chosen because the completed review's own
+       human-precision-by-distance table shows 90-100% precision at
+       distance <=3 vs. 19-33% at distance >=5, see
+       PHASE7B_DUPLICATE_POLICY.md). This default NEVER applies to a pair
+       explicitly reviewed and rejected under rule 2.
+
+    Every dataset-wide near-dup edge outside rules 1-3 (i.e. distance >
+    auto_merge_dhash_threshold and never directly reviewed) is left
+    UNMERGED -- the conservative choice given the review's own evidence
+    that precision collapses at higher distances, and consistent with
+    this project's established asymmetry (under-grouping costs
+    stratification flexibility; blanket over-inclusion at a
+    low-precision distance risks exactly the heterogeneous-chaining
+    failure mode Phase 7B's continuation found and corrected).
+
+    If the SAME underlying image pair was reviewed more than once (under
+    different item_ids, e.g. because it appeared in two sampled
+    categories) with genuinely conflicting verdicts (one says
+    duplicate-like, the other says different_drawings), this is a real
+    contradiction, not a bug -- it is resolved conservatively toward
+    MERGING (per the leakage-safety-first default above) and recorded in
+    the returned `flagged_contradictions` list. Reviews that only differ
+    in HOW duplicate (e.g. `definite_duplicate` vs.
+    `same_drawing_transformed` on the same pair) are not contradictions --
+    both mean "merge."
+
+    Returns the same shape as compute_duplicate_groups, plus
+    `human_forced_merge_edges`, `human_forced_split_edges`, and
+    `flagged_contradictions` for full audit traceability back to the
+    specific item_id(s) that produced each override.
+    """
+    duplicate_like = _duplicate_like_choices()
+    items = review_registry["items"]
+
+    # Collapse the 225 reviewed item_ids down to one verdict per underlying
+    # image pair, detecting genuine contradictions along the way.
+    pair_reviews: dict[frozenset, list[tuple[str, str]]] = defaultdict(list)
+    for item_id, item in items.items():
+        if item_id not in review_decisions:
+            continue
+        pair_key = frozenset((item["image_a"], item["image_b"]))
+        pair_reviews[pair_key].append((item_id, review_decisions[item_id]["decision"]))
+
+    forced_merge_pairs: set[frozenset] = set()
+    forced_split_pairs: set[frozenset] = set()
+    flagged_contradictions = []
+    for pair_key, votes in pair_reviews.items():
+        distinct = {v for _, v in votes}
+        if len(distinct) == 1:
+            effective = votes[0][1]
+        elif distinct <= duplicate_like:
+            effective = "definite_duplicate"  # both flavors of "merge" -- not a contradiction
+        elif "different_drawings" in distinct and (distinct & duplicate_like):
+            # Genuine contradiction: resolved conservatively toward merge.
+            effective = "definite_duplicate"
+            flagged_contradictions.append({
+                "image_a": sorted(pair_key)[0], "image_b": sorted(pair_key)[1],
+                "item_ids": [iid for iid, _ in votes], "decisions": [v for _, v in votes],
+                "resolution": "merged (conservative default; see partition.py"
+                             "::compute_duplicate_groups_from_review docstring)",
+            })
+        else:
+            effective = "uncertain"  # e.g. only ever "uncertain" votes
+        if effective in duplicate_like:
+            forced_merge_pairs.add(pair_key)
+        elif effective == "different_drawings":
+            forced_split_pairs.add(pair_key)
+
+    ids = [r["image_id"] for r in rows]
+    uf = _UnionFind(ids)
+    by_id = {r["image_id"]: r for r in rows}
+
+    by_sha = defaultdict(list)
+    for r in rows:
+        if r.get("sha256"):
+            by_sha[r["sha256"]].append(r["image_id"])
+    exact_edges = []
+    for sha, members in by_sha.items():
+        if len(members) < 2:
+            continue
+        members_sorted = sorted(members)
+        for other in members_sorted[1:]:
+            uf.union(members_sorted[0], other)
+            exact_edges.append({"a": members_sorted[0], "b": other, "sha256": sha})
+    exact_pairs = {frozenset((e["a"], e["b"])) for e in exact_edges}
+
+    hashed = [r for r in rows if r.get(hash_field) and r[hash_field] not in _DEGENERATE_PHASH]
+    hashed.sort(key=lambda r: r["image_id"])
+    near_edges = []
+    for i in range(len(hashed)):
+        for j in range(i + 1, len(hashed)):
+            a, b = hashed[i], hashed[j]
+            pair_key = frozenset((a["image_id"], b["image_id"]))
+            if pair_key in exact_pairs or pair_key in forced_split_pairs:
+                continue  # already merged via exact match, or explicitly rejected by review
+            dist = _hamming(a[hash_field], b[hash_field])
+            if dist <= auto_merge_dhash_threshold:
+                uf.union(a["image_id"], b["image_id"])
+                near_edges.append({"a": a["image_id"], "b": b["image_id"], "hamming": dist,
+                                   "source": "auto_threshold"})
+
+    human_forced_merge_edges = []
+    for pair_key in forced_merge_pairs:
+        a, b = sorted(pair_key)
+        if a not in by_id or b not in by_id:
+            continue  # defensive: review item referenced an image_id outside this manifest
+        uf.union(a, b)
+        dist = (_hamming(by_id[a][hash_field], by_id[b][hash_field])
+               if by_id[a].get(hash_field) and by_id[b].get(hash_field) else None)
+        human_forced_merge_edges.append({"a": a, "b": b, "hamming": dist, "source": "human_review"})
+
+    human_forced_split_edges = [
+        {"a": sorted(p)[0], "b": sorted(p)[1], "source": "human_review"} for p in forced_split_pairs
+    ]
+
+    members_by_root = defaultdict(list)
+    for i in ids:
+        members_by_root[uf.find(i)].append(i)
+    ordered = sorted(members_by_root.values(), key=lambda members: sorted(members)[0])
+    group_of: dict[str, str] = {}
+    groups = []
+    for idx, members in enumerate(ordered):
+        gid = f"grp_{idx:05d}"
+        for m in members:
+            group_of[m] = gid
+        groups.append({"group_id": gid, "size": len(members), "image_ids": sorted(members)})
+
+    return {
+        "group_of": group_of, "groups": groups,
+        "exact_edges": exact_edges, "near_edges": near_edges,
+        "human_forced_merge_edges": human_forced_merge_edges,
+        "human_forced_split_edges": human_forced_split_edges,
+        "flagged_contradictions": flagged_contradictions,
+        "near_dup_threshold": auto_merge_dhash_threshold, "hash_field": hash_field,
+        "n_images": len(ids), "n_groups": len(groups),
+        "n_exact_edges": len(exact_edges), "n_near_edges": len(near_edges),
+        "n_human_forced_merge_edges": len(human_forced_merge_edges),
+        "n_human_forced_split_edges": len(human_forced_split_edges),
+        "n_reviewed_pairs": len(pair_reviews), "n_flagged_contradictions": len(flagged_contradictions),
+    }
+
+
 def assess_group_label_conflicts(rows: list[dict], group_of: dict[str, str]) -> dict:
     """A group is an 'unresolved label conflict' if its members carry more
     than one distinct class label. This is a strictly broader check than

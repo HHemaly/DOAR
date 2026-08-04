@@ -72,6 +72,33 @@ def main() -> None:
     compare.add_argument("--output", required=True)
     compare.add_argument("--models", default="")
     compare.add_argument("--seeds", default="42,123,2026")
+    extract_hog = commands.add_parser("extract-hog-features")
+    extract_hog.add_argument("--manifest", required=True)
+    extract_hog.add_argument("--output", required=True)
+    handcrafted = commands.add_parser("train-handcrafted-groups")
+    handcrafted.add_argument("--objective-features", required=True)
+    handcrafted.add_argument("--hog-features", required=True)
+    handcrafted.add_argument("--output", required=True)
+    handcrafted.add_argument("--models", default="")
+    handcrafted.add_argument("--seeds", default="42,123,2026")
+    embed_clf = commands.add_parser("train-embedding-classifier")
+    embed_clf.add_argument("--embeddings", required=True)
+    embed_clf.add_argument("--output", required=True)
+    embed_clf.add_argument("--models", default="")
+    embed_clf.add_argument("--seeds", default="42,123,2026")
+    stage0 = commands.add_parser("run-stage0")
+    stage0.add_argument("--manifest", required=True)
+    stage0.add_argument("--output", required=True)
+    stage0.add_argument("--smoke", action="store_true",
+                        help="Run a fast, synthetic/tiny-data pipeline check only -- "
+                             "never a scientific result, always permitted regardless of the gate.")
+    stage0.add_argument("--no-resume", action="store_true",
+                        help="Re-run every stage even if already marked complete.")
+    stage0.add_argument("--only", default="",
+                        help="Comma-separated stage IDs to run (default: all 6).")
+    stage0.add_argument("--dinov2-backbone", default="dinov2_vits14")
+    stage0.add_argument("--gate-check-only", action="store_true",
+                        help="Print the clean-split gate report and exit without running anything.")
     qa = commands.add_parser("qa")
     qa.add_argument("--analysis", required=True)
     qa.add_argument("--question", required=True)
@@ -241,6 +268,7 @@ def main() -> None:
         "--methods", default="early_scaled_concat,pca_early_fusion,mlp_early_fusion"
     )
     fusion.add_argument("--seeds", default="42,123,2026")
+    _add_leakage_args(fusion)
     validate = commands.add_parser("validate-dataset")
     validate.add_argument("--dataset", required=True)
     validate.add_argument("--output", required=True)
@@ -267,6 +295,14 @@ def main() -> None:
                            help="Comma-separated image_id values already disclosed as "
                                 "non-blind (Phase 6); their duplicate groups are kept out "
                                 "of valid/test")
+    evidence_pipeline = commands.add_parser("evidence-pipeline",
+        help="Run the Phase 1 canonical-evidence + rule-engine-v2 + traceable-English-report "
+             "path on one real image (see evidence_pipeline.py). Writes evidence_v2.json, "
+             "rule_evaluations_v2.json, report_en.md, pipeline_timing.json into --output, "
+             "alongside the normal analyze-image outputs.")
+    evidence_pipeline.add_argument("--image", required=True)
+    evidence_pipeline.add_argument("--output", required=True)
+    evidence_pipeline.add_argument("--emotion-checkpoint")
     args = parser.parse_args()
     supplied = {
         token[2:].replace("-", "_") for token in sys.argv[1:]
@@ -325,6 +361,36 @@ def main() -> None:
         print(json.dumps(run_feature_experiment(
             args.features, args.output, models=models, seeds=seeds
         ), indent=2))
+    elif args.command == "extract-hog-features":
+        from doar.hog_features import extract_hog_features
+        print(json.dumps(extract_hog_features(args.manifest, args.output), indent=2))
+    elif args.command == "train-handcrafted-groups":
+        from doar.handcrafted_comparison import run_handcrafted_group_comparison
+        models = [value.strip() for value in args.models.split(",") if value.strip()] or None
+        seeds = tuple(int(value) for value in args.seeds.split(","))
+        print(json.dumps(run_handcrafted_group_comparison(
+            args.objective_features, args.hog_features, args.output, models=models, seeds=seeds
+        ), indent=2))
+    elif args.command == "train-embedding-classifier":
+        from doar.deep.embedding_classifier import run_embedding_classifier_experiment
+        models = [value.strip() for value in args.models.split(",") if value.strip()] or None
+        seeds = tuple(int(value) for value in args.seeds.split(","))
+        print(json.dumps(run_embedding_classifier_experiment(
+            args.embeddings, args.output, models=models, seeds=seeds
+        ), indent=2))
+    elif args.command == "run-stage0":
+        from doar.dataset_gate import check_clean_split_gate
+        if args.gate_check_only:
+            print(json.dumps(check_clean_split_gate("."), indent=2))
+        else:
+            from doar.stage0_runner import build_real_stage0_plan, run_stage0
+            plan = build_real_stage0_plan(args.manifest, args.output, dinov2_backbone=args.dinov2_backbone)
+            only = {v.strip() for v in args.only.split(",") if v.strip()} or None
+            if only:
+                plan = [s for s in plan if s.stage_id in only]
+            print(json.dumps(run_stage0(
+                plan, args.output, smoke=args.smoke, resume=not args.no_resume, repo_root="."
+            ), indent=2, default=str))
     elif args.command == "qa":
         analysis = json.loads(Path(args.analysis).read_text(encoding="utf-8"))
         judges_path = Path(args.analysis).with_name("judges.json")
@@ -621,6 +687,8 @@ def main() -> None:
             [str(item).strip() for item in methods if str(item).strip()],
             tuple(int(item) for item in seeds), configuration_hash=config_hash,
             calibration=values.get("calibration"),
+            allow_leakage_override=args.allow_leakage_override,
+            override_justification=args.override_justification,
         ), indent=2))
     elif args.command == "validate-dataset":
         from doar.readiness import validate_dataset
@@ -641,6 +709,11 @@ def main() -> None:
         print(json.dumps(run_partition_design(
             args.manifest, args.output, seed=args.seed, near_dup_threshold=threshold,
             hash_field=args.hash_field, exposed_image_ids=exposed_ids,
+        ), indent=2, default=str))
+    elif args.command == "evidence-pipeline":
+        from doar.evidence_pipeline import run_evidence_pipeline
+        print(json.dumps(run_evidence_pipeline(
+            args.image, args.output, emotion_checkpoint=args.emotion_checkpoint,
         ), indent=2, default=str))
 
 

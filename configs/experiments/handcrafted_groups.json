@@ -1,0 +1,19 @@
+{
+  "family": "handcrafted_groups",
+  "description": "Experiment B / RQ2: HOG vs colour vs geometry vs combined, same classifier menu as objective_features.json",
+  "groups": ["hog_only", "colour_only", "geometry_only", "hog_colour_geometry"],
+  "models": [
+    "logistic_regression",
+    "linear_svm",
+    "random_forest",
+    "hist_gradient_boosting"
+  ],
+  "seeds": [42, 123, 2026],
+  "selection_split": "valid",
+  "primary_metric": "mean_macro_f1",
+  "test_locked": true,
+  "requires": [
+    "outputs/features/v3_1/features.csv (extract-features)",
+    "outputs/hog_features/v1/hog_features.csv (extract-hog-features)"
+  ]
+}

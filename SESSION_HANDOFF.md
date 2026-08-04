@@ -1,9 +1,13 @@
 # Session Handoff
 
-Updated 2026-08-03, end of a Phase 7B continuation session, for a fresh
-Claude Code session (or human) to pick up with full context. Read this
-before `CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's
-current and in what order everything happened.
+Updated 2026-08-04, end of a session that ran a Phase 7B continuation, a
+Capability Audit & Dual-View Prototype task (§9), and a Model Experiment
+Infrastructure preparation task (§10) — the last of which found the
+dataset gate still closed and built/smoke-tested 6 experiment families in
+preparation mode only, training nothing for real. For a fresh Claude Code
+session (or human) to pick up with full context. Read this before
+`CURRENT_STATE_AUDIT.md` or any other doc — it tells you what's current
+and in what order everything happened.
 
 **Canonical phase terminology (preserve exactly, do not rename):**
 - **Phase 1: Pipeline and Data-Safety Corrections**
@@ -66,7 +70,9 @@ been or can be pushed anywhere from this machine.
 | `ef86d40` | Phase 7B | Duplicate-Policy Validation and Final Partition Refinement — blinded pair audit, dHash adopted over aHash, new (now-provisional) partition; see §4 |
 | `5d4c56f` | Phase 7B (continuation) | Correction: dHash threshold 6 found insufficiently evidenced; complete-linkage comparison; human-review package produced; no partition locked; see §4 |
 | `fac795e` | Phase 7B (second continuation) | Interactive blind human-review application (225 pairs, 4 nav sections), export logic, provisional conservative-policy comparison; no partition locked; see §4 |
-| *(this session, to be committed next)* | Phase 7B (documentation touch-up) | Self-reference fix in this commit table only (commit hash `fac795e` was not yet known when the second continuation's own files were committed) |
+| `2ae5796` | Phase 7B (documentation touch-up) | Self-reference fix in this commit table only (commit hash `fac795e` was not yet known when the second continuation's own files were committed) |
+| *(uncommitted, working tree)* | Capability Audit & Dual-View Prototype (not a numbered Phase) | Evidence-based audit of every claimed capability, one real traced inference, a target dual-view architecture design, a grounded-chat safety design, and a working local prototype using only real pipeline outputs; no model trained, no test-split access, no partition touched; see §9 |
+| *(uncommitted, working tree)* | Model Experiment Infrastructure preparation (not a numbered Phase) | Re-confirmed the dataset gate is closed; implemented and smoke-tested 6 new Stage 0 experiment pipelines (objective-feature classical baseline was already complete; HOG/colour/geometry, DINOv2 classifier, DenseNet121, ConvNeXt-Tiny probe config, fusion configs are new); a code-enforced gate check that blocks full training; a resumable Stage 0 orchestrator; no model trained on real data, no test-split access, no partition touched; see §10 |
 
 ---
 
@@ -232,6 +238,59 @@ been or can be pushed anywhere from this machine.
   `PHASE7B_DUPLICATE_POLICY.md` §25 — explicitly a comparison, not a
   selection. Rebuilt `outputs/phase7b/ARTIFACT_MANIFEST.tsv` (255 files,
   ≈15.1 MB). `outputs/phase7b/final_partition/` remains untouched.
+- **Capability Audit & Dual-View Prototype** (not a numbered Phase --
+  `src/doar/profile.py`, `src/doar/chat.py`, `src/doar/parent_view.py`,
+  `src/doar/timed_analysis.py` [all new], `doar_prototype_app.py` [new,
+  Streamlit], `tests/test_profile.py`, `tests/test_chat.py`,
+  `tests/test_parent_view.py`, `tests/test_timed_analysis.py`,
+  `tests/test_prototype_separation.py`, `tests/test_prototype_app_smoke.py`
+  [all new, 61 tests]): no model trained, no dataset/partition/leakage file
+  touched, no test-split access. Full write-up in §9 below. Summary: an
+  evidence-based audit found the interface the user had opened
+  (`phase7b_review_app.py`) is a separate, temporary duplicate-review tool
+  with zero code path to the real analysis pipeline (`CURRENT_CAPABILITY_AUDIT.md`
+  §0); traced one real image through the real `analyze-image` pipeline with
+  a real loaded checkpoint (`END_TO_END_INFERENCE_TRACE.md`); found object
+  detection is schema-only scaffolding, never implemented
+  (`detections.json` is a hardcoded stub for every case); found 6 of 19
+  psychological rules are executable, 13 are permanently
+  `missing_detector`; found the parent-facing HTML report variant
+  currently omits the rule table entirely (`reports.py:90`); found no
+  LLM/chat integration exists anywhere in the repository, but a real,
+  working, deterministic, evidence-grounded Q&A module (`qa.py`) already
+  does; designed a target dual-view architecture and a provider-neutral,
+  no-API-key-required grounded-chat safety pipeline; and built a working
+  local prototype (`doar_prototype_app.py`) implementing both views using
+  only real pipeline outputs, with every absent capability shown as an
+  explicit, honest message rather than omitted or fabricated.
+- **Model Experiment Infrastructure preparation** (not a numbered Phase —
+  `src/doar/dataset_gate.py`, `src/doar/hog_features.py`,
+  `src/doar/handcrafted_comparison.py`,
+  `src/doar/deep/embedding_classifier.py`, `src/doar/stage0_runner.py`
+  [all new]; `src/doar/deep/__init__.py`, `src/doar/deep/registry.py`,
+  `src/doar/deep/embeddings.py` [densenet121 added]; `src/doar/provenance.py`,
+  `src/doar/thesis.py` [additive extensions]; `main.py` [4 new CLI
+  commands]; 5 new config files; 8 new test files, 76 tests, 410 total in
+  the suite): no model trained on real data, no dataset/partition/leakage
+  file touched, no test-split access. Full write-up in §10 below. Summary:
+  re-confirmed from the real filesystem (not documentation) that the
+  Phase 7B dataset gate remains closed — `decisions.json` still does not
+  exist — and built a code-enforced gate (`dataset_gate.py`) that any
+  future full-training command must pass or it raises
+  `CleanSplitGateFailed`. Traced the existing training infrastructure in
+  depth and found the "objective-feature classical baseline" and
+  "image+feature fusion" experiment families were already ~fully
+  implemented (zero or near-zero new code needed); implemented the 3
+  genuinely missing pieces — real dependency-light HOG feature extraction
+  (neither this environment's opencv build nor scikit-image provides
+  HOG), a DINOv2/frozen-embedding classical-classifier comparison layer,
+  and DenseNet121 model registration — plus a resumable, dependency-aware
+  Stage 0 orchestrator. Found and fixed 2 real bugs while smoke-testing
+  the orchestrator's own wiring against the real trainer function
+  signature and the real `ImageFolder` dataset-layout requirement. Every
+  new pipeline was smoke-tested end to end (synthetic data and/or a tiny
+  non-test-split real-image subset) but nothing was trained for real,
+  per the closed gate.
 
 Everything else across all phases was documentation, CSV registers, and
 tests.
@@ -655,6 +714,51 @@ package (`outputs/phase7b/human_review/`, including the interactive
 review app's item registry and new composite images) and contact sheets
 (`outputs/phase7b/contact_sheets/`) are included in that same manifest.
 
+**Capability Audit & Dual-View Prototype** (to be committed next):
+`CURRENT_CAPABILITY_AUDIT.md`, `END_TO_END_INFERENCE_TRACE.md`,
+`RULE_AND_FEATURE_COVERAGE.md`, `TARGET_APPLICATION_ARCHITECTURE.md`,
+`LLM_GROUNDING_AND_SAFETY_DESIGN.md` (all new); `src/doar/profile.py`,
+`src/doar/chat.py`, `src/doar/parent_view.py`,
+`src/doar/timed_analysis.py`, `doar_prototype_app.py` (all new, real
+code, no stubs beyond the explicitly-documented LLM-provider/claim-pipeline
+stubs in `chat.py`); `tests/test_profile.py`, `tests/test_chat.py`,
+`tests/test_parent_view.py`, `tests/test_timed_analysis.py`,
+`tests/test_prototype_separation.py`, `tests/test_prototype_app_smoke.py`
+(all new, 61 tests, 340 total in the suite); `RUN_GUIDE_WINDOWS.md` (new
+§12); `SESSION_HANDOFF.md` (this file, v12). Full detail in §9. Not
+committed (git-ignored): `outputs/traced_inference_case001/`,
+`outputs/traced_inference_case001_nocheckpoint/`,
+`outputs/traced_inference_case001_suppressed/`,
+`outputs/_synthetic_blank_lowres_demo.png`, and
+`outputs/prototype_cases/` — the real, executed evidence backing
+`END_TO_END_INFERENCE_TRACE.md` and the prototype's own manual/AppTest
+verification.
+
+**Model Experiment Infrastructure preparation** (to be committed next):
+`MODEL_EXPERIMENT_AUDIT.md`, `EXPERIMENT_MATRIX.md`, `EXPERIMENT_PROTOCOL.md`,
+`MODEL_RUN_GUIDE_WINDOWS.md` (all new); `src/doar/dataset_gate.py`,
+`src/doar/hog_features.py`, `src/doar/handcrafted_comparison.py`,
+`src/doar/deep/embedding_classifier.py`, `src/doar/stage0_runner.py` (all
+new, real code); `src/doar/deep/__init__.py`, `src/doar/deep/registry.py`,
+`src/doar/deep/embeddings.py` (densenet121 added, additive); `src/doar/provenance.py`
+(additive: `build_manifest_and_split_provenance`); `src/doar/thesis.py`
+(additive: 3 new figure types + `build_cross_family_model_comparison`);
+`main.py` (4 new CLI commands: `extract-hog-features`,
+`train-handcrafted-groups`, `train-embedding-classifier`, `run-stage0`);
+`configs/training/densenet121.toml`, `configs/training/convnext_tiny_probe.toml`,
+`configs/training/primary_fusion_dinov2.toml`,
+`configs/experiments/handcrafted_groups.json`,
+`configs/experiments/embedding_classifier_dinov2.json` (all new);
+`tests/test_dataset_gate.py`, `tests/test_hog_features.py`,
+`tests/test_handcrafted_comparison.py`, `tests/test_embedding_classifier.py`,
+`tests/test_stage0_runner.py`, `tests/test_densenet121.py`,
+`tests/test_thesis_cross_family.py`, `tests/test_new_experiment_cli.py`
+(all new, 76 tests, 410 total in the suite); `SESSION_HANDOFF.md` (this
+file, v13). Full detail in §10. No `outputs/` artifacts from this task are
+real results — every pipeline was smoke-tested only (synthetic data
+and/or a tiny non-test-split real-image subset built in temporary
+directories, none persisted under `outputs/`).
+
 ---
 
 ## 6. Operational, disabled, and unvalidated components
@@ -867,7 +971,242 @@ before Phase 7A/7B.
 
 ---
 
-## 9. Exact recommended prompt for the next session
+## 9. Capability Audit & Dual-View Prototype (2026-08-03, not a numbered Phase)
+
+**Trigger**: the user opened `phase7b_review_app.py` (Phase 7B's duplicate-pair
+review tool, §2 above) expecting to see the *final* DOAR application, and
+found only image-pair comparisons — no objects, features, rules,
+interpretation, profile, or recommendations. This session's task was to
+establish, from code (not documentation), exactly what does and doesn't
+exist, trace one real inference, design the target dual-view architecture,
+and build a working local prototype using only real pipeline outputs.
+
+**Root cause of the user's confusion, confirmed from code**:
+`phase7b_review_app.py` imports only `doar.human_review`; `analysis.py`,
+`case_output.py`, and `streamlit_app.py` import neither `partition` nor
+`human_review`. The two apps have zero code path between them — the
+Phase 7B tool was never designed to show anything about the main analysis
+pipeline (`CURRENT_CAPABILITY_AUDIT.md` §0).
+
+**Five new documents** (all evidence-based; every claim traces to a file,
+function, or command actually read/run):
+- `CURRENT_CAPABILITY_AUDIT.md` — capability matrix across 17 subsystems
+  (models, checkpoints, dataset/leakage, feature extraction, object
+  detection, rule engine, reporting, case persistence, the existing app,
+  the Phase 7B tool, chat/LLM, tests), each status backed by cited
+  evidence. Headline findings: **every** existing model checkpoint was
+  trained on a duplicate-contaminated, leakage-gate-overridden split (no
+  exceptions exist in this repo); object detection is schema-only
+  scaffolding, never implemented, for any image, ever; 6 of 19
+  psychological rules are executable (the rest are permanently
+  `missing_detector`); concern profiles are implemented but hardcoded
+  disabled (`CONCERNS_ENABLED = False`); no LLM/chat SDK integration
+  exists anywhere, but a real deterministic evidence-grounded Q&A module
+  (`qa.py`) already does; the parent-facing HTML report currently omits
+  the rule table entirely (`reports.py:90`); a real, previously-undisclosed
+  test-split evaluation event was found in `outputs/full_run/final_test/`
+  from a session predating the numbered Phase sequence (not re-opened or
+  re-evaluated by this audit — reported because the task asked whether the
+  test set had ever been touched).
+- `END_TO_END_INFERENCE_TRACE.md` — one real image
+  (`train/Fear/f52.jpg`, `outputs/phase5/manifest.csv` `split=train`) run
+  through the real `analyze-image` pipeline with a real loaded checkpoint
+  (`outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt`):
+  real segmentation, real 19-rule evaluation (1 triggered, 5
+  evaluated-and-not-matched, 13 structurally unevaluable), a real
+  calibrated `Fear` prediction (0.839 confidence), empty concerns (by
+  design), a hardcoded `detections.json` stub, all 6 deterministic judges
+  passing, and a working bilingual deterministic Q&A exchange. Two
+  supplementary minimal traces isolate the "no checkpoint supplied"
+  (configuration) cause from the "quality-gate suppression" cause for
+  absent output.
+- `RULE_AND_FEATURE_COVERAGE.md` — the full 19-rule table (tier, activation
+  status, confidence ceiling, claim) plus the real 59-feature inventory
+  computed live on the traced image (2 features honestly `NaN`/missing —
+  no shape detector).
+- `TARGET_APPLICATION_ARCHITECTURE.md` — the 14-module target design
+  (preprocessing, classification, detection, features, evidence, rules,
+  child profile, reports, parent view, technical view, chat, claim
+  verification, case storage, knowledge-base governance), mapping each to
+  real existing code or marking it genuinely new, with explicit
+  architecture-level invariants (never write the original dataset, never
+  touch `split=test` without both guard flags, `CONCERNS_ENABLED` stays
+  `False`, the rule registry is never auto-written).
+- `LLM_GROUNDING_AND_SAFETY_DESIGN.md` — provider-neutral `ChatProvider`
+  interface; the response pipeline (safety check incoming → evidence
+  retrieval → generate → extract/verify claims → rule-consistency and
+  contradiction checks → safety check outgoing → optional advisory LLM
+  judge → display with evidence references); explicit statement that a
+  second LLM judge alone is never sufficient; the knowledge-base
+  governance workflow (candidate → trusted-source retrieval → human
+  review → approval → versioned storage → available to chat, never
+  automatic).
+
+**Prototype** (`doar_prototype_app.py`, backed by 4 new small real modules
+— `src/doar/profile.py`, `src/doar/chat.py`, `src/doar/parent_view.py`,
+`src/doar/timed_analysis.py`): a working local Streamlit app with a Parent
+View (drawing, optional child context, plain-language observations, honest
+"detector not implemented" messaging, all 19 rules shown with their real
+status and an explanatory message per status, model output with
+calibration, a template-composed — explicitly not AI-generated — overall
+summary, limitations, safe guidance, non-diagnostic disclaimer, and a
+working deterministic grounded follow-up chat) and a Technical View (input/
+model metadata, image overlays, full probability distribution, the
+complete 59-feature table, rule coverage table, evidence IDs, missing-
+capability warnings, judges, processing time via a new non-invasive timing
+wrapper, downloadable evidence/reports, and the session's chat log with
+evidence IDs — explicitly labeled "No LLM is enabled in this prototype").
+No value anywhere in the prototype is fabricated; every absent capability
+renders an explicit, honest message (`CURRENT_CAPABILITY_AUDIT.md` and the
+design docs specify exactly which). The chat's `DeterministicChatProvider`
+requires no API key and makes no network call — confirmed by a dedicated
+regression test (`test_chat.py::NoApiKeyRequiredTests`) that the module has
+no LLM/HTTP SDK import at all. `phase7b_review_app.py` was not modified and
+is not imported by, and does not import, any of this new code
+(`test_prototype_separation.py`).
+
+**Verification**: 340/340 tests pass (61 new: profile validation/
+persistence/isolation, chat grounding/safety-escalation/no-API-key,
+plain-language rendering (bilingual, all 4 rule states distinct), timing
+instrumentation, review-app/prototype separation, no-test-split-access
+regression guards, and 3 `streamlit.testing.v1.AppTest`-based end-to-end
+smoke tests of the actual prototype UI with a real case loaded — zero
+exceptions). `compileall` exit 0. `ruff check` on every touched/new file:
+0 findings (one `numpy` unused-import caught and fixed during this
+session); repo-wide baseline unchanged at 792 pre-existing findings. One
+real, pre-existing latent bug was found and *documented, not silently
+patched*: `judges.py`'s `_ARABIC_DIAGNOSTIC` regex lacks word boundaries
+and matches "تشخيص" as a substring of the disclaimer's own phrase "غير
+تشخيصي" ("non-diagnostic") — currently harmless in production because
+`judges.py` never scans the disclaimer text itself, but flagged for a
+future, carefully-reviewed fix (Arabic word-boundary regexes are not a
+one-line change — a naive `\b` wrap was tested and found to break
+detection of "التشخيص", a common real phrasing, so it was deliberately
+**not** applied here).
+
+**Explicitly not done, per instruction**: no model was trained, no
+dataset/manifest/partition file was touched, no test-split image was
+accessed or evaluated, no real LLM was wired in or called, no automatic
+web research was performed, `phase7b_review_app.py` was not modified or
+merged into the new prototype, and nothing was committed automatically —
+this session stops after implementation and verification for the user's
+review.
+
+---
+
+## 10. Model Experiment Infrastructure preparation (2026-08-04, not a numbered Phase)
+
+**Trigger**: prepare (and, only if scientifically permitted, execute) the
+remaining controlled model experiments for the thesis — objective-feature
+classical baseline, HOG+colour+geometry baseline, DINOv2 frozen
+embeddings, DenseNet121, ConvNeXt-Tiny, and image+objective-feature
+fusion — while keeping the existing resnet18/efficientnet_b0/
+mobilenet_v3_small results available as comparison baselines.
+
+**Gate check result (re-verified live from the filesystem, not from
+documentation): CLOSED.** Same finding as §9's Phase 7B status, checked
+again independently via the new `src/doar/dataset_gate.py::check_clean_split_gate()`:
+`outputs/phase7b/human_review/app_data/decisions.json` still does not
+exist (zero human review decisions), no
+`outputs/phase7b/APPROVED_POLICY.json` exists, and
+`outputs/phase7b/final_partition/` has no `FROZEN.json` marker — it
+remains explicitly provisional. **Per the task's own instructions, this
+means: no model may be trained or evaluated on real data toward a
+reportable thesis result. All work this session is preparation-mode
+only** — pipelines implemented and smoke-tested (synthetic data and/or
+tiny non-test-split real-image subsets), nothing trained for real.
+
+**What was found already implemented** (traced from code, not assumed
+from `PHASE7_EXPERIMENT_MATRIX.csv`'s existence): the objective-feature
+classical baseline (`extract-features` → `train-feature-model`, already
+comparing all 6 requested classifier families across 3 seeds) and the
+image+feature fusion pipeline (`fusion/trainer.py::train_primary_fusion`,
+already fusing real objective features with any cached embedding
+backbone via 3 methods) were both ~fully complete already — this session
+added only a config file for each, not new logic. ConvNeXt-Tiny was
+already fully registered — only a new, explicitly single-seed,
+restricted-budget feasibility-probe config was added, per
+`PHASE7_EXPERIMENT_MATRIX_REVISION.md`'s prior downgrade from
+"Recommended" to "feasibility probe first" (27.8M params against a
+~1,273-independent-group effective training set is a worse
+params-per-group ratio than the 3 already-screened architectures).
+
+**What was genuinely new this session**: real, dependency-light HOG
+(Histogram of Oriented Gradients) feature extraction
+(`src/doar/hog_features.py`) — this environment's opencv 5.0.0 build ships
+without `HOGDescriptor` and scikit-image is not installed, so this is a
+from-scratch, tested, deterministic implementation of the standard
+Dalal-Triggs algorithm; a HOG/colour/geometry group-comparison layer
+(`src/doar/handcrafted_comparison.py`, reusing the existing classifier
+menu, not duplicating it); a DINOv2/frozen-embedding classical-classifier
+comparison layer (`src/doar/deep/embedding_classifier.py`, linear probe +
+small regularized MLP by default); DenseNet121 model registration
+(`deep/registry.py`/`deep/__init__.py`/`deep/embeddings.py`'s finetuned
+path — `train_image_model` itself needed zero changes, it was already
+generic over any registered model name); a code-enforced dataset gate
+(`src/doar/dataset_gate.py`, mirrors `test_guard.py`'s "a real function
+every caller must pass, not a documentation promise" philosophy — raises
+`CleanSplitGateFailed` if a full Stage 0 run is attempted while the gate
+is closed, smoke mode is always permitted); and a resumable,
+dependency-aware Stage 0 orchestrator (`src/doar/stage0_runner.py`) that
+sequences all 6 families (F depends on A and C), skips already-completed
+stages, and propagates dependency failures without aborting independent
+stages.
+
+**Two real bugs were found and fixed while smoke-testing this session's
+own new orchestrator code** (not pre-existing bugs in the rest of the
+repository): (1) `train_image_model`'s actual keyword arguments are
+`model_name`/`patience`/`optimizer_name`/`scheduler_name`, not
+`model`/`early_stopping_patience`/`optimizer`/`scheduler` as first
+written in the orchestrator's wiring; (2) `train_image_model` requires a
+physical torchvision `ImageFolder`-style dataset root
+(`root/train/<class>/*`, `root/valid/<class>/*`), not a flat manifest CSV
+directory — fixed by inferring the real dataset root from the manifest's
+own `path` column for full runs, and by building a dedicated tiny
+synthetic `ImageFolder` tree (matching
+`tests/test_trainer_regression.py`'s own fixture pattern) for smoke runs.
+
+**A third finding, correctly NOT "fixed"**: in the orchestrator's smoke
+mode, the fusion stage (F) correctly *fails* with an artifact-provenance
+error, because the DINOv2 stage's smoke-mode synthetic embeddings
+deliberately carry no real provenance record (to avoid a live network
+call during an unattended smoke test). This is `fusion/trainer.py`'s own
+`provenance.verify_artifacts()` safety check refusing to fuse mismatched
+artifacts, exactly as designed — deliberately left as-is rather than
+fabricating matching provenance to force a green checkmark.
+
+**4 new `main.py` CLI commands** (`extract-hog-features`,
+`train-handcrafted-groups`, `train-embedding-classifier`, `run-stage0`
+with `--smoke`/`--only`/`--no-resume`/`--gate-check-only`), each exercised
+via the real command line this session (subprocess, not only direct
+Python calls), including against a real, stratified, non-test-split
+subset of `outputs/phase5/manifest.csv`.
+
+**Deliverables**: `MODEL_EXPERIMENT_AUDIT.md` (Phase 1 — infrastructure
+audit, what's already implemented vs. new, checkpoint/reproducibility
+tracing), `EXPERIMENT_MATRIX.md` (Phases 1-2 — all 6 experiments' research
+questions/hypotheses/variables, cross-referenced to
+`PHASE7_EXPERIMENT_MATRIX.csv`'s existing rows where applicable, not
+reinvented), `EXPERIMENT_PROTOCOL.md` (Phase 3 — the shared protocol,
+including the full gate report and remediation steps, required metrics,
+seed/uncertainty policy, and the preliminary/clean/locked-test/smoke
+four-way labeling discipline), `MODEL_RUN_GUIDE_WINDOWS.md` (exact
+PowerShell commands for every stage, smoke and full). **76 new tests**,
+**410 total in the suite, all passing**; `compileall` exit 0; `ruff` 0
+findings on every touched file (one unused import caught and fixed),
+repo-wide baseline unchanged at 792 pre-existing findings.
+
+**Explicitly not done, per instruction**: no model was trained or
+evaluated on real data, the final/locked test set was never accessed, the
+old contaminated split was never used as a substitute for a reportable
+result, no class or image was silently removed, predicted emotion labels
+were never used as model features, psychological rules were never used as
+ground truth, and nothing was committed automatically — this session
+stops after verification for the user's review.
+
+---
+
+## 11. Exact recommended prompt for the next session
 
 Six reasonable next steps exist; pick based on current priority. Use
 whichever prompt matches. **Note:** as of the Phase 7B continuation
@@ -875,7 +1214,22 @@ whichever prompt matches. **Note:** as of the Phase 7B continuation
 `outputs/phase7b/final_partition/` (built at dHash threshold 6) must NOT be
 treated as usable — a same-phase re-audit found it likely too permissive.
 The human-review package must be resolved and a partition regenerated
-before any option below that depends on "the split" can actually run.
+before any option below that depends on "the split" can actually run. A
+seventh option — completing the dual-view prototype's remaining gaps (a
+real object detector, wiring a real LLM behind the `ChatProvider`
+interface with the full claim-verification pipeline implemented, or fixing
+`reports.py`'s parent/rule-table asymmetry in the *shared* HTML report
+generator, not just the prototype) — is intentionally not templated here
+since it depends entirely on which gap the user wants addressed first;
+see `CURRENT_CAPABILITY_AUDIT.md` and `TARGET_APPLICATION_ARCHITECTURE.md`
+for the full list of what remains. **An eighth option — running the Stage
+0 model experiments (`EXPERIMENT_MATRIX.md`) — is blocked on the exact
+same gate** (re-verified independently this session,
+`src/doar/dataset_gate.py`); once the first prompt below completes (a
+frozen, approved partition), re-run `python main.py run-stage0 --manifest
+<frozen_manifest.csv> --output outputs\_gate_check --gate-check-only` to
+confirm the gate passes, then see `MODEL_RUN_GUIDE_WINDOWS.md` §4 for the
+exact Stage 0 command.
 
 **If completing the human review of Phase 7B's duplicate-policy package
 (the actual next step, recommended first):**

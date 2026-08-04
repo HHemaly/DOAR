@@ -87,6 +87,7 @@ def train_primary_fusion(
     features_csv: str | Path, embeddings_npz: str | Path, output: str | Path,
     methods: list[str] | None = None, seeds: tuple[int, ...] = (42, 123, 2026),
     configuration_hash: str | None = None, calibration: str | None = None,
+    allow_leakage_override: bool = False, override_justification: str | None = None,
 ) -> dict:
     d = _deps()
     embedding_metadata_path = Path(embeddings_npz).with_name("embedding_metadata.json")
@@ -95,11 +96,19 @@ def train_primary_fusion(
     embedding_metadata = json.loads(embedding_metadata_path.read_text(encoding="utf-8"))
     # B5: verify features + embeddings share a manifest, sample-IDs and acceptable
     # leakage status before training (reject mismatches, don't silently intersect).
+    # Same allow-override contract as extract-features/extract-embeddings
+    # (provenance.py::verify_artifacts) -- previously this call never threaded
+    # allow_override through, so a caller with an already-justified leakage
+    # override upstream (e.g. extract-features --allow-leakage-override) had
+    # no way to fuse those same artifacts; this was a real gap, not intended
+    # behavior, since every other stage in the pipeline exposes this flag.
     from ..provenance import verify_artifacts
     feature_meta_path = Path(features_csv).with_name("extraction_metadata.json")
     if feature_meta_path.exists():
         feature_prov = json.loads(feature_meta_path.read_text(encoding="utf-8")).get("provenance")
         verify_artifacts(feature_prov, embedding_metadata.get("provenance"),
+                         allow_override=allow_leakage_override,
+                         override_justification=override_justification,
                          audit_dir=Path(output))
     methods = methods or list(PRIMARY_METHODS)
     feature_names, joined = _load(features_csv, embeddings_npz)

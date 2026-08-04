@@ -1,0 +1,17 @@
+{
+  "family": "frozen_embedding_classifier",
+  "description": "Experiment C / RQ3: DINOv2 frozen embeddings, linear probe + small regularized MLP only (no backbone fine-tuning)",
+  "backbone": "dinov2_vits14",
+  "models": [
+    "logistic_regression",
+    "mlp_small"
+  ],
+  "seeds": [42, 123, 2026],
+  "selection_split": "valid",
+  "primary_metric": "mean_macro_f1",
+  "test_locked": true,
+  "note": "Backbone version pinned explicitly (dinov2_vits14, facebookresearch/dinov2 torch.hub) -- never silently upgraded. Requires network access to torch.hub on first extraction; see MODEL_EXPERIMENT_AUDIT.md for the offline fallback.",
+  "requires": [
+    "outputs/embeddings/dinov2_vits14/embeddings.npz (extract-embeddings --backbone dinov2_vits14)"
+  ]
+}

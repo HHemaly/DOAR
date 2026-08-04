@@ -91,6 +91,19 @@ def build_embedding_provenance(manifest_path, sample_ids, class_order,
     }
 
 
+def build_manifest_and_split_provenance(manifest_path, split_policy_version: str) -> dict:
+    """Dataset-manifest checksum + split-policy version for a training run's
+    reproducibility metadata (Phase 5 of the Stage 0 experiment programme --
+    config.py::save_run_metadata does not record either of these, and every
+    Stage 0 run needs both to prove which manifest/policy it actually used).
+    Purely additive: does not change save_run_metadata's existing schema."""
+    return {
+        "manifest_path": str(Path(manifest_path).resolve()),
+        "manifest_sha256": sha256_file(manifest_path),
+        "split_policy_version": split_policy_version,
+    }
+
+
 class ProvenanceError(RuntimeError):
     pass
 

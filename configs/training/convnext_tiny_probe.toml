@@ -1,0 +1,40 @@
+# ConvNeXt-Tiny FEASIBILITY PROBE (Experiment E) -- not the full comparison.
+#
+# PHASE7_EXPERIMENT_MATRIX_REVISION.md downgraded ConvNeXt-Tiny from
+# "Recommended" to "Optional": 27.8M params against ~1,273 independent
+# duplicate-controlled train groups is a substantially worse
+# params-per-group ratio than the 3 already-screened architectures. Run
+# this single-seed, epoch-restricted probe FIRST. Only escalate to the
+# full 3-seed protocol (convnext_tiny.toml, not yet created) if validation
+# macro-F1 meaningfully exceeds efficientnet_b0's screened result -- see
+# EXPERIMENT_MATRIX.md Experiment E / RQ5 for the exact advancement rule.
+# Do not create or run a full 3-seed config for this architecture without
+# first inspecting this probe's result.
+
+[data]
+dataset = "C:/path/to/Combined_Drawing"
+validation_split = "valid"
+
+[training]
+model = "convnext_tiny"
+pretrained_weights = "DEFAULT"
+seed = 42
+image_size = 224
+batch_size = 4
+epochs = 15
+device = "auto"
+workers = 0
+augmentation = "conservative"
+freeze_epochs = 3
+class_weighting = true
+early_stopping_patience = 5
+
+[optimization]
+optimizer = "adamw"
+head_learning_rate = 0.0003
+backbone_learning_rate = 0.0001
+scheduler = "reduce_on_plateau"
+
+[output]
+directory = "outputs/experiments/convnext_tiny_probe_seed42"
+calibration = "temperature_scaling"

@@ -51,8 +51,8 @@ open-clip · `ui`=streamlit · `ingest`=pypdf · `dev`=pytest/ruff/mypy.
 ```powershell
 python --version                                  # expect 3.11.x
 python -c "import numpy, PIL, sklearn, torch, torchvision; print('imports OK, cuda=', torch.cuda.is_available())"
-python -m compileall src main.py streamlit_app.py phase7b_review_app.py
-python -m ruff check src tests main.py streamlit_app.py phase7b_review_app.py
+python -m compileall src main.py streamlit_app.py phase7b_review_app.py doar_prototype_app.py
+python -m ruff check src tests main.py streamlit_app.py phase7b_review_app.py doar_prototype_app.py
 python -m unittest discover -s tests -p "test_*.py"      # full suite
 
 # Real GPU verification (forward+backward+step+inference; reports peak VRAM).
@@ -283,6 +283,31 @@ resume anytime. Use the sidebar's **Export** button to write
 select or lock a duplicate-detection policy or regenerate a partition —
 see `PHASE7B_DUPLICATE_POLICY.md` Sections 14-17.
 
+## 12. Launch the dual-view (Parent / Technical) prototype
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m streamlit run doar_prototype_app.py
+```
+Open the local URL Streamlit prints (normally **http://localhost:8501**).
+In the sidebar: upload a drawing, optionally fill in child context (age
+range, gender, drawing instruction, date, parent's concern — display only,
+never fed into the model or rules), pick an emotion-model checkpoint (or
+"No emotion model"), and click **Analyze**. This runs the real
+`analyze_image` pipeline (`main.py analyze-image`'s underlying function),
+not a mock. Switch between the **Parent / User View** tab (plain-language
+observations, rule statuses, model output, follow-up chat) and the
+**Technical / Research View** tab (full probability distribution, the
+complete 59-feature table, rule coverage, evidence IDs, judges, processing
+time, downloadable evidence/reports). Every checkpoint currently shipped
+was trained on a duplicate-contaminated, leakage-gate-overridden split —
+see `CURRENT_CAPABILITY_AUDIT.md` Section 3 — treat all output as
+preliminary. See `TARGET_APPLICATION_ARCHITECTURE.md` and
+`LLM_GROUNDING_AND_SAFETY_DESIGN.md` for what this prototype does and does
+not implement. This is a **separate application** from both
+`streamlit_app.py` and `phase7b_review_app.py` — it does not replace or
+import either.
+
 ---
 
 ### Known limitations (honest)
@@ -290,3 +315,10 @@ see `PHASE7B_DUPLICATE_POLICY.md` Sections 14-17.
 - GPU path is verified only if `gpu-smoke` printed `cuda_used: true` on your P3200.
 - Symbol/eye/animal detectors don't exist → those psychological rules stay
   `missing_detector`; concern profiles are disabled until a real taxonomy exists.
+- Object detection does not exist at all (schema-only scaffolding in
+  `src/doar/detectors/`) — `detections.json` is a hardcoded
+  `{"status": "unavailable"}` stub for every case, in every interface.
+- No LLM/chat provider is wired in anywhere — the prototype's follow-up
+  chat is a real, deterministic, evidence-grounded lookup
+  (`src/doar/qa.py` via `src/doar/chat.py`), not generated text. See
+  `CURRENT_CAPABILITY_AUDIT.md` and `LLM_GROUNDING_AND_SAFETY_DESIGN.md`.

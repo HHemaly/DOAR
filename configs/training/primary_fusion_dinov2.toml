@@ -1,0 +1,20 @@
+# Experiment F / D2: early fusion of frozen DINOv2 embeddings + objective
+# features. Requires outputs/features/v3_1/features.csv (extract-features)
+# and outputs/embeddings/dinov2_vits14/embeddings.npz (extract-embeddings
+# --backbone dinov2_vits14) to exist first -- see MODEL_RUN_GUIDE_WINDOWS.md.
+
+[inputs]
+features = "outputs/features/v3_1/features.csv"
+embeddings = "outputs/embeddings/dinov2_vits14/embeddings.npz"
+
+[experiment]
+methods = ["early_scaled_concat", "pca_early_fusion", "mlp_early_fusion"]
+seeds = [42, 123, 2026]
+selection_split = "valid"
+primary_metric = "macro_f1"
+psychologist_rules_used = false
+concern_profiles_used = false
+
+[output]
+directory = "outputs/experiments/primary_fusion_dinov2"
+calibration = "temperature_scaling"
