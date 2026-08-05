@@ -1,0 +1,836 @@
+{
+  "schema_version": "rules_registry_v2_draft_1",
+  "status": "draft -- NOT the production registry; rules.py/rules_registry.json are unchanged and remain authoritative",
+  "source_pdf": "التحليل النفسي للصور.pdf",
+  "note": "child_drawing_rules_compiled.pdf, named in the task that produced this file, does not exist in this repository. The one PDF actually present was used instead; see docs/RULE_PDF_COVERAGE_AUDIT.md.",
+  "rule_count": 19,
+  "references": {
+    "REF_GENERAL_LIMITS_1998": {
+      "title": "Drawing conclusions: a re-examination of empirical and conceptual bases for psychological evaluation of children from their drawings",
+      "doi": "10.1111/j.2044-8260.1998.tb01289.x",
+      "finding": "Little evidence supported reliability and validity of broad psychological assessment from children's drawings."
+    },
+    "REF_PROJECTIVE_REVIEW_2025": {
+      "title": "Projective in Time: A Systematic Review on the Use of Construction Projective Techniques in the Digital Era",
+      "doi": "10.3390/children12040406",
+      "finding": "Recent studies had medium-low overall quality and often lacked detailed psychometric evaluation; projective methods should be supplementary."
+    },
+    "REF_SIZE_2004": {
+      "title": "The effect of affective characterizations on the use of size and colour in drawings produced by children in the absence of a model",
+      "doi": "10.1080/0144341042000211670",
+      "finding": "In an instructed task, children tended to draw positively characterized topics larger; this does not validate fixed personality thresholds."
+    },
+    "REF_SIZE_DEPTH_2013": {
+      "title": "Size and emotion or depth and emotion?",
+      "doi": "10.1186/2050-7283-1-21",
+      "finding": "Size may reflect perceived proximity/depth and is sensitive to developmental and task factors."
+    },
+    "REF_PLACEMENT_1992": {
+      "title": "Children's drawings of topics differing in emotional significance: effects on placement relative to a self-drawing",
+      "doi": "10.1111/j.1469-7610.1992.tb00928.x",
+      "finding": "Relative placement effects were weak and easily masked; the study did not validate top/left/right personality meanings."
+    },
+    "REF_EYES_EXPRESSION_2007": {
+      "title": "Expression of the emotions in the drawing of a man by the child from 5 to 11 years of age",
+      "pmid": "17665754",
+      "finding": "Children can intentionally use facial graphic cues to depict emotion; this does not establish personality inference from isolated eye style."
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "PSY_AR_EYES_WIDE_001",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم العيون (Eye drawing)",
+      "faithful_source_quote": null,
+      "observable": "wide_eyes",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing wide eyes indicates an outgoing personality.",
+        "arabic": "رسم العيون الواسعة يدل على الشخصية المنفتحة."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "outgoing_personality",
+      "evidence_family": "facial_feature_style",
+      "dependency_group": [
+        "semantic.face.eyes"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.face.eyes",
+      "limitations": [
+        "Eye style may reflect emotion depiction, artistic convention, copying, age, or skill.",
+        "Clinician-only hypothesis."
+      ],
+      "alternative_explanations": [
+        "May reflect an intentionally depicted expression (e.g. drawing an angry character on purpose), not the child's own state.",
+        "May reflect copying a reference image, drawing style, motor/fine-skill limitations, or artistic convention."
+      ],
+      "parent_safe_wording": "The drawing includes wide eyes. Ask the child what the expression means to them.",
+      "professional_wording": "Wide eyes were detected, but the supplied personality interpretation is unvalidated.",
+      "reference_ids": [
+        "REF_EYES_EXPRESSION_2007",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.2,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_EYES_STERN_002",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم العيون",
+      "faithful_source_quote": null,
+      "observable": "stern_eyes",
+      "possible_interpretation": {
+        "english": "The notes propose that stern-looking eyes indicate a feeling of anger.",
+        "arabic": "رسم العيون الصارمة يدل على الشعور بالغضب."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "anger",
+      "evidence_family": "facial_feature_style",
+      "dependency_group": [
+        "semantic.face.eyes"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.face.eyes",
+      "limitations": [
+        "An depicted angry expression is not evidence that the child is angry or aggressive."
+      ],
+      "alternative_explanations": [
+        "May reflect an intentionally depicted expression (e.g. drawing an angry character on purpose), not the child's own state.",
+        "May reflect copying a reference image, drawing style, motor/fine-skill limitations, or artistic convention."
+      ],
+      "parent_safe_wording": "The eyes may have been drawn with a stern expression. Ask what the character is feeling.",
+      "professional_wording": "Stern-looking eyes may be an intentional anger cue, but context and the child's explanation are required.",
+      "reference_ids": [
+        "REF_EYES_EXPRESSION_2007",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.25,
+      "scientific_support": "indirect_expression_research_only",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_EYES_CLOSED_003",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم العيون",
+      "faithful_source_quote": null,
+      "observable": "closed_eyes",
+      "possible_interpretation": {
+        "english": "The notes propose that closed eyes mean refusing self-reflection or acknowledgement of faults.",
+        "arabic": "رسم العيون المغمضة يدل على رفض الشخص النظر إلى نفسه من الداخل ورفضه الاعتراف بعيوبه."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "self_reflection_avoidance",
+      "evidence_family": "facial_feature_style",
+      "dependency_group": [
+        "semantic.face.eyes"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.face.eyes",
+      "limitations": [
+        "Restricted from direct parent interpretation.",
+        "Many ordinary artistic explanations are possible."
+      ],
+      "alternative_explanations": [
+        "May reflect an intentionally depicted expression (e.g. drawing an angry character on purpose), not the child's own state.",
+        "May reflect copying a reference image, drawing style, motor/fine-skill limitations, or artistic convention."
+      ],
+      "parent_safe_wording": "The drawing includes closed eyes. Their meaning is unknown without asking the child.",
+      "professional_wording": "Closed eyes were detected; the categorical interpretation is unsupported.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998",
+        "REF_PROJECTIVE_REVIEW_2025"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_TIGER_WOLF_004",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات (Animal drawing)",
+      "faithful_source_quote": null,
+      "observable": "tiger_or_wolf",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing a tiger or wolf indicates anger.",
+        "arabic": "رسم النمر أو الذئب يدل على الشعور بالغضب."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "anger",
+      "evidence_family": "animal_symbolism",
+      "dependency_group": [
+        "semantic.object.animal_species"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.animal_species",
+      "limitations": [
+        "Animal choice may reflect stories, interests, assignments, or cultural symbolism."
+      ],
+      "alternative_explanations": [
+        "May reflect recent exposure to media, books, or a favourite character featuring the animal, not a psychological statement.",
+        "May reflect the drawing prompt or immediate context (e.g. 'draw an animal') rather than a stable trait."
+      ],
+      "parent_safe_wording": "An animal resembling a tiger or wolf may be present. Ask why it was chosen.",
+      "professional_wording": "A tiger or wolf was detected; no reliable source was found for inferring the child's anger.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998",
+        "REF_PROJECTIVE_REVIEW_2025"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_FOX_005",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات",
+      "faithful_source_quote": null,
+      "observable": "fox",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing a fox indicates thinking about doing something mean or malicious.",
+        "arabic": "رسم الثعلب يدل على أن الرسام كان يفكر في عمل أمر لئيم أو خبيث."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "malicious_intent",
+      "evidence_family": "animal_symbolism",
+      "dependency_group": [
+        "semantic.object.animal_species"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.animal_species",
+      "limitations": [
+        "Clinician-only; categorical intent attribution is unsafe."
+      ],
+      "alternative_explanations": [
+        "May reflect recent exposure to media, books, or a favourite character featuring the animal, not a psychological statement.",
+        "May reflect the drawing prompt or immediate context (e.g. 'draw an animal') rather than a stable trait."
+      ],
+      "parent_safe_wording": "A fox may be present. Ask the child about its role in the picture.",
+      "professional_wording": "A fox may be present; the malicious-intent interpretation is unsupported and must not be inferred.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.05,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_SQUIRREL_006",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات",
+      "faithful_source_quote": null,
+      "observable": "squirrel",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing a squirrel indicates a need for protection and attention.",
+        "arabic": "رسم السنجاب يشير إلى حاجة الرسام للحماية والاهتمام."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "need_for_protection",
+      "evidence_family": "animal_symbolism",
+      "dependency_group": [
+        "semantic.object.animal_species"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.animal_species",
+      "limitations": [
+        "Requires converging interview and contextual evidence."
+      ],
+      "alternative_explanations": [
+        "May reflect recent exposure to media, books, or a favourite character featuring the animal, not a psychological statement.",
+        "May reflect the drawing prompt or immediate context (e.g. 'draw an animal') rather than a stable trait."
+      ],
+      "parent_safe_wording": "A squirrel may be present. Ask what it needs and what is happening around it.",
+      "professional_wording": "A squirrel may be present; no validated inference about protection needs follows from it alone.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_ANIMAL_LION_007",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات",
+      "faithful_source_quote": null,
+      "observable": "lion",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing a lion indicates believing oneself superior to others.",
+        "arabic": "رسم الأسد يشير إلى اعتقاد الشخص بأنه متفوق على الآخرين."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "superiority_belief",
+      "evidence_family": "animal_symbolism",
+      "dependency_group": [
+        "semantic.object.animal_species"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.animal_species",
+      "limitations": [
+        "Restricted categorical personality claim."
+      ],
+      "alternative_explanations": [
+        "May reflect recent exposure to media, books, or a favourite character featuring the animal, not a psychological statement.",
+        "May reflect the drawing prompt or immediate context (e.g. 'draw an animal') rather than a stable trait."
+      ],
+      "parent_safe_wording": "A lion may be present. Ask what the lion represents in the story.",
+      "professional_wording": "A lion may be present; superiority cannot be inferred from this symbol.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.05,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_GEOMETRY_008",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية (Geometric shapes)",
+      "faithful_source_quote": null,
+      "observable": "repeated_geometric_shapes",
+      "possible_interpretation": {
+        "english": "The notes propose that frequently drawing geometric shapes indicates many goals and plans, stubbornness, and persistence.",
+        "arabic": "حب رسم الأشكال الهندسية يشير إلى كثرة الأهداف والخطط والعناد والإصرار."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "goal_orientation_stubbornness",
+      "evidence_family": "shape_symbolism",
+      "dependency_group": [
+        "geometry.shape_repetition"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "geometry.shape_repetition",
+      "limitations": [
+        "May reflect task demands, practice, aesthetics, or motor preference."
+      ],
+      "alternative_explanations": [
+        "May reflect current developmental drawing stage (geometric shapes are a common, age-typical drawing stage), practiced skill, or simple preference.",
+        "May reflect what the child has recently been taught or practiced drawing at school."
+      ],
+      "parent_safe_wording": "The drawing uses repeated geometric forms. Ask what the pattern means.",
+      "professional_wording": "Repeated geometry was detected; planning or personality traits cannot be inferred without other evidence.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_STARS_009",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية — النجوم (Stars)",
+      "faithful_source_quote": null,
+      "observable": "stars",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing stars indicates wanting everyone's attention.",
+        "arabic": "رسم النجوم يشير إلى أن الشخص يريد أن يكون ملفتاً لنظر الجميع."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "attention_seeking",
+      "evidence_family": "shape_symbolism",
+      "dependency_group": [
+        "semantic.object.symbol"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.symbol",
+      "limitations": [
+        "Weak symbolic hypothesis."
+      ],
+      "alternative_explanations": [
+        "May reflect current developmental drawing stage (geometric shapes are a common, age-typical drawing stage), practiced skill, or simple preference.",
+        "May reflect what the child has recently been taught or practiced drawing at school."
+      ],
+      "parent_safe_wording": "Stars are present. Ask what they mean in this drawing.",
+      "professional_wording": "Stars were detected; attention-seeking cannot be inferred from the symbol.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_FLOWERS_CLOUDS_SUN_010",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية — الزهور والسحب والشمس (Flowers/clouds/sun)",
+      "faithful_source_quote": null,
+      "observable": "flowers_clouds_sun",
+      "possible_interpretation": {
+        "english": "The notes propose that flowers, clouds, and sun may express imagined future goals and new ideas, positivity, and good mood.",
+        "arabic": "رسم الزهور والسحب والشمس قد يعبر عن تخيل أهداف وأفكار جديدة وشخصية إيجابية ومزاج جيد."
+      },
+      "observability_class": "process_required",
+      "allowed_output_level": "disabled",
+      "evidence_level": "not_assessable",
+      "target_construct": "positive_outlook",
+      "evidence_family": "object_symbolism",
+      "dependency_group": [
+        "semantic.object.symbol"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.symbol",
+      "limitations": [
+        "Common motifs may be decorative or prompted."
+      ],
+      "alternative_explanations": [
+        "May reflect a specific recent event, request, or interest (e.g. an upcoming trip, a favourite object) rather than a general personality trait.",
+        "May reflect the drawing prompt rather than a spontaneous choice."
+      ],
+      "parent_safe_wording": "The drawing includes positive-weather or nature motifs. Ask the child how the scene feels.",
+      "professional_wording": "These motifs were detected, but mood and personality require contextual confirmation.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998",
+        "REF_PROJECTIVE_REVIEW_2025"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_combined_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_CIRCLES_011",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية — الدوائر (Circles)",
+      "faithful_source_quote": null,
+      "observable": "circles",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing circles expresses loneliness and a need for someone close.",
+        "arabic": "رسم الدوائر يعبر عن الشعور بالوحدة والحاجة إلى شخص قريب يقف بجانبه."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "loneliness",
+      "evidence_family": "shape_symbolism",
+      "dependency_group": [
+        "geometry.primitive_shape"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "geometry.primitive_shape",
+      "limitations": [
+        "Do not display loneliness as a conclusion."
+      ],
+      "alternative_explanations": [
+        "May reflect current developmental drawing stage (geometric shapes are a common, age-typical drawing stage), practiced skill, or simple preference.",
+        "May reflect what the child has recently been taught or practiced drawing at school."
+      ],
+      "parent_safe_wording": "The drawing contains circles. Ask what they represent and who is present or absent.",
+      "professional_wording": "Circles were detected; loneliness cannot be inferred from circles alone.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_TRANSPORT_012",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم وسائل النقل (Transportation)",
+      "faithful_source_quote": null,
+      "observable": "vehicles",
+      "possible_interpretation": {
+        "english": "The notes associate vehicles with travel, holidays, sociability, openness, playfulness, adventure, and enjoyment of life.",
+        "arabic": "رسم وسائل النقل يشير إلى حب السفر والعطلة والاجتماعية والانفتاح والمرح والمغامرة وحب الحياة."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "sociability_adventurousness",
+      "evidence_family": "object_symbolism",
+      "dependency_group": [
+        "semantic.object.category"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.category",
+      "limitations": [
+        "Vehicle interests and drawing prompts are alternative explanations."
+      ],
+      "alternative_explanations": [
+        "May reflect a specific recent event, request, or interest (e.g. an upcoming trip, a favourite object) rather than a general personality trait.",
+        "May reflect the drawing prompt rather than a spontaneous choice."
+      ],
+      "parent_safe_wording": "A vehicle may be present. Ask where it is going and who is travelling.",
+      "professional_wording": "A vehicle was detected; personality traits cannot be inferred from it.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_HEARTS_013",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "رسم القلوب (Heart drawing)",
+      "faithful_source_quote": null,
+      "observable": "hearts",
+      "possible_interpretation": {
+        "english": "The notes associate hearts with an affectionate, loving, social, gentle, romantic personality.",
+        "arabic": "رسم القلوب يدل على شخصية عاطفية أو عاشقة واجتماعية ورومانسية لطيفة وقادرة على جذب قلوب الآخرين."
+      },
+      "observability_class": "static_detector",
+      "allowed_output_level": "disabled",
+      "evidence_level": "speculative_symbolic",
+      "target_construct": "affectionate_personality",
+      "evidence_family": "object_symbolism",
+      "dependency_group": [
+        "semantic.object.symbol"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": "semantic.object.symbol",
+      "limitations": [
+        "Cultural and decorative convention is a strong alternative explanation."
+      ],
+      "alternative_explanations": [
+        "May reflect a specific recent event, request, or interest (e.g. an upcoming trip, a favourite object) rather than a general personality trait.",
+        "May reflect the drawing prompt rather than a spontaneous choice."
+      ],
+      "parent_safe_wording": "Heart shapes are present. Ask who or what they are connected to.",
+      "professional_wording": "Hearts were detected; they may conventionally express affection, but personality cannot be concluded.",
+      "reference_ids": [
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "DETECTOR_UNAVAILABLE",
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_personality_claim",
+      "threshold_source": "not_applicable",
+      "operational_threshold": null
+    },
+    {
+      "rule_id": "PSY_AR_SIZE_HALF_014",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "حجم الرسم (Drawing size)",
+      "faithful_source_quote": "تغطي حوالي 50% من حجم الورقة",
+      "observable": "coverage_about_half",
+      "possible_interpretation": {
+        "english": "The notes propose that covering about half the page indicates being outgoing at times and introverted at others.",
+        "arabic": "إذا غطت الرسمة نحو 50% من الورقة فقد تدل على الانفتاح أحياناً والانطواء أحياناً أخرى."
+      },
+      "observability_class": "static_direct",
+      "allowed_output_level": "question_generating",
+      "evidence_level": "weak_quantitative_unvalidated",
+      "target_construct": "situational_extraversion_introversion",
+      "evidence_family": "size_composition",
+      "dependency_group": [
+        "composition.bounding_box_coverage"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": null,
+      "limitations": [
+        "Page coverage is not equivalent to emotional or personality status."
+      ],
+      "alternative_explanations": [
+        "May reflect available paper space, drawing order, or how much detail the child chose to add, not emotional significance.",
+        "May reflect perceived depth/proximity or task instructions rather than self-image (see REF_SIZE_DEPTH_2013)."
+      ],
+      "parent_safe_wording": "The drawing occupies about half the page; this is a visual measurement, not a personality conclusion.",
+      "professional_wording": "The drawing's bounding box covers about half the page. Research shows size can vary with task and emotional characterization, but this personality interpretation is not validated.",
+      "reference_ids": [
+        "REF_SIZE_2004",
+        "REF_SIZE_DEPTH_2013",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "IMPLEMENTED_UNVALIDATED",
+      "confidence_ceiling": 0.2,
+      "scientific_support": "indirect_size_research_conflicting",
+      "threshold_source": "sourced_center_invented_band",
+      "operational_threshold": "0.40 <= coverage <= 0.60"
+    },
+    {
+      "rule_id": "PSY_AR_SIZE_FULL_015",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "حجم الرسم",
+      "faithful_source_quote": "تغطي كل الورقة",
+      "observable": "coverage_full",
+      "possible_interpretation": {
+        "english": "The notes propose that filling the whole page indicates high self-respect and self-esteem.",
+        "arabic": "إذا غطت الرسمة كل الورقة فهذا يدل على احترام الشخص العالي لنفسه وتقديره لها."
+      },
+      "observability_class": "static_direct",
+      "allowed_output_level": "question_generating",
+      "evidence_level": "weak_quantitative_unvalidated",
+      "target_construct": "self_esteem",
+      "evidence_family": "size_composition",
+      "dependency_group": [
+        "composition.bounding_box_coverage"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": null,
+      "limitations": [
+        "No validated 90-100% threshold for self-esteem."
+      ],
+      "alternative_explanations": [
+        "May reflect available paper space, drawing order, or how much detail the child chose to add, not emotional significance.",
+        "May reflect perceived depth/proximity or task instructions rather than self-image (see REF_SIZE_DEPTH_2013)."
+      ],
+      "parent_safe_wording": "The drawing uses nearly the whole page. Ask how the child planned the space.",
+      "professional_wording": "The drawing spans nearly the full page. This may reflect planning, scale, task, or style; self-esteem cannot be concluded.",
+      "reference_ids": [
+        "REF_SIZE_2004",
+        "REF_SIZE_DEPTH_2013",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "IMPLEMENTED_UNVALIDATED",
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_threshold_claim",
+      "threshold_source": "invented_numeric_stand_in",
+      "operational_threshold": "coverage >= 0.90"
+    },
+    {
+      "rule_id": "PSY_AR_SIZE_SMALL_016",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "حجم الرسم",
+      "faithful_source_quote": "لا تتجاوز 20%",
+      "observable": "coverage_small",
+      "possible_interpretation": {
+        "english": "The notes propose that using no more than 20% of the page may indicate instability or fear.",
+        "arabic": "إذا لم تتجاوز الرسمة 20% من الورقة فقد يدل ذلك على عدم الاستقرار أو الخوف."
+      },
+      "observability_class": "static_direct",
+      "allowed_output_level": "question_generating",
+      "evidence_level": "weak_quantitative_unvalidated",
+      "target_construct": "instability_fear",
+      "evidence_family": "size_composition",
+      "dependency_group": [
+        "composition.bounding_box_coverage"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": null,
+      "limitations": [
+        "Age, motor skill, instructions, subject size, and available time may explain small scale."
+      ],
+      "alternative_explanations": [
+        "May reflect available paper space, drawing order, or how much detail the child chose to add, not emotional significance.",
+        "May reflect perceived depth/proximity or task instructions rather than self-image (see REF_SIZE_DEPTH_2013)."
+      ],
+      "parent_safe_wording": "The drawing uses a small part of the page. Ask whether that was intentional and what the child chose to emphasize.",
+      "professional_wording": "The drawing's bounding box covers at most one fifth of the page. Fear or instability cannot be inferred without converging evidence.",
+      "reference_ids": [
+        "REF_SIZE_2004",
+        "REF_SIZE_DEPTH_2013",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "IMPLEMENTED_UNVALIDATED",
+      "confidence_ceiling": 0.15,
+      "scientific_support": "indirect_size_research_does_not_validate_claim",
+      "threshold_source": "directly_sourced",
+      "operational_threshold": "0 < coverage <= 0.20"
+    },
+    {
+      "rule_id": "PSY_AR_PLACE_TOP_017",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "موقع الرسم (Drawing location)",
+      "faithful_source_quote": "في أعلى الصفحة",
+      "observable": "placement_top",
+      "possible_interpretation": {
+        "english": "The notes propose that drawing at the top indicates dreaminess, living in fantasy, and difficulty adapting.",
+        "arabic": "الرسم في أعلى الصفحة قد يعبر عن شخصية حالمة أو واقع خيالي وصعوبة في التكيف."
+      },
+      "observability_class": "static_direct",
+      "allowed_output_level": "question_generating",
+      "evidence_level": "weak_quantitative_unvalidated",
+      "target_construct": "dreaminess_difficulty_adapting",
+      "evidence_family": "spatial_placement",
+      "dependency_group": [
+        "composition.centroid_normalized"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": null,
+      "limitations": [
+        "Placement effects are weak, task-dependent, and not diagnostic."
+      ],
+      "alternative_explanations": [
+        "May reflect handedness, where the child started drawing, or incidental page layout rather than a stable psychological trait.",
+        "Placement effects were found weak and easily masked in the cited literature (REF_PLACEMENT_1992), not validated as fixed meanings."
+      ],
+      "parent_safe_wording": "The drawing is positioned high on the page; this is a spatial observation only.",
+      "professional_wording": "The foreground centroid is in the upper region. The supplied adaptation interpretation is not supported by the located research.",
+      "reference_ids": [
+        "REF_PLACEMENT_1992",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "IMPLEMENTED_UNVALIDATED",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "placement_effects_weak_not_specific",
+      "threshold_source": "invented_no_anchor",
+      "operational_threshold": "centroid_y < 0.4"
+    },
+    {
+      "rule_id": "PSY_AR_PLACE_LEFT_018",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "موقع الرسم",
+      "faithful_source_quote": "الجانب الأيسر",
+      "observable": "placement_left",
+      "possible_interpretation": {
+        "english": "The notes propose that left-side placement indicates an introverted personality.",
+        "arabic": "الرسم في الجانب الأيسر يدل على شخصية انطوائية."
+      },
+      "observability_class": "static_direct",
+      "allowed_output_level": "question_generating",
+      "evidence_level": "weak_quantitative_unvalidated",
+      "target_construct": "introversion",
+      "evidence_family": "spatial_placement",
+      "dependency_group": [
+        "composition.centroid_normalized"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": null,
+      "limitations": [
+        "Handedness, script direction, composition, copying, and task constraints may influence placement."
+      ],
+      "alternative_explanations": [
+        "May reflect handedness, where the child started drawing, or incidental page layout rather than a stable psychological trait.",
+        "Placement effects were found weak and easily masked in the cited literature (REF_PLACEMENT_1992), not validated as fixed meanings."
+      ],
+      "parent_safe_wording": "The drawing is positioned toward the left; this is a spatial observation only.",
+      "professional_wording": "The foreground centroid is left of centre. Introversion cannot be inferred from this placement.",
+      "reference_ids": [
+        "REF_PLACEMENT_1992",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "IMPLEMENTED_UNVALIDATED",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "invented_no_anchor",
+      "operational_threshold": "centroid_x < 0.4"
+    },
+    {
+      "rule_id": "PSY_AR_PLACE_RIGHT_019",
+      "registry_v2_status": "already_in_production_registry",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "موقع الرسم",
+      "faithful_source_quote": "الجانب الأيمن",
+      "observable": "placement_right",
+      "possible_interpretation": {
+        "english": "The notes propose that right-side placement indicates an outgoing personality.",
+        "arabic": "الرسم في الجانب الأيمن يدل على شخصية منفتحة."
+      },
+      "observability_class": "static_direct",
+      "allowed_output_level": "question_generating",
+      "evidence_level": "weak_quantitative_unvalidated",
+      "target_construct": "extraversion",
+      "evidence_family": "spatial_placement",
+      "dependency_group": [
+        "composition.centroid_normalized"
+      ],
+      "direction": "supports_target_construct",
+      "required_detector_or_metadata": null,
+      "limitations": [
+        "Handedness, script direction, composition, copying, and task constraints may influence placement."
+      ],
+      "alternative_explanations": [
+        "May reflect handedness, where the child started drawing, or incidental page layout rather than a stable psychological trait.",
+        "Placement effects were found weak and easily masked in the cited literature (REF_PLACEMENT_1992), not validated as fixed meanings."
+      ],
+      "parent_safe_wording": "The drawing is positioned toward the right; this is a spatial observation only.",
+      "professional_wording": "The foreground centroid is right of centre. Openness cannot be inferred from this placement.",
+      "reference_ids": [
+        "REF_PLACEMENT_1992",
+        "REF_GENERAL_LIMITS_1998"
+      ],
+      "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
+      "validation_status": "IMPLEMENTED_UNVALIDATED",
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
+      "threshold_source": "invented_no_anchor",
+      "operational_threshold": "centroid_x > 0.6"
+    }
+  ]
+}
