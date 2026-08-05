@@ -14,6 +14,7 @@ from doar.page_reference import (
     PARENT_PAGE_DECLARATION_CHOICES,
     InvalidPagePolygonError,
     PageReference,
+    describe_declaration_choice,
     page_relative_bounding_box_coverage,
     resolve_page_reference,
     user_page_declaration_from_choice,
@@ -222,6 +223,15 @@ class ParentPageDeclarationChoiceTests(unittest.TestCase):
 
     def test_exactly_four_choices_exist(self):
         self.assertEqual(set(PARENT_PAGE_DECLARATION_CHOICES), {"auto", "yes", "no", "unsure"})
+
+    def test_describe_declaration_choice_round_trips_all_four_choices(self):
+        for choice in PARENT_PAGE_DECLARATION_CHOICES:
+            decl = user_page_declaration_from_choice(choice)
+            ref = resolve_page_reference(_pf("full_page_detected"), user_page_declaration=decl)
+            self.assertEqual(describe_declaration_choice(ref.to_dict()), choice)
+
+    def test_describe_declaration_choice_on_unrecognized_input_is_honest(self):
+        self.assertEqual(describe_declaration_choice({}), "unknown")
 
     def test_user_declared_cropped_is_traceable_and_distinct_from_automatic(self):
         # Same page_reference_mode as an automatic cropped reading, but a

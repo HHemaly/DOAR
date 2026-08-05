@@ -356,3 +356,23 @@ def user_page_declaration_from_choice(choice: str) -> dict[str, str] | None:
         "no": {"mode": "user_declared_cropped"},
         "unsure": {"mode": "user_declared_uncertain"},
     }[choice]
+
+
+def describe_declaration_choice(page_reference: dict) -> str:
+    """Reconstructs which of the 4 parent-facing choices (`"auto"`,
+    `"yes"`, `"no"`, `"unsure"`, or `"corners"` for the API-only
+    `user_defined_page_corners` mode) produced a saved `PageReference`
+    dict -- purely from its own persisted `obtained_via`/
+    `page_reference_mode` fields, so no separate declaration file needs
+    to be written for Technical-view traceability. Returns `"unknown"`
+    only for `analysis.json` documents written before this function
+    existed (missing/unrecognized fields)."""
+    obtained_via = page_reference.get("obtained_via")
+    mode = page_reference.get("page_reference_mode")
+    if obtained_via == "classical_cv_border_uniformity_v1":
+        return "auto"
+    if obtained_via == "user_supplied_corners_v1":
+        return "corners"
+    if obtained_via == "explicit_user_assertion_v1":
+        return {"user_confirmed_full_frame": "yes", "cropped_or_content_only": "no", "uncertain": "unsure"}.get(mode, "unknown")
+    return "unknown"

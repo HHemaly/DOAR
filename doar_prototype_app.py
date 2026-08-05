@@ -2,13 +2,21 @@
 DOAR dual-view prototype -- Parent/User view + Technical/Research view.
 
 Built per CURRENT_CAPABILITY_AUDIT.md, END_TO_END_INFERENCE_TRACE.md,
-RULE_AND_FEATURE_COVERAGE.md, and TARGET_APPLICATION_ARCHITECTURE.md: every
+RULE_AND_FEATURE_COVERAGE.md, TARGET_APPLICATION_ARCHITECTURE.md, and
+docs/PARENT_VIEW_INFORMATION_POLICY.md (DOAR-TRACE Phase 2A.2): every
 value shown here comes from a real execution of the existing pipeline
 (analyze_image / features.objective_feature_row / qa.answer / chat.py).
 Nothing is fabricated to make the interface look more complete than the
 pipeline actually is -- absent capabilities (object detection, disabled
 concern profiles, unevaluable rules) are shown as explicit, honest
 messages, never silently omitted or invented.
+
+Parent View (Phase 2A.2) is deliberately restricted to 5 sections
+(Overall result / What was observed / Possible meaning / Questions and
+next steps / Limitations) with all internal IDs, raw tables, and
+technical enums moved to Technical View -- see
+docs/PARENT_VIEW_INFORMATION_POLICY.md for the full policy this file
+implements.
 
 This is SEPARATE from phase7b_review_app.py (Phase 7B's duplicate-pair
 review tool) and from streamlit_app.py (the existing raw-JSON researcher
@@ -32,8 +40,13 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from doar.chat import respond_to_chat  # noqa: E402
+from doar.page_reference import (  # noqa: E402
+    PARENT_PAGE_DECLARATION_CHOICES, PARENT_PAGE_DECLARATION_LABELS,
+    describe_declaration_choice, user_page_declaration_from_choice,
+)
 from doar.parent_view import (  # noqa: E402
-    disclaimer, plain_language_observations, plain_language_rule_rows,
+    build_overall_result_summary, capability_status, capability_status_summary_text,
+    disclaimer, friendly_family_name, friendly_source_name, plain_language_observations,
 )
 from doar.profile import ChildProfile, ALLOWED_AGE_RANGES, load_profile, save_profile  # noqa: E402
 from doar.timed_analysis import analyze_image_with_timing  # noqa: E402
@@ -58,7 +71,8 @@ st.warning(
 )
 
 # ---------------------------------------------------------------------------
-# Sidebar: upload + optional child context + checkpoint choice, or reopen.
+# Sidebar: upload + optional child context + checkpoint choice + page
+# declaration (DOAR-TRACE Phase 2A.2, Section 6), or reopen.
 # ---------------------------------------------------------------------------
 st.session_state.setdefault("case_dir", "")
 
@@ -73,6 +87,17 @@ with st.sidebar:
     checkpoint_choice = st.selectbox("Emotion model", list(KNOWN_CHECKPOINTS.keys()))
     custom_checkpoint = st.text_input("...or a custom checkpoint path (overrides the choice above)")
 
+    st.caption("Does this image show the complete sheet of paper?")
+    page_choice = st.radio(
+        "Page declaration", PARENT_PAGE_DECLARATION_CHOICES,
+        format_func=lambda c: PARENT_PAGE_DECLARATION_LABELS[c]["en"],
+        index=0, label_visibility="collapsed", key="page_declaration_choice",
+    )
+    st.caption(
+        "This is optional -- the system can also try to work this out automatically. Manually marking exact page "
+        "corners is not available in this version."
+    )
+
     if st.button("Analyze", type="primary", disabled=uploaded is None):
         case_name = f"{Path(uploaded.name).stem}_{int(time.time())}"
         case_dir = CASES_DIR / case_name
@@ -81,8 +106,9 @@ with st.sidebar:
         image_path.write_bytes(uploaded.getvalue())
 
         checkpoint = custom_checkpoint.strip() or KNOWN_CHECKPOINTS[checkpoint_choice]
+        declaration = user_page_declaration_from_choice(page_choice)
         with st.spinner("Running the real analysis pipeline..."):
-            analyze_image_with_timing(str(image_path), str(case_dir), checkpoint)
+            analyze_image_with_timing(str(image_path), str(case_dir), checkpoint, user_page_declaration=declaration)
             profile = ChildProfile(
                 age_range=age_range, gender=gender or None,
                 drawing_instruction=instruction or None,
@@ -132,6 +158,12 @@ verification_report_path = case_dir / "verification_report.json"
 verification_report_doc = (
     json.loads(verification_report_path.read_text(encoding="utf-8")) if verification_report_path.exists() else None
 )
+# DOAR-TRACE Phase 2A.1: page_reference/canonical_features are written by
+# every analyze_image run since that phase -- older cases won't have
+# them (both default to {} via schemas.py's field default), so downstream
+# code always treats a missing/empty dict the same as "not available".
+page_reference = analysis.get("page_reference") or {}
+canonical_features = analysis.get("canonical_features") or {}
 
 
 def artifact(name: str) -> str | None:
@@ -145,7 +177,8 @@ def artifact(name: str) -> str | None:
 parent_tab, technical_tab = st.tabs(["Parent / User View", "Technical / Research View"])
 
 # ===========================================================================
-# PARENT / USER VIEW
+# PARENT / USER VIEW  (DOAR-TRACE Phase 2A.2: exactly 5 sections --
+# see docs/PARENT_VIEW_INFORMATION_POLICY.md)
 # ===========================================================================
 with parent_tab:
     language = st.radio("Language / اللغة", ["en", "ar"], horizontal=True, key="parent_lang")
@@ -166,172 +199,111 @@ with parent_tab:
 
     combined_hyps = (structured or {}).get("combined_drawing_level_hypotheses", [])
     individual_suggestions = (structured or {}).get("individual_rule_suggestions", [])
+    page_assessable = bool(page_reference.get("page_relative_features_assessable"))
 
-    # 1. Drawing-level analysis summary --------------------------------------
-    st.subheader("١. ملخص التحليل على مستوى الرسمة" if ar else "1. Drawing-level analysis summary")
-    if combined_hyps:
-        st.write((f"تم رصد {len(combined_hyps)} فرضية/فرضيات مُجمَّعة من أدلة مستقلة، و{len(individual_suggestions)} "
-                  f"ملاحظة فردية إضافية." if ar else
-                  f"{len(combined_hyps)} combined pattern(s) from independent evidence were found, plus "
-                  f"{len(individual_suggestions)} additional individual observation(s)."))
-    elif individual_suggestions:
-        st.write((f"لم يتقارب دليلان مستقلان على فرضية واحدة؛ توجد {len(individual_suggestions)} ملاحظة فردية ضعيفة الدعم."
-                  if ar else
-                  f"No two independent pieces of evidence converged on one pattern; {len(individual_suggestions)} "
-                  "weak, individual observation(s) were found."))
-    else:
-        st.write("لم تُلاحَظ أي أنماط أو قواعد بصرية في هذه الرسمة." if ar else "No visual patterns or rules were observed in this drawing.")
+    # 1. Overall result -------------------------------------------------------
+    st.subheader("١. النتيجة الإجمالية" if ar else "1. Overall result")
+    for sentence in build_overall_result_summary(structured, page_reference, language):
+        st.write(sentence)
     st.caption(disclaimer(language))
 
-    # DOAR-TRACE Phase 2A, Section 3+9: page-frame assessability. Rules
-    # about page coverage or placement are silently absent (not
-    # "not_matched") from the suggestions above when the page isn't
-    # confirmed visible -- stated explicitly here so that absence reads as
-    # "we could not check this", never as "nothing was found".
-    page_frame = (structured or {}).get("page_frame_assessment") or analysis.get("page_frame") or {}
-    pf_status = page_frame.get("page_frame_status")
-    if pf_status and pf_status not in ("full_page_detected", "likely_full_page"):
-        st.warning(
-            "تعذّر التأكد من ظهور الصفحة كاملة في هذه الصورة، لذلك أُخفيت أي ملاحظات عن موضع الرسمة على الصفحة أو "
-            "نسبة تغطيتها لها -- وهي غير غائبة لأنها لم تُلاحَظ، بل لأنه لا يمكن تقييمها بثقة."
-            if ar else
-            "The full page could not be reliably confirmed as visible in this image, so any observations about the "
-            "drawing's placement on the page or how much of the page it covers are suppressed for this case -- "
-            "not because none were found, but because they cannot be assessed with confidence."
-        )
-    elif pf_status:
-        st.caption(("حالة إطار الصفحة: مؤكَّدة (" if ar else "Page-frame status: confirmed (") + pf_status + ")")
+    # 2. What was observed ------------------------------------------------------
+    st.subheader("٢. ما تمت ملاحظته" if ar else "2. What was observed")
+    for obs in plain_language_observations(analysis, language, page_reference=page_reference):
+        st.write("- " + obs["text"])
 
-    # 2. Combined patterns, levels 2-4 only ----------------------------------
-    st.subheader("٢. الأنماط المُجمَّعة (المستويات ٢-٤ فقط)" if ar else "2. Combined patterns (levels 2-4 only)")
+    # 3. Possible meaning ---------------------------------------------------
+    st.subheader("٣. المعنى المحتمل" if ar else "3. Possible meaning")
     if combined_hyps:
+        st.caption(
+            "الأنماط التالية نتجت عن تقارب أدلة مستقلة، وتتطلب مراجعة مختص." if ar else
+            "The pattern(s) below came from independent evidence converging together, and need clinician review."
+        )
         for hyp in combined_hyps:
-            with st.expander(f"[{hyp['level_label']}] {hyp['display_name_ar'] if ar else hyp['display_name_en']}"):
+            title = f"[{hyp['level_label']}] {hyp['display_name_ar'] if ar else hyp['display_name_en']}"
+            with st.expander(title):
                 for text in hyp["supporting_texts"]:
                     st.write("- " + text)
-                st.caption(("مستوى التقارب: " if ar else "Convergence level: ") + f"{hyp['ordinal_level']} ({hyp['level_label']})")
-                st.caption(("عائلات الأدلة المستقلة: " if ar else "Independent evidence families: ") + ", ".join(hyp["contributing_evidence_families"]))
-                st.warning("فرضية مُجمَّعة من عدة أدلة مستقلة — تتطلب مراجعة مختص، وليست تشخيصاً."
-                          if ar else "A combined hypothesis from multiple independent pieces of evidence -- requires clinician review, and is not a diagnosis.")
+                families = ", ".join(sorted({friendly_family_name(f, language) for f in hyp["contributing_evidence_families"]}))
+                st.caption(("عائلات الأدلة المستقلة: " if ar else "Independent evidence areas: ") + families)
+                st.warning(
+                    "فرضية مُجمَّعة من عدة أدلة مستقلة — تتطلب مراجعة مختص، وليست تشخيصاً." if ar else
+                    "A combined hypothesis from multiple independent pieces of evidence -- requires clinician "
+                    "review, and is not a diagnosis."
+                )
     else:
-        st.info("لا توجد أنماط مُجمَّعة (مستوى ٢ أو أعلى) لهذه الحالة." if ar
-               else "No combined pattern (level 2 or higher) for this case.")
+        st.info("لا توجد أنماط مُجمَّعة لهذه الحالة." if ar else "No combined pattern was found for this case.")
 
-    # 3. Individual rule suggestions (Level B -- never combined) ------------
-    st.subheader("٣. ملاحظات فردية لكل قاعدة" if ar else "3. Individual rule suggestions")
-    st.caption("كل قاعدة تظهر بمفردها فقط، ولا تُعرض أبداً كفرضية مُجمَّعة." if ar
-              else "Each rule is shown on its own only -- never displayed as a combined theme.")
     if individual_suggestions:
-        for suggestion in individual_suggestions:
-            with st.expander(f"{suggestion['rule_id']} -- {suggestion['observable'].replace('_', ' ')}"):
+        st.caption(
+            "كل ملاحظة فردية تُعرض بمفردها فقط، ولا تُعرض أبداً كفرضية مُجمَّعة." if ar else
+            "Each individual observation is shown on its own only -- never as a combined pattern."
+        )
+        for i, suggestion in enumerate(individual_suggestions):
+            family_label = friendly_family_name(suggestion["evidence_family"], language)
+            title = (f"ملاحظة {i + 1}: {family_label}" if ar else f"Observation {i + 1}: {family_label}")
+            with st.expander(title):
                 st.write(suggestion["parent_safe_wording"])
+                source_doc = suggestion["source_citation"].split(",")[0].strip()
+                st.caption(("المصدر: " if ar else "Source: ") + friendly_source_name(source_doc, language))
                 st.caption(("مستوى الدليل كما ورد في المصدر: " if ar else "Evidence level as written in source: ")
                           + (", ".join(suggestion["evidence_level_as_written"]) if suggestion["evidence_level_as_written"] else "not graded by source"))
                 if suggestion["evidence_family"] in ("line_intensity_quality", "line_fragmentation_quality"):
                     st.caption(
-                        "هذه ملاحظة عن مظهر الخط المُستخرج من الصورة فقط، وليست قياساً لقوة ضغط القلم الفعلية."
-                        if ar else
+                        "هذه ملاحظة عن مظهر الخط المُستخرج من الصورة فقط، وليست قياساً لقوة ضغط القلم الفعلية." if ar else
                         "This is a line-appearance proxy extracted from the image only -- not a measurement of "
                         "actual physical pencil pressure."
                     )
+                for alt in suggestion["alternative_explanations"]:
+                    st.caption(("تفسير بديل: " if ar else "Alternative explanation: ") + alt)
+                if suggestion["limitations"]:
+                    st.caption(("محدودية: " if ar else "Limitation: ") + "; ".join(suggestion["limitations"]))
     else:
-        st.info("لا توجد ملاحظات فردية لهذه الحالة." if ar else "No individual rule suggestions for this case.")
+        st.info("لا توجد ملاحظات فردية لهذه الحالة." if ar else "No individual observations for this case.")
 
-    # 4. What was measured/detected (Level A) --------------------------------
-    st.subheader("٤. ما تم قياسه أو اكتشافه" if ar else "4. What was measured/detected")
-    for obs in plain_language_observations(analysis, language):
-        st.write("- " + obs["text"])
-    if detections.get("status") == "unavailable":
-        st.info("كاشف الأجسام غير مُطبَّق في هذا الإصدار — لم تُفحص الرسمة لمحتواها."
-               if ar else "Detector not implemented in this release -- the drawing's content was not analyzed for objects.")
-
-    # 5. Expressive-content model result -------------------------------------
-    st.subheader("٥. نتيجة نموذج المحتوى التعبيري" if ar else "5. Expressive-content model result")
-    model_obs = (structured or {}).get("expressive_model_observation")
-    if model_obs:
-        st.write(model_obs["text"])
-        st.caption(f"confidence={model_obs['confidence']:.0%}, calibration={model_obs['calibration_status']}, "
-                   f"used_in_combined_hypothesis={model_obs['used_in_combined_hypothesis']}")
-        st.caption("هذا تصنيف إحصائي وليس تقييماً نفسياً لحالة الطفل." if ar
-                  else "This is a statistical classification, not a psychological assessment of the child's state.")
-    else:
-        st.info("لا يتوفر ناتج نموذج تعبيري لهذه الحالة." if ar else "No expressive-content model output for this case.")
-
-    # 6. Why each suggestion was made ----------------------------------------
-    st.subheader("٦. لماذا اقتُرحت كل ملاحظة" if ar else "6. Why each suggestion was made")
-    for suggestion in individual_suggestions:
-        st.write(f"**{suggestion['rule_id']}**: " + suggestion["source_citation"])
-    for hyp in combined_hyps:
-        st.write(f"**{hyp['target_construct']}**: " + (", ".join(hyp["contributing_rule_ids"]) or "expressive model only")
-                 + (" + expressive model" if hyp["uses_expressive_model"] else ""))
-    if not individual_suggestions and not combined_hyps:
-        st.caption("لا يوجد ما يُفسَّر." if ar else "Nothing to explain.")
-
-    # 7. Contradictions and alternative explanations -------------------------
-    st.subheader("٧. التناقضات والتفسيرات البديلة" if ar else "7. Contradictions and alternative explanations")
     contradictions = (structured or {}).get("cross_theme_contradictions", [])
     if contradictions:
-        st.warning("تم رصد فرضيات متعارضة ولم يُختر فائز تلقائياً:" if ar
-                  else "Conflicting patterns were detected; no automatic winner was chosen:")
+        st.warning(
+            "تم رصد فرضيات متعارضة ولم يُختر فائز تلقائياً:" if ar else
+            "Conflicting patterns were detected; no automatic winner was chosen:"
+        )
         for c in contradictions:
             st.write(f"- {c['construct_a']} ↔ {c['construct_b']}")
-    else:
-        st.caption("لم تُرصد تناقضات بين الأنماط في هذه الحالة." if ar else "No contradictions between patterns were detected in this case.")
-    for suggestion in individual_suggestions:
-        for alt in suggestion["alternative_explanations"]:
-            st.caption(f"[{suggestion['rule_id']}] " + (("تفسير بديل: " if ar else "Alternative: ")) + alt)
 
-    # 8. Missing/unavailable evidence -----------------------------------------
-    st.subheader("٨. الأدلة الناقصة أو غير المتاحة" if ar else "8. Missing/unavailable evidence")
-    missing = (structured or {}).get("missing_evidence", [])
-    if missing:
-        for m in missing:
-            st.write("- " + m)
-    else:
-        st.caption("لا توجد أدلة ناقصة مسجَّلة." if ar else "No missing evidence recorded.")
-    st.caption("كاشف الأجسام والعلاقات المكانية غير متاحين في هذا الإصدار." if ar
-              else "Object and spatial-relationship detection are unavailable in this release.")
+    # 4. Questions and next steps ---------------------------------------------
+    st.subheader("٤. أسئلة وخطوات تالية" if ar else "4. Questions and next steps")
+    questions = list((structured or {}).get("suggested_parent_questions", []))
+    if not questions:
+        questions = ["Can you tell me what is happening in this picture?"] if not ar else \
+            ["هل يمكنك أن تخبرني ماذا يحدث في هذه الصورة؟"]
+    for q in questions:
+        st.write("- " + q)
 
-    # 9. Suggested questions ---------------------------------------------------
-    st.subheader("٩. أسئلة مقترحة" if ar else "9. Suggested questions")
-    questions = (structured or {}).get("suggested_parent_questions", [])
-    if questions:
-        for q in questions:
-            st.write("- " + q)
-    else:
-        st.caption("لا توجد أسئلة مقترحة لهذه الحالة." if ar else "No suggested questions for this case.")
-
-    # 10. Sources and evidence strength ----------------------------------------
-    st.subheader("١٠. المصادر وقوة الأدلة" if ar else "10. Sources and evidence strength")
-    for suggestion in individual_suggestions:
-        st.write(f"**{suggestion['rule_id']}**: {suggestion['source_citation']} "
-                 + (f"({', '.join(suggestion['reference_ids'])})" if suggestion["reference_ids"] else ""))
-
-    # 11. Permanent disclaimer ---------------------------------------------------
-    st.subheader("١١. إخلاء المسؤولية الدائم" if ar else "11. Permanent disclaimer")
+    # 5. Limitations ------------------------------------------------------------
+    st.subheader("٥. المحدوديات" if ar else "5. Limitations")
+    st.write(capability_status_summary_text(language))
+    if not page_assessable:
+        st.warning(
+            "تعذّر تأكيد ظهور الورقة كاملة في هذه الصورة، لذلك أُخفيت أي ملاحظات عن موضع الرسمة على الصفحة أو نسبة "
+            "تغطيتها لها -- وهي غير غائبة لأنها لم تُلاحَظ، بل لأنه لا يمكن تقييمها بثقة." if ar else
+            "The complete sheet could not be confirmed as visible in this image, so any observations about the "
+            "drawing's placement on the page or how much of the page it covers are suppressed for this case -- not "
+            "because none were found, but because they cannot be assessed with confidence."
+        )
     st.info(disclaimer(language))
-
-    # 12. Expandable all-features and all-rules tables ---------------------------
-    st.subheader("١٢. كل السمات وكل القواعد (قابلة للتوسيع)" if ar else "12. All features and all rules (expandable)")
-    if objective_features_doc:
-        with st.expander(("عرض كل السمات الموضوعية" if ar else "Show all objective features")
-                         + f" ({objective_features_doc['feature_count']}, "
-                         + f"{objective_features_doc['missing_count']} {'غير متاحة' if ar else 'unavailable'})"):
-            st.dataframe(objective_features_doc["features"], use_container_width=True)
-    else:
-        st.caption("سمات موضوعية غير متاحة لهذه الحالة (تحليل سابق للتحديث)." if ar
-                  else "Objective features not available for this case (analyzed before this update).")
-    with st.expander(("عرض كل القواعد الـ٤١ وحالتها" if ar else "Show all 41 rules and their status")):
-        for row in plain_language_rule_rows(analysis["rule_evaluations"], language):
-            badge = {"weak_support": "OBSERVED", "not_matched": "NOT OBSERVED",
-                     "missing_detector": "NOT EVALUATED", "not_assessable_context_unknown": "NOT EVALUABLE"}.get(row["status"], row["status"])
-            st.write(f"[{badge}] {row['label']}")
+    with st.expander("More details about this result" if not ar else "مزيد من التفاصيل حول هذه النتيجة"):
+        st.caption(
+            "التفاصيل التقنية الكاملة (المعرفات الداخلية، السمات الخام، القواعد الأربعون، سجلات التحقق) متاحة في "
+            "علامة التبويب 'Technical / Research View'." if ar else
+            "The full technical detail (internal IDs, raw features, all 41 rules, verification records) is "
+            "available in the 'Technical / Research View' tab."
+        )
 
     st.divider()
     st.subheader("محادثة متابعة" if ar else "Follow-up chat")
     st.caption(
-        "الإجابات مبنية حصراً على أدلة هذه الحالة المحفوظة، بدون نموذج لغوي أو اتصال بالإنترنت."
-        if ar else "Answers are grounded strictly in this case's saved evidence -- no LLM, no network call."
+        "الإجابات مبنية حصراً على أدلة هذه الحالة المحفوظة، بدون نموذج لغوي أو اتصال بالإنترنت." if ar else
+        "Answers are grounded strictly in this case's saved evidence -- no LLM, no network call."
     )
     st.session_state.setdefault(f"chat_{case_dir}", [])
     question = st.text_input("سؤال عن هذه الحالة" if ar else "Ask a question about this case", key="parent_chat_q")
@@ -341,18 +313,19 @@ with parent_tab:
     for q, r in reversed(st.session_state[f"chat_{case_dir}"]):
         st.markdown(f"**{'أنت' if ar else 'You'}:** {q}")
         st.markdown(f"**{'الرد' if ar else 'Answer'}:** {r.answer}")
-        if r.evidence_ids:
-            st.caption(("الأدلة: " if ar else "Evidence: ") + ", ".join(r.evidence_ids))
         if r.non_diagnostic_warning:
             st.caption(r.non_diagnostic_warning)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ===========================================================================
-# TECHNICAL / RESEARCH VIEW
+# TECHNICAL / RESEARCH VIEW  (DOAR-TRACE Phase 2A.2, Section 9: organized
+# under 11 named subsections -- nothing removed from Phase 2A/2A.1, only
+# reorganized and extended with page-reference/canonical-feature/
+# capability detail that did not exist before this phase.)
 # ===========================================================================
 with technical_tab:
-    st.subheader("Input and model metadata")
+    st.header("1. Input and page reference")
     meta_cols = st.columns(4)
     meta_cols[0].metric("Schema version", analysis["schema_version"])
     meta_cols[1].metric("Model", analysis["emotion"].get("model_name") or "n/a")
@@ -362,7 +335,7 @@ with technical_tab:
             f"preprocessing_version: {analysis['emotion'].get('preprocessing_version')}\n"
             f"image_path (original): {analysis['image_path']}")
 
-    st.subheader("Page-frame assessability (DOAR-TRACE Phase 2A, Section 3)")
+    st.subheader("Page-frame assessability (automatic classical-CV signal)")
     page_frame = analysis.get("page_frame") or {}
     if page_frame:
         pf_cols = st.columns(3)
@@ -375,14 +348,50 @@ with technical_tab:
             "cropping_evidence": page_frame.get("cropping_evidence"),
             "limitations": page_frame.get("limitations"),
         })
-        not_assessable_ids = (structured or {}).get("page_relative_rules_not_assessable", [])
-        if not_assessable_ids:
-            st.caption(f"Page-relative rules gated `not_assessable` for this case: {', '.join(not_assessable_ids)}")
-        else:
-            st.caption("No page-relative rules were gated `not_assessable` for this case.")
     else:
         st.info("page_frame not available for this case (analyzed before Phase 2A).")
 
+    st.subheader("Page reference (resolved -- Phase 2A.1/2A.2)")
+    if page_reference:
+        declared_choice = describe_declaration_choice(page_reference)
+        pr_cols = st.columns(4)
+        pr_cols[0].metric("Mode", page_reference.get("page_reference_mode", "n/a"))
+        pr_cols[1].metric("Assessable", str(page_reference.get("page_relative_features_assessable")))
+        pr_cols[2].metric("Confidence", f"{page_reference.get('confidence', 0):.2f}")
+        pr_cols[3].metric("Parent declaration used", declared_choice)
+        st.caption(
+            f"obtained_via={page_reference.get('obtained_via')} -- '{declared_choice}' is reconstructed purely "
+            "from the saved page_reference fields (obtained_via + page_reference_mode), not a separate file."
+        )
+        st.json({"page_polygon": page_reference.get("page_polygon"), "limitations": page_reference.get("limitations")})
+        not_assessable_ids = (structured or {}).get("page_relative_rules_not_assessable", [])
+        st.caption(
+            f"Page-relative rules gated `not_assessable` for this case: {', '.join(not_assessable_ids)}"
+            if not_assessable_ids else "No page-relative rules were gated `not_assessable` for this case."
+        )
+        st.caption(
+            "API capability note: `user_defined_page_corners` (manual corner marking) exists in page_reference.py "
+            "and is fully tested (tests/test_page_reference.py), but is not yet exposed through this prototype's "
+            "UI -- only the 4-choice declaration above is available here. See docs/PAGE_REFERENCE_MODEL.md."
+        )
+    else:
+        st.info("page_reference not available for this case (analyzed before Phase 2A.1).")
+
+    st.header("2. Image quality and segmentation")
+    quality = analysis.get("quality", {})
+    q_cols = st.columns(4)
+    q_cols[0].metric("Quality status", quality.get("quality_status", "n/a"))
+    q_cols[1].metric("Blur variance", quality.get("blur_variance", "n/a"))
+    q_cols[2].metric("Contrast std", quality.get("contrast_std", "n/a"))
+    q_cols[3].metric("Min dimension (px)", quality.get("min_dimension", "n/a"))
+    if quality.get("unsupported_reasons"):
+        st.caption("Unsupported reasons: " + "; ".join(quality["unsupported_reasons"]))
+    segmentation = analysis.get("segmentation", {})
+    st.json({
+        "status": segmentation.get("status"), "confidence": segmentation.get("confidence"),
+        "background_stability": segmentation.get("background_stability"),
+        "selected_strategy": segmentation.get("selected_strategy"),
+    })
     st.subheader("Image preview and overlays")
     cols = st.columns(4)
     for i, name in enumerate(["normalized_image", "foreground_mask", "feature_overlay", "stroke_map"]):
@@ -390,7 +399,49 @@ with technical_tab:
         if path:
             cols[i % 4].image(path, caption=name)
 
-    st.subheader("Complete class probabilities")
+    st.header("3. Objective features")
+    st.caption(
+        "Coverage/placement/margin features are computed relative to the UPLOADED IMAGE FRAME, not verified "
+        "physical-page usage -- see docs/PARENT_VIEW_INFORMATION_POLICY.md and Section 3 header below."
+    )
+    try:
+        from doar.features import objective_feature_row, serialize_feature_row
+        original_image = case_dir / Path(analysis["image_path"]).name
+        feature_row = objective_feature_row(str(original_image), analysis)
+        serialized = serialize_feature_row(feature_row)
+        st.caption(
+            "Measured relative to the uploaded image frame; not interpreted as physical-page usage."
+        )
+        st.dataframe([
+            {"feature": name, "value": v["value"], "confidence": v["confidence"],
+             "missing": v["missing"], "method": v["method"]}
+            for name, v in serialized.items()
+        ], width="stretch")
+        n_missing = sum(1 for v in serialized.values() if v["missing"])
+        st.caption(f"{len(serialized)} features computed; {n_missing} marked unavailable "
+                   "(no fabricated values for missing detectors).")
+    except Exception as exc:  # pragma: no cover -- UI guard, real error still surfaced
+        st.error(f"Feature computation failed: {exc}")
+
+    st.header("4. Canonical features (resolution-normalized -- Phase 2A.1 Section 6)")
+    if canonical_features:
+        canon_info = canonical_features.get("canonicalization", {})
+        cc_cols = st.columns(3)
+        cc_cols[0].metric("Resized", str(canon_info.get("resized")))
+        cc_cols[1].metric("Original size", "x".join(str(v) for v in canon_info.get("original_size", [])) or "n/a")
+        cc_cols[2].metric("Canonical size", "x".join(str(v) for v in canon_info.get("canonical_size", [])) or "n/a")
+        st.caption(
+            "Strictly separate from the objective_features table above -- never merged. Only these 4 features "
+            "(the ones Phase 2A found resize-sensitive) have a canonical counterpart; no rule currently reads it."
+        )
+        st.dataframe([
+            {"feature": name, "value": v["value"], "confidence": v["confidence"], "method": v["method"]}
+            for name, v in canonical_features.get("features", {}).items()
+        ], width="stretch")
+    else:
+        st.info("canonical_features not available for this case (analyzed before Phase 2A.1).")
+
+    st.header("5. Expressive-content model")
     if analysis["emotion"]["status"] == "available":
         st.dataframe({
             "class": list(analysis["emotion"]["probabilities"].keys()),
@@ -400,32 +451,10 @@ with technical_tab:
     else:
         st.info(f"No probabilities -- emotion status: {analysis['emotion']['status']}")
 
-    st.subheader("Object detections")
-    st.json(detections)
-    st.caption("detections.json is a hardcoded, unconditional stub for every case -- "
-               "see CURRENT_CAPABILITY_AUDIT.md Section 7. \"Detector not implemented\", not \"no objects found\".")
+    st.header("6. Rule evaluations")
+    st.dataframe(analysis["rule_evaluations"], width="stretch")
 
-    st.subheader("Raw and normalized objective features")
-    try:
-        from doar.features import objective_feature_row, serialize_feature_row
-        original_image = case_dir / Path(analysis["image_path"]).name
-        feature_row = objective_feature_row(str(original_image), analysis)
-        serialized = serialize_feature_row(feature_row)
-        st.dataframe([
-            {"feature": name, "value": v["value"], "confidence": v["confidence"],
-             "missing": v["missing"], "method": v["method"]}
-            for name, v in serialized.items()
-        ], use_container_width=True)
-        n_missing = sum(1 for v in serialized.values() if v["missing"])
-        st.caption(f"{len(serialized)} features computed; {n_missing} marked unavailable "
-                   "(no fabricated values for missing detectors).")
-    except Exception as exc:  # pragma: no cover -- UI guard, real error still surfaced
-        st.error(f"Feature computation failed: {exc}")
-
-    st.subheader("Rule coverage table")
-    st.dataframe(analysis["rule_evaluations"], use_container_width=True)
-
-    st.subheader("Dependency grouping and aggregation calculation (DOAR-TRACE Phase 1.5 Section 6)")
+    st.header("7. Combined-pattern calculation")
     if structured:
         st.caption(
             "combined_drawing_level_hypotheses: rules (+ the expressive-content model, confidence-gated) "
@@ -445,18 +474,102 @@ with technical_tab:
                     "evidence_families": ", ".join(h["contributing_evidence_families"]),
                 }
                 for h in structured["combined_drawing_level_hypotheses"]
-            ], use_container_width=True)
+            ], width="stretch")
         else:
             st.caption("No construct reached the >=2-family combined-hypothesis threshold on this image.")
         st.caption(f"individual_rule_suggestions (Level B, never combined): {len(structured['individual_rule_suggestions'])}")
         if structured["cross_theme_contradictions"]:
-            st.dataframe(structured["cross_theme_contradictions"], use_container_width=True)
+            st.dataframe(structured["cross_theme_contradictions"], width="stretch")
         st.caption(f"structured_analysis schema_version={structured['schema_version']}, "
                    f"registry_v2 schema_version={structured['registry_v2_schema_version']}, "
                    f"construct_registry schema_version={structured.get('construct_registry_schema_version')}")
     else:
         st.info("structured_analysis.json not available for this case (analyzed before this update).")
 
+    st.header("8. Evidence and provenance")
+    st.dataframe([
+        {**e, "value": str(e["value"]), "limitations": "; ".join(e.get("limitations", []))}
+        for e in analysis["evidence"]
+    ], width="stretch")
+    st.code(
+        f"analysis.schema_version: {analysis['schema_version']}\n"
+        f"structured_analysis schema_version: {structured.get('schema_version') if structured else 'n/a'}\n"
+        f"registry_v2 schema_version: {structured.get('registry_v2_schema_version') if structured else 'n/a'}\n"
+        f"model_name: {analysis['emotion'].get('model_name') or 'n/a'}\n"
+        f"model_version: {analysis['emotion'].get('model_version') or 'n/a'}\n"
+        f"preprocessing_version: {analysis['emotion'].get('preprocessing_version') or 'n/a'}\n"
+        f"case_dir: {case_dir.name}"
+    )
+    st.subheader("Downloadable structured evidence and reports")
+    st.download_button("analysis.json", (case_dir / "analysis.json").read_bytes(), file_name="analysis.json")
+    for report in sorted((case_dir / "reports").glob("*.html")):
+        st.download_button(report.name, report.read_bytes(), file_name=report.name)
+
+    st.header("9. Judges and verification")
+    if judges_v2_doc:
+        st.dataframe([
+            {"judge_id": jid, "status": v["status"], "confidence": v["confidence"], "reasons": "; ".join(v["reasons"])}
+            for jid, v in judges_v2_doc.items()
+        ], width="stretch")
+    else:
+        st.info("judges_v2.json not available for this case (analyzed before this update).")
+    if generated_claims_doc and verification_report_doc:
+        st.write(f"{generated_claims_doc['claim_count']} claim(s) generated: "
+                 f"{generated_claims_doc['accepted_count']} accepted, {generated_claims_doc['rejected_count']} rejected. "
+                 f"all_passed={verification_report_doc['all_passed']}")
+        st.dataframe(generated_claims_doc["claims"], width="stretch")
+        with st.expander("Show per-claim verification checks"):
+            st.dataframe([
+                {"claim_id": c["claim_id"], "passed": c["passed"],
+                 "failed_checks": "; ".join(chk["check_name"] for chk in c["checks"] if not chk["passed"])}
+                for c in verification_report_doc["claims"]
+            ], width="stretch")
+    else:
+        st.info("generated_claims.json/verification_report.json not available for this case (analyzed before this update).")
+    st.subheader("Reliability and safety warnings (deterministic judges.json)")
+    st.json(judges)
+    st.subheader("LLM-generated claims, evidence references, and judge results")
+    st.info("No LLM is enabled in this prototype -- see LLM_GROUNDING_AND_SAFETY_DESIGN.md. "
+            "All chat responses below are deterministic evidence lookups (src/doar/qa.py), not generated text.")
+    chat_log = st.session_state.get(f"chat_{case_dir}", [])
+    if chat_log:
+        st.dataframe([
+            {"question": q, "answer": r.answer, "evidence_ids": ", ".join(r.evidence_ids),
+             "availability": r.availability, "escalated": r.escalated}
+            for q, r in chat_log
+        ], width="stretch")
+    else:
+        st.caption("No chat turns yet this session.")
+
+    st.header("10. Missing capabilities")
+    st.subheader("Object detections")
+    st.json(detections)
+    st.caption("detections.json is a hardcoded, unconditional stub for every case -- "
+               "see CURRENT_CAPABILITY_AUDIT.md Section 7. \"Detector not implemented\", not \"no objects found\".")
+    cap = capability_status("en")
+    cap_cols = st.columns(3)
+    with cap_cols[0]:
+        st.markdown("**WORKING**")
+        for item in cap["working"]:
+            st.write("- " + item)
+    with cap_cols[1]:
+        st.markdown("**LIMITED**")
+        for item in cap["limited"]:
+            st.write("- " + item)
+    with cap_cols[2]:
+        st.markdown("**NOT AVAILABLE**")
+        for item in cap["not_available"]:
+            st.write("- " + item)
+    st.caption("Additional specific gaps:")
+    for w in [
+        "shape.enclosed_shape_count, shape.repetition_score: not implemented (no shape detector)",
+        "Concern profiles: implemented but disabled by design (CONCERNS_ENABLED = False)",
+        "31 of 41 registry-v2 rules: allowed_output_level=disabled (no detector wired to any evaluator)",
+        "detection_judge, relation_judge, language_judge: not_implemented (no underlying capability yet)",
+    ]:
+        st.write("- " + w)
+
+    st.header("11. Sources and registry")
     st.subheader("Source catalog coverage")
     catalog_path = ROOT / "resources" / "psychology_sources" / "source_rule_catalog.json"
     if catalog_path.exists():
@@ -465,9 +578,9 @@ with technical_tab:
                  f"{catalog['candidate_rule_entry_count']} candidate-rule rows, "
                  f"{len(catalog['relationships'])} explicit relationships.")
         with st.expander("Show all source rows"):
-            st.dataframe(catalog["entries"], use_container_width=True)
+            st.dataframe(catalog["entries"], width="stretch")
         with st.expander("Show all relationships (near_duplicate/expands/related_but_distinct)"):
-            st.dataframe(catalog["relationships"], use_container_width=True)
+            st.dataframe(catalog["relationships"], width="stretch")
     else:
         st.info("source_rule_catalog.json not found.")
 
@@ -482,19 +595,14 @@ with technical_tab:
             {"rule_id": r["rule_id"], "observable": r["observable"], "target_construct": r["target_construct"],
              "observability_class": r["observability_class"], "allowed_output_level": r["allowed_output_level"],
              "evidence_family": r["evidence_family"], "source_document": r["source_document"], "source_page": r["source_page"],
-             # DOAR-TRACE Phase 2A, Section 9: threshold provenance, dependency
-             # grouping (double-counting safety), and validation status --
-             # previously only visible by opening the raw JSON.
              "threshold_source": r.get("threshold_source"), "dependency_group": ", ".join(r.get("dependency_group") or []),
              "validation_status": r.get("validation_status"), "confidence_ceiling": r.get("confidence_ceiling"),
-             # DOAR-TRACE Phase 2A.1, Section 8: rule policy after
-             # measurement hardening.
              "page_reference_requirement": r.get("page_reference_requirement"),
              "feature_version": r.get("feature_version"),
              "expert_review_status": r.get("expert_review_status"),
              "known_robustness_limitations": r.get("known_robustness_limitations")}
             for r in registry_v2_doc["rules"]
-        ], use_container_width=True)
+        ], width="stretch")
         n_executable = sum(1 for r in registry_v2_doc["rules"] if r["allowed_output_level"] == "individual_heuristic_only")
         st.caption(f"{n_executable} of {registry_v2_doc['rule_count']} rules are actually executable "
                    f"(allowed_output_level=individual_heuristic_only); every other rule is disabled regardless of "
@@ -502,7 +610,7 @@ with technical_tab:
     else:
         st.info("rules_registry_v2.json not found.")
 
-    st.subheader("Measurement validation status (DOAR-TRACE Phase 2A, Sections 4-6)")
+    st.subheader("Measurement validation status")
     st.caption(
         "Validates measurement implementation only, not psychological validity. Synthetic-ground-truth and "
         "transformation-invariance results are cross-case (computed once on a fixed sample), not per-case."
@@ -530,78 +638,3 @@ with technical_tab:
         mv_cols[2].caption("threshold_sensitivity.csv not found -- run phase2a_threshold_sensitivity.py.")
     st.caption("Full results: docs/FEATURE_MEASUREMENT_VALIDATION.md, docs/FEATURE_ROBUSTNESS_RESULTS.md, "
                "docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md.")
-
-    st.subheader("Judge verdicts (judges_v2.json)")
-    if judges_v2_doc:
-        st.dataframe([
-            {"judge_id": jid, "status": v["status"], "confidence": v["confidence"], "reasons": "; ".join(v["reasons"])}
-            for jid, v in judges_v2_doc.items()
-        ], use_container_width=True)
-    else:
-        st.info("judges_v2.json not available for this case (analyzed before this update).")
-
-    st.subheader("Claim verification")
-    if generated_claims_doc and verification_report_doc:
-        st.write(f"{generated_claims_doc['claim_count']} claim(s) generated: "
-                 f"{generated_claims_doc['accepted_count']} accepted, {generated_claims_doc['rejected_count']} rejected. "
-                 f"all_passed={verification_report_doc['all_passed']}")
-        st.dataframe(generated_claims_doc["claims"], use_container_width=True)
-        with st.expander("Show per-claim verification checks"):
-            st.dataframe([
-                {"claim_id": c["claim_id"], "passed": c["passed"],
-                 "failed_checks": "; ".join(chk["check_name"] for chk in c["checks"] if not chk["passed"])}
-                for c in verification_report_doc["claims"]
-            ], use_container_width=True)
-    else:
-        st.info("generated_claims.json/verification_report.json not available for this case (analyzed before this update).")
-
-    st.subheader("Evidence IDs")
-    st.dataframe([
-        {**e, "value": str(e["value"]), "limitations": "; ".join(e.get("limitations", []))}
-        for e in analysis["evidence"]
-    ], use_container_width=True)
-
-    st.subheader("Schema and model versions")
-    st.code(
-        f"analysis.schema_version: {analysis['schema_version']}\n"
-        f"structured_analysis schema_version: {structured.get('schema_version') if structured else 'n/a'}\n"
-        f"registry_v2 schema_version: {structured.get('registry_v2_schema_version') if structured else 'n/a'}\n"
-        f"model_name: {analysis['emotion'].get('model_name') or 'n/a'}\n"
-        f"model_version: {analysis['emotion'].get('model_version') or 'n/a'}\n"
-        f"preprocessing_version: {analysis['emotion'].get('preprocessing_version') or 'n/a'}"
-    )
-
-    st.subheader("Missing/unavailable capability warnings")
-    warnings = [
-        "Object/geometry detection: not implemented (schema-only scaffolding in src/doar/detectors/)",
-        "shape.enclosed_shape_count, shape.repetition_score: not implemented (no shape detector)",
-        "Concern profiles: implemented but disabled by design (CONCERNS_ENABLED = False)",
-        "35 of 41 registry-v2 rules: allowed_output_level=disabled (no detector wired to any evaluator)",
-        "detection_judge, relation_judge, language_judge: not_implemented (no underlying capability yet)",
-    ]
-    for w in warnings:
-        st.write("- " + w)
-
-    st.subheader("Reliability and safety warnings (deterministic judges)")
-    st.json(judges)
-
-    st.subheader("Case / report version")
-    st.write(f"schema_version={analysis['schema_version']}, case_dir={case_dir.name}")
-
-    st.subheader("Downloadable structured evidence and reports")
-    st.download_button("analysis.json", (case_dir / "analysis.json").read_bytes(), file_name="analysis.json")
-    for report in sorted((case_dir / "reports").glob("*.html")):
-        st.download_button(report.name, report.read_bytes(), file_name=report.name)
-
-    st.subheader("LLM-generated claims, evidence references, and judge results")
-    st.info("No LLM is enabled in this prototype -- see LLM_GROUNDING_AND_SAFETY_DESIGN.md. "
-            "All chat responses below are deterministic evidence lookups (src/doar/qa.py), not generated text.")
-    chat_log = st.session_state.get(f"chat_{case_dir}", [])
-    if chat_log:
-        st.dataframe([
-            {"question": q, "answer": r.answer, "evidence_ids": ", ".join(r.evidence_ids),
-             "availability": r.availability, "escalated": r.escalated}
-            for q, r in chat_log
-        ], use_container_width=True)
-    else:
-        st.caption("No chat turns yet this session.")

@@ -80,7 +80,13 @@ class PrototypeAppSmokeTests(unittest.TestCase):
         + placement_center together -- a real, correct Level-C combination
         (Section 4) -- so this test uses its own OFF-CENTER image instead,
         which triggers coverage_about_half + 2 unmapped placement rules
-        that can never combine.)"""
+        that can never combine.
+
+        Phase 2A.2 migration: Section 4 now explicitly requires internal
+        rule IDs to be hidden from the Parent view -- the individual-
+        suggestion expander title is now "Observation N: <friendly
+        family name>" (e.g. "page-space use"), never the raw rule_id.
+        This test now checks for that friendly label instead."""
         with tempfile.TemporaryDirectory() as d:
             image = Image.new("RGB", (300, 300), "white")
             ImageDraw.Draw(image).rectangle((20, 20, 209, 209), fill="black")
@@ -96,8 +102,12 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
             expander_labels = [e.label for e in at.expander]
             self.assertTrue(
+                any("page-space use" in label for label in expander_labels),
+                f"expected an individual-suggestion expander for the page-space-use observation, got: {expander_labels}",
+            )
+            self.assertFalse(
                 any("PSY_AR_SIZE_HALF_014" in label for label in expander_labels),
-                f"expected an individual-suggestion expander for PSY_AR_SIZE_HALF_014, got: {expander_labels}",
+                f"raw rule_id must never appear in a Parent-view expander title, got: {expander_labels}",
             )
             structured = json.loads((case_dir / "structured_analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(structured["combined_drawing_level_hypotheses"], [])
