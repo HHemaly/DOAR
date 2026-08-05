@@ -20,6 +20,39 @@ _DISCLAIMER = {
            "طبيب أطفال أو مرشد مدرسي أو أخصائي نفسي مؤهل للأطفال."),
 }
 
+_SOURCE_FRIENDLY_NAMES: dict[str, dict[str, str]] = {
+    "child_drawing_rules_compiled.pdf": {
+        "en": "a compiled reference guide on children's drawings",
+        "ar": "دليل مرجعي مجمّع حول رسومات الأطفال",
+    },
+    "التحليل النفسي للصور.pdf": {
+        "en": "a psychologist's notes on drawing analysis",
+        "ar": "ملاحظات أخصائي نفسي حول تحليل الرسومات",
+    },
+}
+
+_FAMILY_FRIENDLY_NAMES: dict[str, dict[str, str]] = {
+    "size_composition": {"en": "page-space use", "ar": "استخدام مساحة الصفحة"},
+    "spatial_placement": {"en": "placement", "ar": "الموضع"},
+    "line_intensity_quality": {"en": "line-appearance", "ar": "مظهر الخط"},
+    "line_fragmentation_quality": {"en": "line-appearance", "ar": "مظهر الخط"},
+}
+
+
+def friendly_source_name(source_document: str, language: str = "en") -> str:
+    """A parent-readable name for a source document -- never the raw
+    filename. Falls back to the raw name (never hidden) if a document is
+    ever added without a mapping, so an unrecognized source is still
+    honestly shown rather than silently dropped."""
+    entry = _SOURCE_FRIENDLY_NAMES.get(source_document)
+    return entry["ar" if language == "ar" else "en"] if entry else source_document
+
+
+def friendly_family_name(evidence_family: str, language: str = "en") -> str:
+    entry = _FAMILY_FRIENDLY_NAMES.get(evidence_family)
+    return entry["ar" if language == "ar" else "en"] if entry else evidence_family.replace("_", " ")
+
+
 _PLACEMENT_TEXT = {
     "en": {
         "middle_center": "roughly centered on the page",
@@ -52,27 +85,48 @@ def disclaimer(language: str = "en") -> str:
     return _DISCLAIMER["ar" if language == "ar" else "en"]
 
 
-def plain_language_observations(analysis: dict, language: str = "en") -> list[dict]:
+def plain_language_observations(analysis: dict, language: str = "en", page_reference: dict | None = None) -> list[dict]:
     """Real measured composition/colour/quality values, rephrased in plain
-    sentences. Each item carries the evidence_id(s) it was derived from."""
+    sentences. Each item carries the evidence_id(s) it was derived from.
+
+    DOAR-TRACE Phase 2A.2, Section 5: `page_reference` (defaults to
+    `analysis.get("page_reference")` when not passed explicitly, for
+    backward compatibility with older callers/cases) gates the page-
+    coverage/placement sentences -- when no page reference is
+    assessable, this function must NOT claim "covers X% of the page" or
+    "placed at the top/left/right/centre of the page", since neither
+    claim is meaningful without a confirmed page. See
+    docs/PARENT_VIEW_INFORMATION_POLICY.md."""
     ar = language == "ar"
     comp = analysis.get("composition", {})
     colour = analysis.get("colour", {})
     quality = analysis.get("quality", {})
     out = []
 
-    coverage = comp.get("foreground_coverage")
-    if coverage is not None:
-        pct = round(coverage * 100)
-        text = (f"يغطي محتوى الرسمة نحو {pct}% من الصفحة."
-                if ar else f"The drawing's content covers about {pct}% of the page.")
-        out.append({"text": text, "evidence_ids": ["ev_seg_coverage"]})
+    if page_reference is None:
+        page_reference = analysis.get("page_reference")
+    page_assessable = bool((page_reference or {}).get("page_relative_features_assessable"))
 
-    placement = comp.get("placement")
-    if placement:
-        phrase = _PLACEMENT_TEXT["ar" if ar else "en"].get(placement, placement)
-        text = f"الرسمة {phrase}." if ar else f"The drawing is {phrase}."
-        out.append({"text": text, "evidence_ids": ["ev_centroid"]})
+    if page_assessable:
+        coverage = comp.get("foreground_coverage")
+        if coverage is not None:
+            pct = round(coverage * 100)
+            text = (f"يغطي محتوى الرسمة نحو {pct}% من الصفحة."
+                    if ar else f"The drawing's content covers about {pct}% of the page.")
+            out.append({"text": text, "evidence_ids": ["ev_seg_coverage"]})
+
+        placement = comp.get("placement")
+        if placement:
+            phrase = _PLACEMENT_TEXT["ar" if ar else "en"].get(placement, placement)
+            text = f"الرسمة {phrase}." if ar else f"The drawing is {phrase}."
+            out.append({"text": text, "evidence_ids": ["ev_centroid"]})
+    else:
+        text = (
+            "تعذّر تأكيد ظهور الورقة كاملة في هذه الصورة، لذلك لم يتم تفسير استخدام الصفحة أو الموضع."
+            if ar else
+            "The complete sheet could not be confirmed, so page use and placement were not interpreted."
+        )
+        out.append({"text": text, "evidence_ids": []})
 
     colours = colour.get("meaningful_colours", [])
     if colours:
@@ -181,3 +235,152 @@ def overall_interpretation(analysis: dict, language: str = "en") -> str:
 
     parts.append(disclaimer(language))
     return " ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# DOAR-TRACE Phase 2A.2, Section 3: the "Overall result" summary -- the
+# first thing a parent reads. Generated entirely from real per-case data
+# (structured_analysis.json + page_reference); never hard-coded to a
+# specific case. See docs/PARENT_VIEW_INFORMATION_POLICY.md.
+# ---------------------------------------------------------------------------
+
+def build_overall_result_summary(
+    structured: dict | None, page_reference: dict | None, language: str = "en",
+) -> list[str]:
+    """Returns an ordered list of plain sentences covering, in order: (1)
+    whether any combined pattern exists, (2) the expressive-content model
+    result when available, (3) how many individual heuristic suggestions
+    exist, (4) that objects/relationships were not analyzed, (5) whether
+    the complete page was assessable. Every sentence is derived from real
+    data for THIS case -- no case value is ever hard-coded here."""
+    ar = language == "ar"
+    structured = structured or {}
+    combined = structured.get("combined_drawing_level_hypotheses", [])
+    individual = structured.get("individual_rule_suggestions", [])
+    model_obs = structured.get("expressive_model_observation")
+    page_assessable = bool((page_reference or {}).get("page_relative_features_assessable"))
+    sentences: list[str] = []
+
+    if combined:
+        sentences.append(
+            (f"تم تحديد {len(combined)} نمط/أنماط مُجمَّعة من أدلة مستقلة -- انظر قسم 'المعنى المحتمل' أدناه."
+             if ar else
+             f"{len(combined)} combined drawing pattern(s) were identified from independent evidence -- see "
+             "'Possible meaning' below.")
+        )
+    else:
+        sentences.append(
+            "لم يتم تحديد أي نمط رسم مُجمَّع مثير للقلق." if ar else
+            "No concerning combined drawing pattern was identified."
+        )
+
+    if model_obs:
+        sentences.append(model_obs["text"])
+
+    if individual:
+        if len(individual) == 1:
+            family = friendly_family_name(individual[0]["evidence_family"], language)
+            sentences.append(
+                (f"لوحظت ملاحظة واحدة ضعيفة الدعم متعلقة بـ{family}." if ar else
+                 f"One weak {family} observation was found.")
+            )
+        else:
+            sentences.append(
+                (f"لوحظت {len(individual)} ملاحظات فردية ضعيفة الدعم." if ar else
+                 f"{len(individual)} weak, individual observations were found.")
+            )
+    else:
+        sentences.append(
+            "لم تُلاحظ أي ملاحظات فردية ضعيفة الدعم." if ar else
+            "No individual heuristic observations were found."
+        )
+
+    sentences.append(
+        "لم يتم تحليل الأجسام أو العلاقات بينها في هذا الإصدار." if ar else
+        "Objects and relationships were not analyzed in this version."
+    )
+
+    if page_assessable:
+        sentences.append(
+            "تم تأكيد ظهور الصفحة كاملة، لذا شمل التحليل استخدام الصفحة وموضع الرسمة." if ar else
+            "The complete sheet was confirmed visible, so page use and placement were included in this analysis."
+        )
+    else:
+        sentences.append(
+            "تعذّر تأكيد ظهور الورقة كاملة، لذا لم يتم تفسير استخدام الصفحة أو الموضع." if ar else
+            "The complete sheet could not be confirmed, so page use and placement were not interpreted."
+        )
+
+    return sentences
+
+
+# ---------------------------------------------------------------------------
+# DOAR-TRACE Phase 2A.2, Section 7: capability status -- honest, not
+# aspirational. Every "WORKING" item is genuinely wired for every case;
+# "LIMITED"/"NOT AVAILABLE" are real, current gaps, not a roadmap.
+# ---------------------------------------------------------------------------
+
+_CAPABILITY_STATUS: dict[str, dict[str, list[str]]] = {
+    "working": {
+        "en": [
+            "Image quality and segmentation", "Objective feature extraction",
+            "Page-reference assessment", "Expressive-content model (when a checkpoint is loaded)",
+            "10 executable heuristic rules", "Evidence tracking", "Deterministic verification",
+        ],
+        "ar": [
+            "فحص جودة الصورة وتجزئتها", "استخراج السمات الموضوعية",
+            "تقييم مرجع الصفحة", "نموذج المحتوى التعبيري (عند تحميل نقطة تفتيش)",
+            "10 قواعد استدلالية قابلة للتنفيذ", "تتبع الأدلة", "التحقق الحتمي",
+        ],
+    },
+    "limited": {
+        "en": [
+            "Page-relative interpretation (only when the complete sheet is confirmed visible)",
+            "Line-appearance proxies (not physical pencil pressure)",
+            "Combined drawing-pattern aggregation",
+            "Deterministic follow-up answers (no free-form AI chat)",
+        ],
+        "ar": [
+            "التفسير المتعلق بالصفحة (فقط عند تأكيد ظهور الورقة كاملة)",
+            "مؤشرات مظهر الخط (وليست ضغط القلم الفعلي)",
+            "تجميع الأنماط على مستوى الرسمة",
+            "إجابات المتابعة الحتمية (بدون محادثة ذكاء اصطناعي حرة)",
+        ],
+    },
+    "not_available": {
+        "en": [
+            "General object detection", "Face/body-part detection",
+            "Arbitrary and unknown object extraction", "Spatial relationships",
+            "Searchable region evidence", "Parent-context updating",
+            "LLM explanation", "Visual AI consistency judge",
+        ],
+        "ar": [
+            "الكشف العام عن الأجسام", "الكشف عن الوجه/أجزاء الجسم",
+            "استخراج أجسام عشوائية أو غير معروفة", "العلاقات المكانية",
+            "أدلة المناطق القابلة للبحث", "تحديث سياق الوالدين",
+            "الشرح بواسطة نموذج لغوي كبير", "قاضي الاتساق البصري بالذكاء الاصطناعي",
+        ],
+    },
+}
+
+
+def capability_status(language: str = "en") -> dict[str, list[str]]:
+    """Real capability inventory: {"working": [...], "limited": [...],
+    "not_available": [...]}. Static across cases in this release -- every
+    listed item's status is genuinely stable, not case-dependent."""
+    return {tier: items[language if language in ("en", "ar") else "en"] for tier, items in _CAPABILITY_STATUS.items()}
+
+
+def capability_status_summary_text(language: str = "en") -> str:
+    """One or two plain sentences for the Parent view -- the full
+    itemized list belongs in Technical view only."""
+    if language == "ar":
+        return (
+            "تعمل هذه الأداة على تحليل جودة الصورة، السمات الموضوعية، مرجع الصفحة، والنموذج التعبيري، وعشر قواعد "
+            "استدلالية. لا تتضمن هذه النسخة كشف الأجسام أو الوجوه أو العلاقات المكانية أو أي شرح بذكاء اصطناعي توليدي."
+        )
+    return (
+        "This tool analyzes image quality, objective features, page reference, the expressive-content model, and "
+        "10 heuristic rules. This version does not include object, face, or spatial-relationship detection, or any "
+        "generative-AI explanation."
+    )
