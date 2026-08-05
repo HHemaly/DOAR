@@ -20,9 +20,20 @@ sys.path.insert(0, str(ROOT / "src"))
 from doar.page_frame import STATUSES as PAGE_FRAME_STATUSES
 from doar.phase2a_feature_ground_truth import CSV_FIELDS as GT_FIELDS, write_ground_truth
 from doar.phase2a_feature_invariance import CSV_FIELDS as INVARIANCE_FIELDS
+from doar.phase2a_page_frame_audit import DEFAULT_MANIFEST as _AUDIT_MANIFEST
 from doar.phase2a_page_frame_audit import FIELDS as AUDIT_FIELDS, run_audit
 from doar.phase2a_rule_trigger_distribution import CSV_FIELDS as TRIGGER_FIELDS, run_trigger_distribution
 from doar.phase2a_threshold_sensitivity import CSV_FIELDS as THRESHOLD_FIELDS, run_threshold_sensitivity
+
+# outputs/phase5/manifest.csv is derived from the real, private local
+# drawing dataset -- it is gitignored (see .gitignore) and never
+# committed, so it does not exist on a fresh GitHub Actions checkout.
+# These scripts' *default* manifest_path points there; tests below that
+# never override manifest_path are local-only integration tests.
+_MANIFEST_AVAILABLE = _AUDIT_MANIFEST.exists()
+_NO_MANIFEST_REASON = (
+    "requires the local, private outputs/phase5/manifest.csv "
+    "(gitignored, not available in CI)")
 
 
 def _read_csv(path: Path) -> list[dict]:
@@ -39,6 +50,7 @@ class PageFrameAuditScriptTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.out_path = Path(self.temp.name) / "audit.csv"
 
+    @unittest.skipUnless(_MANIFEST_AVAILABLE, _NO_MANIFEST_REASON)
     def test_writes_expected_columns_and_statuses(self):
         summary = run_audit(per_class=2, seed=1, output_path=self.out_path)
         self.assertEqual(summary["n_images"], 8)  # 2 per class x 4 classes
@@ -49,6 +61,7 @@ class PageFrameAuditScriptTests(unittest.TestCase):
         for row in rows:
             self.assertIn(row["page_frame_status"], PAGE_FRAME_STATUSES)
 
+    @unittest.skipUnless(_MANIFEST_AVAILABLE, _NO_MANIFEST_REASON)
     def test_never_reads_the_test_split(self):
         summary = run_audit(per_class=2, seed=1, output_path=self.out_path)
         rows = _read_csv(Path(summary["output_path"]))
@@ -90,6 +103,7 @@ class ThresholdSensitivityScriptTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.out_path = Path(self.temp.name) / "threshold.csv"
 
+    @unittest.skipUnless(_MANIFEST_AVAILABLE, _NO_MANIFEST_REASON)
     def test_writes_expected_columns_for_every_executable_rule(self):
         summary = run_threshold_sensitivity(n_per_class=3, seed=1, output_path=self.out_path)
         rows = _read_csv(Path(summary["output_path"]))
@@ -110,6 +124,7 @@ class RuleTriggerDistributionScriptTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
 
+    @unittest.skipUnless(_MANIFEST_AVAILABLE, _NO_MANIFEST_REASON)
     def test_writes_all_registry_rules_with_correct_executable_split(self):
         out_path = Path(self.temp.name) / "trigger1.csv"
         summary = run_trigger_distribution(per_class=2, seed=1, output_path=out_path)
@@ -124,6 +139,7 @@ class RuleTriggerDistributionScriptTests(unittest.TestCase):
         for row in disabled_rows:
             self.assertEqual(row["trigger_count"], "")
 
+    @unittest.skipUnless(_MANIFEST_AVAILABLE, _NO_MANIFEST_REASON)
     def test_reproducible_on_a_small_sample(self):
         out_path1 = Path(self.temp.name) / "trigger_run1.csv"
         out_path2 = Path(self.temp.name) / "trigger_run2.csv"

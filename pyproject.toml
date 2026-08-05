@@ -13,6 +13,18 @@ ui = ["streamlit>=1.36,<2"]
 deep = ["torch>=2.2,<3", "torchvision>=0.17,<1"]
 embeddings = ["open-clip-torch>=2.26,<3"]
 
+[tool.ruff.lint]
+# Explicit, pinned to ruff's classic default selection (pycodestyle errors +
+# pyflakes). Without this, a floor-only `ruff>=0.5` install resolves to
+# whatever ruff considers "default" at install time -- and that default grew
+# far beyond E4/E7/E9/F in newer ruff releases (isort, bugbear, bandit,
+# pylint, ...), which is not a change this codebase's per-file-ignores
+# comment ("no rule is weakened globally") ever anticipated or was written
+# against. Pinning the selection, not the ruff version, keeps `pip install
+# -e ".[cv,dev]"` reproducible across a fresh CI install and a long-lived
+# local .venv without freezing the tool itself.
+select = ["E4", "E7", "E9", "F"]
+
 [tool.ruff.lint.per-file-ignores]
 # main.py and tests bootstrap sys.path before importing the (editable) package,
 # which legitimately requires imports after that statement. This targets only

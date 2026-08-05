@@ -12,20 +12,32 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 class ExtractOriginalSourceLabelTests(unittest.TestCase):
+    """extract_original_source_label() only ever receives a path native to
+    whatever OS the pipeline is actually running on, so these fixtures are
+    built with Path(...) / ... (the real OS separator) rather than a
+    hardcoded Windows literal -- a raw `C:\\...` string is not a directory
+    path at all on a POSIX CI runner (backslash is just a literal
+    character there), which silently defeated this test's own intent
+    without ever failing it, until the "known class folder" case actually
+    needed the split to work."""
+
     def test_recognizes_known_class_folder(self):
         from doar.label_provenance import extract_original_source_label
         self.assertEqual(
-            extract_original_source_label(r"C:\data\train\Happy\img001.png"), "Happy")
+            extract_original_source_label(str(Path("data") / "train" / "Happy" / "img001.png")),
+            "Happy")
 
     def test_returns_none_for_unrecognized_folder(self):
         from doar.label_provenance import extract_original_source_label
-        self.assertIsNone(extract_original_source_label(r"C:\uploads\webapp_cases\case_1\drawing.png"))
+        self.assertIsNone(extract_original_source_label(
+            str(Path("uploads") / "webapp_cases" / "case_1" / "drawing.png")))
 
     def test_case_sensitive_exact_class_match_only(self):
         # CLASSES are exactly Angry/Fear/Happy/Sad -- a folder named "happy"
         # (dataset variant casing) must not silently match.
         from doar.label_provenance import extract_original_source_label
-        self.assertIsNone(extract_original_source_label(r"C:\data\train\happy\img001.png"))
+        self.assertIsNone(extract_original_source_label(
+            str(Path("data") / "train" / "happy" / "img001.png")))
 
 
 class ComputeLabelAuditStatusTests(unittest.TestCase):
