@@ -204,6 +204,35 @@ confused with the original-image feature set every rule still
 evaluates against — brightness/contrast/colour are never normalized
 away, since they are themselves evidence — `docs/INPUT_NORMALIZATION_POLICY.md`.
 
+## 3.8. Parent-View information policy (Phase 2A.2, new)
+
+Parent View is restricted to exactly 5 result sections (Overall result /
+What was observed / Possible meaning / Questions and next steps /
+Limitations); every internal ID, raw table, and technical enum
+(`rule_id`, `evidence_id`, `detector_absent:*`, the 41-rule/60-feature
+tables) is confined to Technical View — nothing is deleted, only
+reorganized. `docs/PARENT_VIEW_INFORMATION_POLICY.md` is the full
+policy; `doar_prototype_app.py` is the implementation.
+
+Page-relative wording ("covers X% of the page", "centred on the page")
+is gated by `page_reference.page_relative_features_assessable` the same
+way rule evaluation already was (Phase 2A.1) — a real contradiction
+Phase 2A.2's audit found (the page-frame warning said interpretation
+was suppressed while the observations list still reported coverage
+percentages a few lines later) is now closed at the wording layer, not
+just the rule-gating layer.
+
+A minimal, optional page-reference user control (4 choices: let the
+system decide / yes / no / unsure) is wired through
+`analyze_image_with_timing`'s `user_page_declaration` parameter into the
+real pipeline — 2 new `page_reference.py` API modes
+(`user_declared_cropped`/`user_declared_uncertain`) extend Phase 2A.1's
+`user_confirmed_full_frame`/`user_defined_page_corners` so an explicit
+"no"/"unsure" can override an automatic reading the same way "yes"
+already could. No corner-editor UI exists yet — deferred, per
+instruction — though the underlying `user_defined_page_corners` API
+remains real and tested.
+
 ## 4. Governing invariants (unchanged from `TARGET_APPLICATION_ARCHITECTURE.md`)
 
 1. No module writes to the original dataset or any existing

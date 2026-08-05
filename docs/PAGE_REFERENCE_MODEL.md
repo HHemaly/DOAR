@@ -112,3 +112,37 @@ unchanged). No folder label is ever read. No rule's `allowed_output_level`
 changes because of this model -- it only changes *whether* a
 page-relative rule is evaluated at all, never whether it is shown more
 prominently.
+
+## Phase 2A.2: the parent-facing control and 2 new negative-declaration modes
+
+Section 6's minimal, optional Parent-view control ("Does this image
+show the complete sheet of paper?") has 4 choices, all real API calls,
+no UI-only stub:
+
+| Choice | `user_page_declaration` | Resolved `page_reference_mode` |
+|---|---|---|
+| Let the system decide | `None` | automatic (`auto_detected_page` or whatever `page_frame.py` finds) |
+| Yes, the complete sheet is visible | `{"mode": "user_confirmed_full_frame"}` | `user_confirmed_full_frame` (unchanged from Phase 2A.1) |
+| No, this image is cropped | `{"mode": "user_declared_cropped"}` | `cropped_or_content_only` |
+| I am not sure | `{"mode": "user_declared_uncertain"}` | `uncertain` |
+
+The 2 new modes (`user_declared_cropped`/`user_declared_uncertain`)
+resolve to the **same** `page_reference_mode` string and outcome
+(`page_relative_features_assessable=False`) as the equivalent automatic
+reading — the gating behaviour is identical either way. The only
+difference is `obtained_via` (`explicit_user_assertion_v1` instead of
+`classical_cv_border_uniformity_v1`), which makes the human decision
+traceable and distinguishable from an automatic one in the saved case
+output. `describe_declaration_choice()` reverses this mapping for
+Technical-view display, reconstructing which of the 4 choices was made
+purely from the saved `PageReference` fields — no separate declaration
+file is written.
+
+`user_page_declaration_from_choice()` is the only function this phase
+adds that maps a UI-facing string to the API; `resolve_page_reference()`
+itself gained no new required parameters, keeping every existing caller
+(the Phase 2A.1 batch pipeline, which always passes `None`) unaffected.
+
+**No corner-editor UI was built** — `user_defined_page_corners` remains
+a real, tested API capability with no UI entry point in this prototype,
+stated explicitly in Technical View rather than silently absent.
