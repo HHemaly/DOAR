@@ -90,6 +90,32 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             structured = json.loads((case_dir / "structured_analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(structured["combined_drawing_level_hypotheses"], [])
 
+    def test_page_not_assessable_case_renders_warning_not_a_crash(self):
+        # DOAR-TRACE Phase 2A, Section 9: a thin-margin image (page not
+        # confirmed visible) must render an explicit Parent-view warning
+        # explaining why page-relative observations are suppressed --
+        # never a silent absence and never an exception.
+        with tempfile.TemporaryDirectory() as d:
+            image = Image.new("RGB", (200, 200), "white")
+            ImageDraw.Draw(image).rectangle((2, 2, 197, 197), fill="black")
+            path = Path(d) / "drawing.png"
+            image.save(path)
+            case_dir = Path(d) / "case"
+            analyze_image_with_timing(str(path), str(case_dir), None)
+            structured = json.loads((case_dir / "structured_analysis.json").read_text(encoding="utf-8"))
+            self.assertNotIn(structured["page_frame_assessment"]["page_frame_status"], ("full_page_detected", "likely_full_page"))
+            self.assertTrue(structured["page_relative_rules_not_assessable"])
+
+            at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
+            at.session_state["case_dir"] = str(case_dir.resolve())
+            at.run(timeout=60)
+            self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+            warning_texts = " ".join(w.value for w in at.warning)
+            self.assertTrue(
+                "page" in warning_texts.lower() or "الصفحة" in warning_texts,
+                f"expected a page-frame warning, got warnings: {[w.value for w in at.warning]}",
+            )
+
     def test_no_case_selected_shows_info_not_a_crash(self):
         at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
         at.run(timeout=60)

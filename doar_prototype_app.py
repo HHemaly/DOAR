@@ -183,6 +183,25 @@ with parent_tab:
         st.write("لم تُلاحَظ أي أنماط أو قواعد بصرية في هذه الرسمة." if ar else "No visual patterns or rules were observed in this drawing.")
     st.caption(disclaimer(language))
 
+    # DOAR-TRACE Phase 2A, Section 3+9: page-frame assessability. Rules
+    # about page coverage or placement are silently absent (not
+    # "not_matched") from the suggestions above when the page isn't
+    # confirmed visible -- stated explicitly here so that absence reads as
+    # "we could not check this", never as "nothing was found".
+    page_frame = (structured or {}).get("page_frame_assessment") or analysis.get("page_frame") or {}
+    pf_status = page_frame.get("page_frame_status")
+    if pf_status and pf_status not in ("full_page_detected", "likely_full_page"):
+        st.warning(
+            "تعذّر التأكد من ظهور الصفحة كاملة في هذه الصورة، لذلك أُخفيت أي ملاحظات عن موضع الرسمة على الصفحة أو "
+            "نسبة تغطيتها لها -- وهي غير غائبة لأنها لم تُلاحَظ، بل لأنه لا يمكن تقييمها بثقة."
+            if ar else
+            "The full page could not be reliably confirmed as visible in this image, so any observations about the "
+            "drawing's placement on the page or how much of the page it covers are suppressed for this case -- "
+            "not because none were found, but because they cannot be assessed with confidence."
+        )
+    elif pf_status:
+        st.caption(("حالة إطار الصفحة: مؤكَّدة (" if ar else "Page-frame status: confirmed (") + pf_status + ")")
+
     # 2. Combined patterns, levels 2-4 only ----------------------------------
     st.subheader("٢. الأنماط المُجمَّعة (المستويات ٢-٤ فقط)" if ar else "2. Combined patterns (levels 2-4 only)")
     if combined_hyps:
@@ -208,6 +227,13 @@ with parent_tab:
                 st.write(suggestion["parent_safe_wording"])
                 st.caption(("مستوى الدليل كما ورد في المصدر: " if ar else "Evidence level as written in source: ")
                           + (", ".join(suggestion["evidence_level_as_written"]) if suggestion["evidence_level_as_written"] else "not graded by source"))
+                if suggestion["evidence_family"] in ("line_intensity_quality", "line_fragmentation_quality"):
+                    st.caption(
+                        "هذه ملاحظة عن مظهر الخط المُستخرج من الصورة فقط، وليست قياساً لقوة ضغط القلم الفعلية."
+                        if ar else
+                        "This is a line-appearance proxy extracted from the image only -- not a measurement of "
+                        "actual physical pencil pressure."
+                    )
     else:
         st.info("لا توجد ملاحظات فردية لهذه الحالة." if ar else "No individual rule suggestions for this case.")
 
@@ -336,6 +362,27 @@ with technical_tab:
             f"preprocessing_version: {analysis['emotion'].get('preprocessing_version')}\n"
             f"image_path (original): {analysis['image_path']}")
 
+    st.subheader("Page-frame assessability (DOAR-TRACE Phase 2A, Section 3)")
+    page_frame = analysis.get("page_frame") or {}
+    if page_frame:
+        pf_cols = st.columns(3)
+        pf_cols[0].metric("Status", page_frame.get("page_frame_status", "n/a"))
+        pf_cols[1].metric("Confidence", f"{page_frame.get('confidence', 0):.2f}")
+        pf_cols[2].metric("Method", page_frame.get("method", "n/a"))
+        st.json({
+            "detected_page_boundary": page_frame.get("detected_page_boundary"),
+            "border_evidence": page_frame.get("border_evidence"),
+            "cropping_evidence": page_frame.get("cropping_evidence"),
+            "limitations": page_frame.get("limitations"),
+        })
+        not_assessable_ids = (structured or {}).get("page_relative_rules_not_assessable", [])
+        if not_assessable_ids:
+            st.caption(f"Page-relative rules gated `not_assessable` for this case: {', '.join(not_assessable_ids)}")
+        else:
+            st.caption("No page-relative rules were gated `not_assessable` for this case.")
+    else:
+        st.info("page_frame not available for this case (analyzed before Phase 2A).")
+
     st.subheader("Image preview and overlays")
     cols = st.columns(4)
     for i, name in enumerate(["normalized_image", "foreground_mask", "feature_overlay", "stroke_map"]):
@@ -434,11 +481,49 @@ with technical_tab:
         st.dataframe([
             {"rule_id": r["rule_id"], "observable": r["observable"], "target_construct": r["target_construct"],
              "observability_class": r["observability_class"], "allowed_output_level": r["allowed_output_level"],
-             "evidence_family": r["evidence_family"], "source_document": r["source_document"], "source_page": r["source_page"]}
+             "evidence_family": r["evidence_family"], "source_document": r["source_document"], "source_page": r["source_page"],
+             # DOAR-TRACE Phase 2A, Section 9: threshold provenance, dependency
+             # grouping (double-counting safety), and validation status --
+             # previously only visible by opening the raw JSON.
+             "threshold_source": r.get("threshold_source"), "dependency_group": ", ".join(r.get("dependency_group") or []),
+             "validation_status": r.get("validation_status"), "confidence_ceiling": r.get("confidence_ceiling")}
             for r in registry_v2_doc["rules"]
         ], use_container_width=True)
+        n_executable = sum(1 for r in registry_v2_doc["rules"] if r["allowed_output_level"] == "individual_heuristic_only")
+        st.caption(f"{n_executable} of {registry_v2_doc['rule_count']} rules are actually executable "
+                   f"(allowed_output_level=individual_heuristic_only); every other rule is disabled regardless of "
+                   f"observability_class. See docs/STATIC_PROXY_RULE_POLICY.md.")
     else:
         st.info("rules_registry_v2.json not found.")
+
+    st.subheader("Measurement validation status (DOAR-TRACE Phase 2A, Sections 4-6)")
+    st.caption(
+        "Validates measurement implementation only, not psychological validity. Synthetic-ground-truth and "
+        "transformation-invariance results are cross-case (computed once on a fixed sample), not per-case."
+    )
+    phase2a_dir = ROOT / "artifacts" / "phase2a"
+    ground_truth_summary_path = phase2a_dir / "feature_ground_truth_summary.json"
+    invariance_summary_path = phase2a_dir / "feature_invariance_summary.json"
+    threshold_csv_path = phase2a_dir / "threshold_sensitivity.csv"
+    mv_cols = st.columns(3)
+    if ground_truth_summary_path.exists():
+        gt = json.loads(ground_truth_summary_path.read_text(encoding="utf-8"))
+        gt_counts = gt.get("status_counts", {})
+        mv_cols[0].metric("Ground-truth checks", f"{gt_counts.get('pass', 0)}/{gt.get('n_cases', '?')} pass")
+    else:
+        mv_cols[0].caption("feature_ground_truth_summary.json not found -- run phase2a_feature_ground_truth.py.")
+    if invariance_summary_path.exists():
+        inv = json.loads(invariance_summary_path.read_text(encoding="utf-8"))
+        counts = inv.get("status_counts", {})
+        mv_cols[1].metric("Invariance rows", f"{counts.get('pass', 0)} pass / {counts.get('fail', 0)} fail")
+    else:
+        mv_cols[1].caption("feature_invariance_summary.json not found -- run phase2a_feature_invariance.py.")
+    if threshold_csv_path.exists():
+        mv_cols[2].metric("Threshold sensitivity rows", sum(1 for _ in threshold_csv_path.open(encoding="utf-8")) - 1)
+    else:
+        mv_cols[2].caption("threshold_sensitivity.csv not found -- run phase2a_threshold_sensitivity.py.")
+    st.caption("Full results: docs/FEATURE_MEASUREMENT_VALIDATION.md, docs/FEATURE_ROBUSTNESS_RESULTS.md, "
+               "docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md.")
 
     st.subheader("Judge verdicts (judges_v2.json)")
     if judges_v2_doc:
