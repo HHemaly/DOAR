@@ -1,13 +1,26 @@
 # DOAR-TRACE Master Specification
 
 **Status: living design document for the DOAR-TRACE architecture.** This
-document is the policy layer; `PHASE1_IMPLEMENTATION_REPORT.md` records
-what has actually been built against it so far (currently: Phase 1 only).
-It extends, and does not contradict, `TARGET_APPLICATION_ARCHITECTURE.md`
-(the prior session's design for the same end state) — read that document
-for the module dependency diagram; this document adds the rule-ontology
-taxonomy, the evidence-v2 contract, and the safety wording policy that
-diagram assumed but never fully specified.
+document is the policy layer; `PHASE1_IMPLEMENTATION_REPORT.md` and
+`PHASE1_5_IMPLEMENTATION_REPORT.md` record what has actually been built
+against it so far. It extends, and does not contradict,
+`TARGET_APPLICATION_ARCHITECTURE.md` (the prior session's design for the
+same end state) — read that document for the module dependency diagram;
+this document adds the rule-ontology taxonomy, the evidence-v2 contract,
+and the safety wording policy that diagram assumed but never fully
+specified.
+
+**Phase 1.5 update**: Sections 2 and the allowed-output table below were
+written before the compiled English PDF existed in this repository and
+described a 19-rule, single-construct-per-rule design. That design has
+since been fully superseded — see `docs/AGGREGATION_POLICY.md` for the
+current Level A/B/C policy (41 rules, 12 shared constructs,
+`individual_heuristic_only` replacing the old single-rule
+`question_generating`/`combined_hypothesis_only` conflation) and
+`docs/CONSTRUCT_MAPPING_RATIONALE.md` for how rules now map to
+constructs. Section 2 below is left as the original taxonomy definition
+(still accurate for the 8 observability classes) with corrections marked
+inline where Phase 1.5 changed something it originally assumed.
 
 ## 1. Final-product policy
 
@@ -71,13 +84,17 @@ PDF row) is classified into exactly one **observability class**:
 | `longitudinal_required` | Requires multiple drawings over time |
 | `not_operational` | None of the above apply cleanly; not currently a usable observable at all |
 
-Every rule also receives exactly one **allowed-output level**:
+Every rule also receives exactly one **allowed-output level** (Phase 1.5
+adds `individual_heuristic_only`, the correct level for a single
+executable rule shown on its own — see `docs/AGGREGATION_POLICY.md`
+Level B):
 
 | Level | Meaning |
 |---|---|
 | `observation_only` | State the raw measurement, no interpretation |
 | `question_generating` | May be phrased as a gentle, cautious question/observation for a parent |
-| `combined_hypothesis_only` | Only usable as part of a multi-rule, multi-family converged theme (§4D's aggregator) — **never** emitted from a single rule alone |
+| `individual_heuristic_only` | A single rule's own cautious reading, shown alone (Level B) — **never** displayed as a combined theme |
+| `combined_hypothesis_only` | Only usable as part of a multi-rule, multi-family converged theme (Level C, `docs/AGGREGATION_POLICY.md`) — **never** emitted from a single rule alone |
 | `professional_only` | Shown only in the technical/clinician view, never the parent view |
 | `disabled` | Not shown anywhere (no detector, or precondition unobservable) |
 
@@ -89,9 +106,14 @@ because the rule itself was judged unworthy.
 
 **Wording discipline**: a stroke/line-darkness feature is never described
 as physical pencil pressure — always "dark/thick-line appearance proxy."
-No rule in the current source (`التحليل النفسي للصور.pdf`) actually
-concerns line pressure, so this exact case doesn't arise in registry-v2
-today, but the rule stands for any future proxy-type feature.
+This was written before the compiled English PDF's line-quality/pressure
+family existed in the registry; Phase 1.5's
+`EN_COMPILED_LINE_HEAVY_PRESSURE_030`/`EN_COMPILED_LINE_LIGHT_PRESSURE_031`
+are exactly this case, `observable` named
+`heavy_line_pressure_appearance`/`light_line_pressure_appearance` (never
+just "pressure"), and both are still `allowed_output_level: disabled`
+today, since the underlying `stroke.intensity_proxy` feature is real but
+not wired to any evaluator.
 
 ## 3. Evidence-v2 contract (summary — full schema in `trace_evidence.py`)
 
@@ -105,6 +127,20 @@ measurement trustworthy), distinct from and complementary to
 requires_manual_review), which answers "was this ever measured at all."
 Both schemas exist in the codebase; see `CURRENT_TO_TARGET_GAP_V2.md` for
 why they were not merged in this increment.
+
+## 3.5. Construct system and Level A/B/C policy (Phase 1.5, new)
+
+Rules no longer map 1:1 to a bespoke construct name (the Phase 1 design,
+which is exactly why a single rule could render as a "theme"). A small,
+fixed set of 12 drawing-level constructs
+(`resources/psychology_sources/construct_registry.json`) is defined
+once; multiple rules map to a shared construct only when genuinely
+defensible (`docs/CONSTRUCT_MAPPING_RATIONALE.md`). Output is split into
+three explicit levels — A (observation), B (individual rule suggestion,
+mandatory for every triggered rule), C (combined hypothesis, only when a
+construct's own policy is satisfied by >=2 independent contributors) —
+specified in full in `docs/AGGREGATION_POLICY.md`, including the ordinal
+0-4 scale and the `global_expressive_content_model` evidence family.
 
 ## 4. Governing invariants (unchanged from `TARGET_APPLICATION_ARCHITECTURE.md`)
 
