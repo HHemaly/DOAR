@@ -13,7 +13,7 @@ PSY_AR_CIRCLES_011,circles,False,,,,,Speculative,"Common heuristic, not standard
 PSY_AR_TRANSPORT_012,vehicles,False,,,,,Speculative,"No strong literature basis found. (allowed_output_level=disabled -- no evaluator wired, never run)"
 PSY_AR_HEARTS_013,hearts,False,,,,,Weak / common-sense,"Symbolic meaning is culturally obvious, not psychometric. (allowed_output_level=disabled -- no evaluator wired, never run)"
 PSY_AR_SIZE_HALF_014,coverage_about_half,True,5,31,168,16.13,Speculative,No standardized cutoff.
-PSY_AR_SIZE_FULL_015,coverage_full,True,8,31,168,25.81,Weak / mixed,Page occupation is a common projective heuristic.
+PSY_AR_SIZE_FULL_015,coverage_full,True,18,31,168,58.06,Weak / mixed,Page occupation is a common projective heuristic.
 PSY_AR_SIZE_SMALL_016,coverage_small,True,0,31,168,0.0,Weak / mixed,Projective interpretation.
 PSY_AR_PLACE_TOP_017,placement_top,True,1,32,167,3.12,Weak / mixed,Projective page-position heuristics.
 PSY_AR_PLACE_LEFT_018,placement_left,True,0,32,167,0.0,Speculative,No strong standard rule found.

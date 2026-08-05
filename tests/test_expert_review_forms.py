@@ -12,10 +12,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from doar.expert_review_forms import (
-    CONSTRUCT_FORM_FIELDS, RULE_FORM_FIELDS, SENTENCE_FORM_FIELDS,
-    build_construct_review_rows, build_rule_review_rows, build_sentence_review_rows,
+    CONSTRUCT_FORM_FIELDS, PHASE2A1_PAGE_RULE_FORM_FIELDS, PHASE2A1_RULE_FORM_FIELDS,
+    PHASE2A1_THRESHOLD_FORM_FIELDS, RULE_FORM_FIELDS, SENTENCE_FORM_FIELDS,
+    build_construct_review_rows, build_phase2a1_page_rule_review_rows,
+    build_phase2a1_rule_review_rows, build_phase2a1_threshold_review_rows,
+    build_rule_review_rows, build_sentence_review_rows,
 )
 from doar.registry_v2_build import build_registry_v2
+from doar.rule_engine_v2 import ALL_PAGE_GATED_RULE_IDS, V2_RULE_IDS
 
 
 class RuleReviewFormTests(unittest.TestCase):
@@ -87,6 +91,93 @@ class SentenceReviewFormTests(unittest.TestCase):
 
     def test_empty_claims_produces_no_rows(self):
         self.assertEqual(build_sentence_review_rows({"claims": []}), [])
+
+
+class Phase2A1RuleReviewFormTests(unittest.TestCase):
+    """DOAR-TRACE Phase 2A.1, Section 7."""
+
+    def setUp(self):
+        self.rows = build_phase2a1_rule_review_rows()
+
+    def test_one_row_per_newly_activated_rule(self):
+        self.assertEqual(len(self.rows), 4)
+        self.assertEqual({r["rule_id"] for r in self.rows}, set(V2_RULE_IDS))
+
+    def test_every_row_has_the_exact_required_fields(self):
+        for row in self.rows:
+            self.assertEqual(set(row.keys()), set(PHASE2A1_RULE_FORM_FIELDS))
+
+    def test_source_text_and_wording_are_never_empty(self):
+        for row in self.rows:
+            self.assertTrue(row["source_text"], row["rule_id"])
+            self.assertTrue(row["parent_safe_wording_current"], row["rule_id"])
+
+    def test_no_expert_judgment_fields_are_pre_filled(self):
+        judgment_fields = [
+            "observable_definition_accepted_y_n", "proxy_interpretation_accepted_y_n",
+            "threshold_accepted_y_n", "suggested_threshold_or_decision_rule",
+            "parent_safe_wording_accepted_y_n", "alternative_explanations_missing",
+            "safe_for_individual_display_y_n", "safe_for_combined_aggregation_y_n", "comments",
+        ]
+        for row in self.rows:
+            for field in judgment_fields:
+                self.assertEqual(row[field], "", f"{row['rule_id']}.{field} was pre-filled")
+
+
+class Phase2A1ThresholdReviewFormTests(unittest.TestCase):
+    def setUp(self):
+        self.rows = build_phase2a1_threshold_review_rows()
+
+    def test_every_row_has_the_exact_required_fields(self):
+        for row in self.rows:
+            self.assertEqual(set(row.keys()), set(PHASE2A1_THRESHOLD_FORM_FIELDS))
+
+    def test_covers_every_executable_rule_except_directly_sourced_ones(self):
+        registry_v2 = build_registry_v2()
+        expected = {
+            r["rule_id"] for r in registry_v2["rules"]
+            if r["allowed_output_level"] == "individual_heuristic_only" and r["threshold_source"] != "directly_sourced"
+        }
+        self.assertEqual({r["rule_id"] for r in self.rows}, expected)
+        # PSY_AR_SIZE_SMALL_016 is directly_sourced -- must be excluded.
+        self.assertNotIn("PSY_AR_SIZE_SMALL_016", {r["rule_id"] for r in self.rows})
+
+    def test_no_directly_sourced_threshold_included(self):
+        for row in self.rows:
+            self.assertNotEqual(row["threshold_source"], "directly_sourced")
+
+    def test_no_expert_judgment_fields_are_pre_filled(self):
+        for row in self.rows:
+            self.assertEqual(row["threshold_accepted_y_n"], "")
+            self.assertEqual(row["suggested_threshold_or_decision_rule"], "")
+            self.assertEqual(row["comments"], "")
+
+
+class Phase2A1PageRuleReviewFormTests(unittest.TestCase):
+    def setUp(self):
+        self.rows = build_phase2a1_page_rule_review_rows()
+
+    def test_one_row_per_page_gated_rule(self):
+        self.assertEqual({r["rule_id"] for r in self.rows}, set(ALL_PAGE_GATED_RULE_IDS))
+
+    def test_every_row_has_the_exact_required_fields(self):
+        for row in self.rows:
+            self.assertEqual(set(row.keys()), set(PHASE2A1_PAGE_RULE_FORM_FIELDS))
+
+    def test_coverage_full_shows_the_redefined_margin_based_definition(self):
+        row = next(r for r in self.rows if r["rule_id"] == "PSY_AR_SIZE_FULL_015")
+        self.assertIn("margin", row["current_definition"].lower())
+
+    def test_page_reference_requirement_is_stated_for_every_row(self):
+        for row in self.rows:
+            self.assertIn("page_relative_features_assessable", row["page_reference_requirement"])
+
+    def test_no_expert_judgment_fields_are_pre_filled(self):
+        for row in self.rows:
+            self.assertEqual(row["page_reference_definition_accepted_y_n"], "")
+            self.assertEqual(row["rule_definition_accepted_y_n"], "")
+            self.assertEqual(row["suggested_definition_or_decision_rule"], "")
+            self.assertEqual(row["comments"], "")
 
 
 if __name__ == "__main__":
