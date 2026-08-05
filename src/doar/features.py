@@ -163,19 +163,35 @@ def objective_feature_row(image_path: str | Path, analysis: dict) -> dict[str, F
     }
     # Features with no real implementation yet — surfaced as missing, never faked.
     UNAVAILABLE = {"shape.enclosed_shape_count", "shape.repetition_score"}
+    # DOAR-TRACE Phase 2A.1, Section 5: retired from downstream use, not
+    # deleted -- the historical computation is preserved (comparable
+    # in objective_features.json/the Technical view) but marked
+    # confidence=0.0/missing=True so nothing can silently trust it. Root
+    # cause is a `_segment` CANDIDATE-SELECTION bias (not primarily the
+    # morphological-cleanup pass Phase 2A's own comment blamed) -- see
+    # docs/BORDER_TOUCH_RATIO_DECISION.md. Confirmed unconsumed by any
+    # rule or page_frame.py logic before this retirement (both compute
+    # their own, separate edge-touch evidence).
+    KNOWN_UNRELIABLE = {"segmentation.border_touch_ratio"}
     result = {}
     for name, value in values.items():
         numeric = float(value)
         is_unavailable = name in UNAVAILABLE
+        is_known_unreliable = name in KNOWN_UNRELIABLE
         evidence_id = "ev_bbox_coverage" if name == "segmentation.bounding_box_coverage" else f"ev_feature_{name.replace('.', '_')}"
+        method = (
+            "not_evaluated_no_detector" if is_unavailable
+            else "retired_unreliable_v1_see_border_touch_ratio_decision" if is_known_unreliable
+            else "objective_features_v3_1"
+        )
         result[name] = FeatureValue(
             value=numeric,
             valid_min=None,
             valid_max=None,
-            confidence=0.0 if is_unavailable else (conf if not name.startswith("quality.") else 1.0),
-            method="not_evaluated_no_detector" if is_unavailable else "objective_features_v3_1",
+            confidence=0.0 if (is_unavailable or is_known_unreliable) else (conf if not name.startswith("quality.") else 1.0),
+            method=method,
             evidence_id=evidence_id,
-            missing=is_unavailable or not math.isfinite(numeric),
+            missing=is_unavailable or is_known_unreliable or not math.isfinite(numeric),
         )
     return result
 

@@ -153,31 +153,59 @@ def build_cases() -> list[dict[str, Any]]:
                         features7["segmentation.largest_component_ratio"].value, tolerance=0.02,
                         limitations="Subsampling for large masks (>512px longest side is not triggered at 300x300) should keep this near-exact."))
 
-    # --- Case 8: border_touch_ratio, frame touching all edges vs isolated ---
+    # --- Case 8: border_touch_ratio -- RETIRED (Phase 2A.1, Section 5) ------
+    # Phase 2A's original comment attributed this to `_segment`'s
+    # morphological cleanup ("erodes ~1-2px from shape edges"). Phase 2A.1
+    # traced the EXACT mechanism (docs/BORDER_TOUCH_RATIO_DECISION.md) and
+    # found that explanation was incomplete: the primary cause is upstream,
+    # in `_segment`'s CANDIDATE SELECTION -- `candidate_adaptive`'s
+    # BoxBlur-based local-contrast test structurally fails to detect thick,
+    # border-touching foreground (PIL's edge-padding during the blur erases
+    # the local contrast it depends on), and `_candidate_score`'s explicit
+    # `(1 - border_ratio)` term then REWARDS that failure, actively
+    # selecting the flawed candidate over the two that correctly detect the
+    # border-touching content. Morphological cleanup, applied after
+    # selection, is a minor, secondary contributor (it actually recovers
+    # most of a thin under-detected band, verified directly). Because the
+    # true bug lives in shared `_segment` logic used by every feature and
+    # by page_frame.py -- not something isolated to this one feature -- and
+    # because this feature has zero downstream consumers (confirmed: no
+    # rule, no page_frame.py logic reads it), it is RETIRED from downstream
+    # use (features.py::KNOWN_UNRELIABLE: confidence=0.0, missing=True)
+    # rather than "fixed" here in isolation, which would not address the
+    # real cause and would risk a false sense of correctness. The
+    # historical computation is preserved (still computed, still visible in
+    # objective_features.json/the Technical view) for comparison. This case
+    # now documents the retirement, not a numeric pass/fail -- pretending a
+    # tolerance-based check is meaningful for a value already known to be
+    # unreliable would misrepresent what was actually validated.
     img8 = Image.new("RGB", (W, H), "white")
     ImageDraw.Draw(img8).rectangle((0, 0, W - 1, 10), fill="black")  # a strip across the whole top edge
     analysis8, features8 = _run(img8)
-    # REAL FINDING (not a test-construction error): _segment's morphological
-    # cleanup ("neighbours >= minimum" over a zero-padded 3x3 window) erodes
-    # ~1-2px from any shape edge, INCLUDING the outermost image row/column
-    # itself -- content that touches the image border is measurably eroded
-    # away from the border in the resulting mask. A full-width top strip
-    # analytically "should" score border_touch_ratio=0.25 (1 of 4 border
-    # segments fully covered) but measures ~0.015, because row 0 itself is
-    # eroded to all-False. Documented here as a genuine, disclosed
-    # measurement limitation -- analysis.py is NOT patched by this
-    # validation module.
-    rows.append(_check("top_edge_strip", "segmentation.border_touch_ratio", 0.25,
-                        features8["segmentation.border_touch_ratio"].value, tolerance=0.05,
-                        limitations="REAL FINDING: _segment's morphological cleanup erodes ~1-2px from shape edges, "
-                                     "including the image's own border row/column -- border-touching content is "
-                                     "measurably under-counted by border_touch_ratio. See docs/FEATURE_MEASUREMENT_VALIDATION.md."))
+    fv8 = features8["segmentation.border_touch_ratio"]
+    rows.append({
+        "case_id": "top_edge_strip", "feature_id": "segmentation.border_touch_ratio",
+        "expected_value": 0.25, "measured_value": round(fv8.value, 6),
+        "absolute_error": None, "relative_error": None, "tolerance": None,
+        "status": "known_unreliable",
+        "limitations": (
+            "RETIRED (Phase 2A.1): root cause is a _segment candidate-selection bias, not a test-construction "
+            f"error. Historical value preserved for comparison (feature.confidence={fv8.confidence}, "
+            f"feature.missing={fv8.missing}). See docs/BORDER_TOUCH_RATIO_DECISION.md."
+        ),
+    })
 
     img8b = Image.new("RGB", (W, H), "white")
     ImageDraw.Draw(img8b).rectangle((100, 100, 199, 199), fill="black")  # isolated, no edge touch
     analysis8b, features8b = _run(img8b)
-    rows.append(_check("isolated_square", "segmentation.border_touch_ratio", 0.0,
-                        features8b["segmentation.border_touch_ratio"].value, tolerance=0.01))
+    fv8b = features8b["segmentation.border_touch_ratio"]
+    rows.append({
+        "case_id": "isolated_square", "feature_id": "segmentation.border_touch_ratio",
+        "expected_value": 0.0, "measured_value": round(fv8b.value, 6),
+        "absolute_error": None, "relative_error": None, "tolerance": None,
+        "status": "known_unreliable",
+        "limitations": "RETIRED (Phase 2A.1): recorded for comparison only, not certified correct. See docs/BORDER_TOUCH_RATIO_DECISION.md.",
+    })
 
     # --- Case 9: horizontal (left-right) symmetry ----------------------------
     img9 = Image.new("RGB", (W, H), "white")

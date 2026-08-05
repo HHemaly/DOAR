@@ -47,7 +47,11 @@ class ObjectiveFeaturePersistenceTests(unittest.TestCase):
         self.assertTrue(doc_path.exists(), "objective_features.json was not written")
         doc = json.loads(doc_path.read_text(encoding="utf-8"))
         self.assertEqual(doc["feature_count"], 60)
-        self.assertEqual(doc["missing_count"], 2)
+        # 3, not 2: Phase 2A.1 Section 5 retires segmentation.border_touch_ratio
+        # from downstream use (confidence=0.0/missing=True) -- see
+        # docs/BORDER_TOUCH_RATIO_DECISION.md. The other 2 missing features
+        # (shape.enclosed_shape_count/repetition_score) are unchanged.
+        self.assertEqual(doc["missing_count"], 3)
 
     def test_analysis_json_also_contains_objective_features(self):
         image = Image.new("RGB", (200, 200), "white")
