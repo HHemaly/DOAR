@@ -272,32 +272,38 @@ _RULE_DEFS: list[dict[str, Any]] = [
      "observable": "coverage_about_half", "evidence_family": "size_composition", "observability_class": "static_direct",
      "target_construct": None, "direction": "supports",
      "interpretation": "outgoing at times and introverted at other times -- bidirectional by the source's own wording, so not mapped to a single-direction construct",
-     "threshold_source": "source_centre_with_invented_band"},
+     "threshold_source": "source_centre_with_invented_band",
+     "question_template_override": "What made your child decide how much of the page to use for this drawing?"},
     {"rule_id": "PSY_AR_SIZE_FULL_015", "source_entry_ids": ["SRC_AR_015", "SRC_EN_020"],
      "observable": "coverage_full", "evidence_family": "size_composition", "observability_class": "static_direct",
      "target_construct": "visual_dominance_or_prominence", "direction": "supports",
      "interpretation": "high self-respect/self-esteem; English source frames this as expansiveness/strong energy/self-assertion",
-     "threshold_source": "invented_operational_standin"},
+     "threshold_source": "invented_operational_standin",
+     "question_template_override": "What made your child decide how much of the page to use for this drawing?"},
     {"rule_id": "PSY_AR_SIZE_SMALL_016", "source_entry_ids": ["SRC_AR_016", "SRC_EN_023"],
      "observable": "coverage_small", "evidence_family": "size_composition", "observability_class": "static_direct",
      "target_construct": "fear_or_insecurity_pattern", "direction": "supports",
      "interpretation": "instability or fear; English source frames the page-area-fraction version as caution/uncertainty/low confidence",
-     "threshold_source": "directly_sourced"},
+     "threshold_source": "directly_sourced",
+     "question_template_override": "What made your child decide how much of the page to use for this drawing?"},
     {"rule_id": "PSY_AR_PLACE_TOP_017", "source_entry_ids": ["SRC_AR_017", "SRC_EN_024"],
      "observable": "placement_top", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": None, "direction": "supports",
      "interpretation": "dreamy personality, fantasy world, difficulty adapting -- does not cleanly fit any of the 12 broad constructs",
-     "threshold_source": "invented_operational_standin"},
+     "threshold_source": "invented_operational_standin",
+     "question_template_override": "What made your child choose to draw here on the page?"},
     {"rule_id": "PSY_AR_PLACE_LEFT_018", "source_entry_ids": ["SRC_AR_018", "SRC_EN_025"],
      "observable": "placement_left", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": "social_distance_or_isolation", "direction": "supports",
      "interpretation": "introverted personality; English source adds past orientation/dependence",
-     "threshold_source": "invented_operational_standin"},
+     "threshold_source": "invented_operational_standin",
+     "question_template_override": "What made your child choose to draw here on the page?"},
     {"rule_id": "PSY_AR_PLACE_RIGHT_019", "source_entry_ids": ["SRC_AR_019", "SRC_EN_026"],
      "observable": "placement_right", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": "affiliation_or_connection", "direction": "supports",
      "interpretation": "outgoing personality; English source adds future orientation/outward movement",
-     "threshold_source": "invented_operational_standin"},
+     "threshold_source": "invented_operational_standin",
+     "question_template_override": "What made your child choose to draw here on the page?"},
     # ===== New rules from the compiled English PDF only =====
     {"rule_id": "EN_COMPILED_EYES_MISSING_DETAIL_020", "source_entry_ids": ["SRC_EN_004", "SRC_EN_035"],
      "observable": "eyes_missing_or_undetailed", "evidence_family": "facial_feature_style", "observability_class": "static_detector",
@@ -347,7 +353,8 @@ _RULE_DEFS: list[dict[str, Any]] = [
      # (PSY_AR_PLACE_TOP/LEFT/RIGHT, all 0.10) rather than inventing a new
      # number. Not tuned to any agreement metric.
      "confidence_ceiling": 0.10,
-     "scientific_support": "placement_effects_weak_not_specific"},
+     "scientific_support": "placement_effects_weak_not_specific",
+     "question_template_override": "What made your child choose to draw here on the page?"},
     {"rule_id": "EN_COMPILED_LINE_HEAVY_PRESSURE_030", "source_entry_ids": ["SRC_EN_028"],
      "observable": "heavy_line_pressure_appearance", "evidence_family": "line_intensity_quality", "observability_class": "static_proxy",
      "target_construct": "tension_or_anger_pattern", "direction": "supports",
@@ -370,7 +377,8 @@ _RULE_DEFS: list[dict[str, Any]] = [
      # clinician-assigned value exists, so this uses the lowest ceiling
      # already established in rules_registry.json rather than a new number.
      "confidence_ceiling": 0.10,
-     "scientific_support": "line_pressure_appearance_proxy_not_independently_validated"},
+     "scientific_support": "line_pressure_appearance_proxy_not_independently_validated",
+     "question_template_override": "What did your child use to draw this picture?"},
     {"rule_id": "EN_COMPILED_LINE_LIGHT_PRESSURE_031", "source_entry_ids": ["SRC_EN_029"],
      "observable": "light_line_pressure_appearance", "evidence_family": "line_intensity_quality", "observability_class": "static_proxy",
      "target_construct": "caution_or_low_visual_energy", "direction": "supports",
@@ -389,7 +397,8 @@ _RULE_DEFS: list[dict[str, Any]] = [
          "a measurement of physical pencil pressure."
      ),
      "confidence_ceiling": 0.10,
-     "scientific_support": "line_pressure_appearance_proxy_not_independently_validated"},
+     "scientific_support": "line_pressure_appearance_proxy_not_independently_validated",
+     "question_template_override": "What did your child use to draw this picture?"},
     {"rule_id": "EN_COMPILED_LINE_SHAKY_BROKEN_032", "source_entry_ids": ["SRC_EN_030"],
      "observable": "shaky_or_broken_lines", "evidence_family": "line_fragmentation_quality", "observability_class": "static_proxy",
      "target_construct": "disorganisation_or_fragmentation", "direction": "supports",
@@ -407,7 +416,8 @@ _RULE_DEFS: list[dict[str, Any]] = [
          "difficulty. This is an appearance-based proxy only."
      ),
      "confidence_ceiling": 0.10,
-     "scientific_support": "line_fragmentation_appearance_proxy_not_independently_validated"},
+     "scientific_support": "line_fragmentation_appearance_proxy_not_independently_validated",
+     "question_template_override": "Can you tell me what is happening in this picture?"},
     {"rule_id": "EN_COMPILED_LINE_ZIGZAG_033", "source_entry_ids": ["SRC_EN_031"],
      "observable": "zigzag_lines", "evidence_family": "line_quality", "observability_class": "static_detector",
      "target_construct": "tension_or_anger_pattern", "direction": "supports",
@@ -534,7 +544,17 @@ def build_registry_v2() -> dict[str, Any]:
                 f"Evidence grade as written in source: "
                 f"{', '.join(evidence_level_terms) or 'not stated (Arabic source has no explicit evidence-level column)'}."
             ),
-            "question_template": f"Would you be willing to ask your child about the {defn['observable'].replace('_', ' ')} in this drawing?",
+            # DOAR-TRACE Phase 2A.2, Section 8: the generic fallback below
+            # mechanically inserts the raw observable name ("heavy line
+            # pressure appearance"), producing exactly the technical,
+            # non-natural phrasing the task explicitly forbids ("ask about
+            # the light line pressure appearance"). Every executable rule
+            # now has a hand-written, natural override
+            # (`question_template_override`); the fallback remains only for
+            # the 31 disabled rules, which never reach the Parent view.
+            "question_template": defn.get("question_template_override") or (
+                f"Would you be willing to ask your child about the {defn['observable'].replace('_', ' ')} in this drawing?"
+            ),
             "psychologist_review_status": PSYCHOLOGIST_REVIEW_STATUS,
             # BUG FIX (Phase 2A): this previously checked `rule_id in
             # _EXECUTABLE_STATIC_DIRECT_FEATURE_IDS`, but that dict is keyed
