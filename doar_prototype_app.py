@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from doar.chat import respond_to_chat  # noqa: E402
 from doar.parent_view import (  # noqa: E402
-    disclaimer, overall_interpretation, plain_language_observations, plain_language_rule_rows,
+    disclaimer, plain_language_observations, plain_language_rule_rows,
 )
 from doar.profile import ChildProfile, ALLOWED_AGE_RANGES, load_profile, save_profile  # noqa: E402
 from doar.timed_analysis import analyze_image_with_timing  # noqa: E402
@@ -121,6 +121,17 @@ objective_features_path = case_dir / "objective_features.json"
 objective_features_doc = (
     json.loads(objective_features_path.read_text(encoding="utf-8")) if objective_features_path.exists() else None
 )
+# DOAR-TRACE Phase 1.5 Section 8: judges_v2/generated_claims/verification_report
+# are written automatically by every analyze_image run since this phase --
+# older cases won't have them, so these stay optional too.
+judges_v2_path = case_dir / "judges_v2.json"
+judges_v2_doc = json.loads(judges_v2_path.read_text(encoding="utf-8")) if judges_v2_path.exists() else None
+generated_claims_path = case_dir / "generated_claims.json"
+generated_claims_doc = json.loads(generated_claims_path.read_text(encoding="utf-8")) if generated_claims_path.exists() else None
+verification_report_path = case_dir / "verification_report.json"
+verification_report_doc = (
+    json.loads(verification_report_path.read_text(encoding="utf-8")) if verification_report_path.exists() else None
+)
 
 
 def artifact(name: str) -> str | None:
@@ -142,79 +153,140 @@ with parent_tab:
     direction = "rtl" if ar else "ltr"
     st.markdown(f'<div dir="{direction}">', unsafe_allow_html=True)
 
-    st.subheader("الرسمة المرفوعة" if ar else "Uploaded drawing")
     norm = artifact("normalized_image")
     if norm:
         st.image(norm, width=320)
-
-    st.subheader("سياق الطفل" if ar else "Child context (parent-provided)")
     if profile:
-        cols = st.columns(4)
-        cols[0].metric("الفئة العمرية" if ar else "Age range", profile.age_range)
-        cols[1].metric("الجنس" if ar else "Gender", profile.gender or ("غير محدد" if ar else "not specified"))
-        cols[2].metric("التاريخ" if ar else "Date", profile.date or "-")
-        cols[3].metric("التعليمات" if ar else "Instruction", profile.drawing_instruction or ("لا يوجد" if ar else "none"))
-        if profile.parent_concern:
-            st.caption(("مصدر القلق: " if ar else "Parent's concern: ") + profile.parent_concern)
-        st.caption("هذه المعلومات للعرض فقط ولا تُستخدم في النموذج أو القواعد."
-                   if ar else "This context is for display only -- it is never used by the model or the rules.")
-    else:
-        st.caption("لم تُقدَّم معلومات سياقية." if ar else "No context information was provided.")
+        st.caption(
+            (f"السياق: {profile.age_range}، {profile.gender or 'غير محدد'}، {profile.date or '-'} "
+             "(للعرض فقط، لا يُستخدم في النموذج أو القواعد)") if ar else
+            (f"Context: {profile.age_range}, {profile.gender or 'not specified'}, {profile.date or '-'} "
+             "(display only, never used by the model or the rules)")
+        )
 
-    st.subheader("ملاحظات مرصودة وقابلة للقياس" if ar else "Visible, measurable observations")
+    combined_hyps = (structured or {}).get("combined_drawing_level_hypotheses", [])
+    individual_suggestions = (structured or {}).get("individual_rule_suggestions", [])
+
+    # 1. Drawing-level analysis summary --------------------------------------
+    st.subheader("١. ملخص التحليل على مستوى الرسمة" if ar else "1. Drawing-level analysis summary")
+    if combined_hyps:
+        st.write((f"تم رصد {len(combined_hyps)} فرضية/فرضيات مُجمَّعة من أدلة مستقلة، و{len(individual_suggestions)} "
+                  f"ملاحظة فردية إضافية." if ar else
+                  f"{len(combined_hyps)} combined pattern(s) from independent evidence were found, plus "
+                  f"{len(individual_suggestions)} additional individual observation(s)."))
+    elif individual_suggestions:
+        st.write((f"لم يتقارب دليلان مستقلان على فرضية واحدة؛ توجد {len(individual_suggestions)} ملاحظة فردية ضعيفة الدعم."
+                  if ar else
+                  f"No two independent pieces of evidence converged on one pattern; {len(individual_suggestions)} "
+                  "weak, individual observation(s) were found."))
+    else:
+        st.write("لم تُلاحَظ أي أنماط أو قواعد بصرية في هذه الرسمة." if ar else "No visual patterns or rules were observed in this drawing.")
+    st.caption(disclaimer(language))
+
+    # 2. Combined patterns, levels 2-4 only ----------------------------------
+    st.subheader("٢. الأنماط المُجمَّعة (المستويات ٢-٤ فقط)" if ar else "2. Combined patterns (levels 2-4 only)")
+    if combined_hyps:
+        for hyp in combined_hyps:
+            with st.expander(f"[{hyp['level_label']}] {hyp['display_name_ar'] if ar else hyp['display_name_en']}"):
+                for text in hyp["supporting_texts"]:
+                    st.write("- " + text)
+                st.caption(("مستوى التقارب: " if ar else "Convergence level: ") + f"{hyp['ordinal_level']} ({hyp['level_label']})")
+                st.caption(("عائلات الأدلة المستقلة: " if ar else "Independent evidence families: ") + ", ".join(hyp["contributing_evidence_families"]))
+                st.warning("فرضية مُجمَّعة من عدة أدلة مستقلة — تتطلب مراجعة مختص، وليست تشخيصاً."
+                          if ar else "A combined hypothesis from multiple independent pieces of evidence -- requires clinician review, and is not a diagnosis.")
+    else:
+        st.info("لا توجد أنماط مُجمَّعة (مستوى ٢ أو أعلى) لهذه الحالة." if ar
+               else "No combined pattern (level 2 or higher) for this case.")
+
+    # 3. Individual rule suggestions (Level B -- never combined) ------------
+    st.subheader("٣. ملاحظات فردية لكل قاعدة" if ar else "3. Individual rule suggestions")
+    st.caption("كل قاعدة تظهر بمفردها فقط، ولا تُعرض أبداً كفرضية مُجمَّعة." if ar
+              else "Each rule is shown on its own only -- never displayed as a combined theme.")
+    if individual_suggestions:
+        for suggestion in individual_suggestions:
+            with st.expander(f"{suggestion['rule_id']} -- {suggestion['observable'].replace('_', ' ')}"):
+                st.write(suggestion["parent_safe_wording"])
+                st.caption(("مستوى الدليل كما ورد في المصدر: " if ar else "Evidence level as written in source: ")
+                          + (", ".join(suggestion["evidence_level_as_written"]) if suggestion["evidence_level_as_written"] else "not graded by source"))
+    else:
+        st.info("لا توجد ملاحظات فردية لهذه الحالة." if ar else "No individual rule suggestions for this case.")
+
+    # 4. What was measured/detected (Level A) --------------------------------
+    st.subheader("٤. ما تم قياسه أو اكتشافه" if ar else "4. What was measured/detected")
     for obs in plain_language_observations(analysis, language):
         st.write("- " + obs["text"])
-
-    st.subheader("الأجسام المكتشفة" if ar else "Detected objects")
     if detections.get("status") == "unavailable":
         st.info("كاشف الأجسام غير مُطبَّق في هذا الإصدار — لم تُفحص الرسمة لمحتواها."
                if ar else "Detector not implemented in this release -- the drawing's content was not analyzed for objects.")
+
+    # 5. Expressive-content model result -------------------------------------
+    st.subheader("٥. نتيجة نموذج المحتوى التعبيري" if ar else "5. Expressive-content model result")
+    model_obs = (structured or {}).get("expressive_model_observation")
+    if model_obs:
+        st.write(model_obs["text"])
+        st.caption(f"confidence={model_obs['confidence']:.0%}, calibration={model_obs['calibration_status']}, "
+                   f"used_in_combined_hypothesis={model_obs['used_in_combined_hypothesis']}")
+        st.caption("هذا تصنيف إحصائي وليس تقييماً نفسياً لحالة الطفل." if ar
+                  else "This is a statistical classification, not a psychological assessment of the child's state.")
     else:
-        st.json(detections)
+        st.info("لا يتوفر ناتج نموذج تعبيري لهذه الحالة." if ar else "No expressive-content model output for this case.")
 
-    st.subheader("السمات بلغة مبسطة" if ar else "Features, in plain language")
-    st.write(
-        ("تغطية المحتوى: " if ar else "Content coverage: ")
-        + f"{analysis['composition']['foreground_coverage']:.0%}"
-    )
-    st.write(
-        ("مستوى تفاصيل الخطوط: " if ar else "Line-detail level: ")
-        + ("غير متاح — يتطلب حساباً إضافياً غير مُفعَّل في هذا العرض" if ar
-           else "not computed in this view (see Technical view for the full 59-feature table)")
-    )
-    st.caption("سمتان (عدد الأشكال المغلقة وتكرارها) غير متاحتين لعدم وجود كاشف أشكال."
-               if ar else "Two features (enclosed-shape count, shape repetition) are unavailable -- no shape detector exists yet.")
+    # 6. Why each suggestion was made ----------------------------------------
+    st.subheader("٦. لماذا اقتُرحت كل ملاحظة" if ar else "6. Why each suggestion was made")
+    for suggestion in individual_suggestions:
+        st.write(f"**{suggestion['rule_id']}**: " + suggestion["source_citation"])
+    for hyp in combined_hyps:
+        st.write(f"**{hyp['target_construct']}**: " + (", ".join(hyp["contributing_rule_ids"]) or "expressive model only")
+                 + (" + expressive model" if hyp["uses_expressive_model"] else ""))
+    if not individual_suggestions and not combined_hyps:
+        st.caption("لا يوجد ما يُفسَّر." if ar else "Nothing to explain.")
 
-    st.subheader("فرضيات محتملة على مستوى الرسمة" if ar else "Possible drawing-level themes")
-    st.caption(
-        "لماذا اقتُرحت كل فرضية: القواعد الداعمة والأدلة والمراجع. هذه ليست تشخيصاً."
-        if ar else
-        "Why each theme was suggested: the supporting rules, evidence, and references behind it. This is not a diagnosis."
-    )
-    if structured and structured.get("candidate_drawing_level_themes"):
-        for theme in structured["candidate_drawing_level_themes"]:
-            with st.expander(f"{theme['target_construct']} ({theme['allowed_output_level']})"):
-                st.write(("القواعد الداعمة: " if ar else "Supporting rules: ") + ", ".join(theme["supporting_rule_ids"]))
-                st.write(("الأدلة: " if ar else "Evidence: ") + ", ".join(theme["supporting_evidence_ids"]))
-                st.write(("المراجع: " if ar else "References: ") + (", ".join(theme["references"]) or ("لا يوجد" if ar else "none")))
-                for lim in theme["limitations"]:
-                    st.caption(("قيد: " if ar else "Limitation: ") + lim)
-                for alt in theme["alternative_explanations"]:
-                    st.caption(("تفسير بديل: " if ar else "Alternative explanation: ") + alt)
-                if theme["allowed_output_level"] == "combined_hypothesis_only":
-                    st.warning(
-                        "فرضية مُجمَّعة من عدة أدلة مستقلة — تتطلب مراجعة مختص."
-                        if ar else "A combined hypothesis from multiple independent pieces of evidence -- requires clinician review.")
-        if structured.get("cross_theme_contradictions"):
-            st.warning(("تم رصد فرضيات متعارضة ولم يُختر فائز تلقائياً:" if ar
-                       else "Conflicting themes were detected; no automatic winner was chosen:"))
-            for c in structured["cross_theme_contradictions"]:
-                st.write(f"- {c['construct_a']} ↔ {c['construct_b']}")
+    # 7. Contradictions and alternative explanations -------------------------
+    st.subheader("٧. التناقضات والتفسيرات البديلة" if ar else "7. Contradictions and alternative explanations")
+    contradictions = (structured or {}).get("cross_theme_contradictions", [])
+    if contradictions:
+        st.warning("تم رصد فرضيات متعارضة ولم يُختر فائز تلقائياً:" if ar
+                  else "Conflicting patterns were detected; no automatic winner was chosen:")
+        for c in contradictions:
+            st.write(f"- {c['construct_a']} ↔ {c['construct_b']}")
     else:
-        st.info("لا توجد فرضيات مرشحة على مستوى الرسمة لهذه الحالة." if ar
-               else "No candidate drawing-level themes for this case.")
+        st.caption("لم تُرصد تناقضات بين الأنماط في هذه الحالة." if ar else "No contradictions between patterns were detected in this case.")
+    for suggestion in individual_suggestions:
+        for alt in suggestion["alternative_explanations"]:
+            st.caption(f"[{suggestion['rule_id']}] " + (("تفسير بديل: " if ar else "Alternative: ")) + alt)
 
-    st.subheader("كل السمات (٥٩ سمة، قابلة للتوسيع)" if ar else "All features (59, expandable)")
+    # 8. Missing/unavailable evidence -----------------------------------------
+    st.subheader("٨. الأدلة الناقصة أو غير المتاحة" if ar else "8. Missing/unavailable evidence")
+    missing = (structured or {}).get("missing_evidence", [])
+    if missing:
+        for m in missing:
+            st.write("- " + m)
+    else:
+        st.caption("لا توجد أدلة ناقصة مسجَّلة." if ar else "No missing evidence recorded.")
+    st.caption("كاشف الأجسام والعلاقات المكانية غير متاحين في هذا الإصدار." if ar
+              else "Object and spatial-relationship detection are unavailable in this release.")
+
+    # 9. Suggested questions ---------------------------------------------------
+    st.subheader("٩. أسئلة مقترحة" if ar else "9. Suggested questions")
+    questions = (structured or {}).get("suggested_parent_questions", [])
+    if questions:
+        for q in questions:
+            st.write("- " + q)
+    else:
+        st.caption("لا توجد أسئلة مقترحة لهذه الحالة." if ar else "No suggested questions for this case.")
+
+    # 10. Sources and evidence strength ----------------------------------------
+    st.subheader("١٠. المصادر وقوة الأدلة" if ar else "10. Sources and evidence strength")
+    for suggestion in individual_suggestions:
+        st.write(f"**{suggestion['rule_id']}**: {suggestion['source_citation']} "
+                 + (f"({', '.join(suggestion['reference_ids'])})" if suggestion["reference_ids"] else ""))
+
+    # 11. Permanent disclaimer ---------------------------------------------------
+    st.subheader("١١. إخلاء المسؤولية الدائم" if ar else "11. Permanent disclaimer")
+    st.info(disclaimer(language))
+
+    # 12. Expandable all-features and all-rules tables ---------------------------
+    st.subheader("١٢. كل السمات وكل القواعد (قابلة للتوسيع)" if ar else "12. All features and all rules (expandable)")
     if objective_features_doc:
         with st.expander(("عرض كل السمات الموضوعية" if ar else "Show all objective features")
                          + f" ({objective_features_doc['feature_count']}, "
@@ -223,42 +295,11 @@ with parent_tab:
     else:
         st.caption("سمات موضوعية غير متاحة لهذه الحالة (تحليل سابق للتحديث)." if ar
                   else "Objective features not available for this case (analyzed before this update).")
-
-    st.subheader("القواعد المُقيَّمة" if ar else "Rules evaluated")
-    st.caption("كل قاعدة هي فرضية غير مُتحقق منها علمياً، وليست حقيقة مؤكدة."
-              if ar else "Every rule is a scientifically-unvalidated hypothesis, never a confirmed fact.")
-    for row in plain_language_rule_rows(analysis["rule_evaluations"], language):
-        badge = {"weak_support": "OBSERVED", "not_matched": "NOT OBSERVED",
-                 "missing_detector": "NOT EVALUATED", "not_assessable_context_unknown": "NOT EVALUABLE"}.get(row["status"], row["status"])
-        with st.expander(f"[{badge}] {row['label']}"):
-            st.write(row["message"])
-            if row["note"]:
-                st.write(("الصياغة الآمنة: " if ar else "Parent-safe wording: ") + row["note"])
-                st.caption(("سقف الثقة: " if ar else "Confidence ceiling: ") + f"{row['confidence_ceiling']}")
-
-    st.subheader("نتيجة النموذج" if ar else "Model output")
-    emotion = analysis["emotion"]
-    if emotion["status"] == "available":
-        st.bar_chart(emotion["probabilities"])
-        st.write(f"{'الأعلى احتمالاً' if ar else 'Most likely'}: **{emotion['top_class']}** "
-                 f"({emotion['confidence']:.0%}, {'معايرة' if ar else 'calibration'}: {emotion['calibration_status']})")
-    else:
-        st.info(f"{'الحالة' if ar else 'Status'}: {emotion['status']} -- {emotion.get('reason', '')}")
-
-    st.subheader("التفسير العام (نص مُركَّب آلياً وليس توليداً ذكياً)" if ar
-                 else "Overall interpretation (template-composed, not AI-generated)")
-    st.write(overall_interpretation(analysis, language))
-
-    st.subheader("عدم اليقين والحدود" if ar else "Uncertainty and limitations")
-    limitations = sorted({lim for e in analysis["evidence"] for lim in e.get("limitations", [])})
-    for lim in limitations:
-        st.write("- " + lim)
-    st.write(("- " if not ar else "- ") + (
-        "لم تُتحقق عتبات الجودة سريرياً على هذه البيانات." if ar
-        else "Quality-gate thresholds are engineering defaults, not clinically validated on this dataset."))
-
-    st.subheader("إرشادات آمنة للوالدين" if ar else "Safe parent guidance")
-    st.info(disclaimer(language))
+    with st.expander(("عرض كل القواعد الـ٤١ وحالتها" if ar else "Show all 41 rules and their status")):
+        for row in plain_language_rule_rows(analysis["rule_evaluations"], language):
+            badge = {"weak_support": "OBSERVED", "not_matched": "NOT OBSERVED",
+                     "missing_detector": "NOT EVALUATED", "not_assessable_context_unknown": "NOT EVALUABLE"}.get(row["status"], row["status"])
+            st.write(f"[{badge}] {row['label']}")
 
     st.divider()
     st.subheader("محادثة متابعة" if ar else "Follow-up chat")
@@ -337,34 +378,91 @@ with technical_tab:
     st.subheader("Rule coverage table")
     st.dataframe(analysis["rule_evaluations"], use_container_width=True)
 
-    st.subheader("Dependency grouping and aggregation calculation (DOAR-TRACE 4D)")
+    st.subheader("Dependency grouping and aggregation calculation (DOAR-TRACE Phase 1.5 Section 6)")
     if structured:
         st.caption(
-            "candidate_drawing_level_themes: rules grouped by target_construct, deduplicated "
-            "by evidence_id, escalated to combined_hypothesis_only only when >=2 distinct "
-            "evidence IDs from >=2 distinct evidence families converge (structured_report.py)."
+            "combined_drawing_level_hypotheses: rules (+ the expressive-content model, confidence-gated) "
+            "grouped by target_construct, deduplicated by evidence_id, escalated to a Level-C combined "
+            "hypothesis only when >=2 distinct evidence IDs from >=2 distinct evidence families converge "
+            "and the construct's own policy (construct_registry.json) is satisfied (structured_report.py)."
         )
-        if structured["candidate_drawing_level_themes"]:
+        if structured["combined_drawing_level_hypotheses"]:
             st.dataframe([
                 {
-                    "target_construct": t["target_construct"],
-                    "supporting_rule_ids": ", ".join(t["supporting_rule_ids"]),
-                    "supporting_evidence_ids": ", ".join(t["supporting_evidence_ids"]),
-                    "evidence_families": ", ".join(t["evidence_families"]),
-                    "n_evidence_ids": len(t["supporting_evidence_ids"]),
-                    "n_evidence_families": len(t["evidence_families"]),
-                    "allowed_output_level": t["allowed_output_level"],
+                    "target_construct": h["target_construct"],
+                    "ordinal_level": h["ordinal_level"],
+                    "level_label": h["level_label"],
+                    "contributing_rule_ids": ", ".join(h["contributing_rule_ids"]),
+                    "uses_expressive_model": h["uses_expressive_model"],
+                    "contributing_evidence_ids": ", ".join(h["contributing_evidence_ids"]),
+                    "evidence_families": ", ".join(h["contributing_evidence_families"]),
                 }
-                for t in structured["candidate_drawing_level_themes"]
+                for h in structured["combined_drawing_level_hypotheses"]
             ], use_container_width=True)
         else:
-            st.caption("No rule triggered on this image -- no theme to aggregate.")
+            st.caption("No construct reached the >=2-family combined-hypothesis threshold on this image.")
+        st.caption(f"individual_rule_suggestions (Level B, never combined): {len(structured['individual_rule_suggestions'])}")
         if structured["cross_theme_contradictions"]:
             st.dataframe(structured["cross_theme_contradictions"], use_container_width=True)
         st.caption(f"structured_analysis schema_version={structured['schema_version']}, "
-                   f"registry_v2 schema_version={structured['registry_v2_schema_version']}")
+                   f"registry_v2 schema_version={structured['registry_v2_schema_version']}, "
+                   f"construct_registry schema_version={structured.get('construct_registry_schema_version')}")
     else:
         st.info("structured_analysis.json not available for this case (analyzed before this update).")
+
+    st.subheader("Source catalog coverage")
+    catalog_path = ROOT / "resources" / "psychology_sources" / "source_rule_catalog.json"
+    if catalog_path.exists():
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        st.write(f"{catalog['entry_count']} total source rows ({catalog['entry_count_by_document']}), "
+                 f"{catalog['candidate_rule_entry_count']} candidate-rule rows, "
+                 f"{len(catalog['relationships'])} explicit relationships.")
+        with st.expander("Show all source rows"):
+            st.dataframe(catalog["entries"], use_container_width=True)
+        with st.expander("Show all relationships (near_duplicate/expands/related_but_distinct)"):
+            st.dataframe(catalog["relationships"], use_container_width=True)
+    else:
+        st.info("source_rule_catalog.json not found.")
+
+    st.subheader("Every rule and its construct mapping")
+    registry_v2_path = ROOT / "resources" / "psychology_sources" / "rules_registry_v2.json"
+    if registry_v2_path.exists():
+        registry_v2_doc = json.loads(registry_v2_path.read_text(encoding="utf-8"))
+        st.write(f"{registry_v2_doc['rule_count']} rules total "
+                 f"({registry_v2_doc['rule_count_original_production']} original production + "
+                 f"{registry_v2_doc['rule_count_new_from_compiled_pdf']} new from the compiled PDF).")
+        st.dataframe([
+            {"rule_id": r["rule_id"], "observable": r["observable"], "target_construct": r["target_construct"],
+             "observability_class": r["observability_class"], "allowed_output_level": r["allowed_output_level"],
+             "evidence_family": r["evidence_family"], "source_document": r["source_document"], "source_page": r["source_page"]}
+            for r in registry_v2_doc["rules"]
+        ], use_container_width=True)
+    else:
+        st.info("rules_registry_v2.json not found.")
+
+    st.subheader("Judge verdicts (judges_v2.json)")
+    if judges_v2_doc:
+        st.dataframe([
+            {"judge_id": jid, "status": v["status"], "confidence": v["confidence"], "reasons": "; ".join(v["reasons"])}
+            for jid, v in judges_v2_doc.items()
+        ], use_container_width=True)
+    else:
+        st.info("judges_v2.json not available for this case (analyzed before this update).")
+
+    st.subheader("Claim verification")
+    if generated_claims_doc and verification_report_doc:
+        st.write(f"{generated_claims_doc['claim_count']} claim(s) generated: "
+                 f"{generated_claims_doc['accepted_count']} accepted, {generated_claims_doc['rejected_count']} rejected. "
+                 f"all_passed={verification_report_doc['all_passed']}")
+        st.dataframe(generated_claims_doc["claims"], use_container_width=True)
+        with st.expander("Show per-claim verification checks"):
+            st.dataframe([
+                {"claim_id": c["claim_id"], "passed": c["passed"],
+                 "failed_checks": "; ".join(chk["check_name"] for chk in c["checks"] if not chk["passed"])}
+                for c in verification_report_doc["claims"]
+            ], use_container_width=True)
+    else:
+        st.info("generated_claims.json/verification_report.json not available for this case (analyzed before this update).")
 
     st.subheader("Evidence IDs")
     st.dataframe([
@@ -372,12 +470,23 @@ with technical_tab:
         for e in analysis["evidence"]
     ], use_container_width=True)
 
-    st.subheader("Missing-capability warnings")
+    st.subheader("Schema and model versions")
+    st.code(
+        f"analysis.schema_version: {analysis['schema_version']}\n"
+        f"structured_analysis schema_version: {structured.get('schema_version') if structured else 'n/a'}\n"
+        f"registry_v2 schema_version: {structured.get('registry_v2_schema_version') if structured else 'n/a'}\n"
+        f"model_name: {analysis['emotion'].get('model_name') or 'n/a'}\n"
+        f"model_version: {analysis['emotion'].get('model_version') or 'n/a'}\n"
+        f"preprocessing_version: {analysis['emotion'].get('preprocessing_version') or 'n/a'}"
+    )
+
+    st.subheader("Missing/unavailable capability warnings")
     warnings = [
         "Object/geometry detection: not implemented (schema-only scaffolding in src/doar/detectors/)",
         "shape.enclosed_shape_count, shape.repetition_score: not implemented (no shape detector)",
         "Concern profiles: implemented but disabled by design (CONCERNS_ENABLED = False)",
-        "13 of 19 rules (all tier_2): permanently missing_detector until a real detector exists",
+        "35 of 41 registry-v2 rules: allowed_output_level=disabled (no detector wired to any evaluator)",
+        "detection_judge, relation_judge, language_judge: not_implemented (no underlying capability yet)",
     ]
     for w in warnings:
         st.write("- " + w)

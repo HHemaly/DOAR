@@ -4,6 +4,7 @@ real case via the real pipeline (no mocking) and confirms both the Parent
 and Technical views render without raising any exception."""
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -61,11 +62,12 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             at.run(timeout=60)
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
 
-    def test_candidate_themes_and_dependency_grouping_render_doar_trace_4e(self):
-        """DOAR-TRACE 4E: a full-page-coverage drawing reliably triggers the
-        coverage_full rule -> a self_esteem candidate theme -- confirms the
-        new Parent-view theme section and Technical-view dependency/
-        aggregation table both render real content, not just avoid crashing."""
+    def test_individual_suggestion_renders_and_never_becomes_a_combined_theme(self):
+        """DOAR-TRACE Phase 1.5: a full-page-coverage drawing reliably
+        triggers PSY_AR_SIZE_FULL_015 alone -- confirms it renders as an
+        individual rule suggestion (Section 3 of the Parent view) and,
+        per the Phase-1.5 bug fix, is never promoted to a combined
+        drawing-level hypothesis on its own."""
         with tempfile.TemporaryDirectory() as d:
             case_dir = self._build_case(d, with_checkpoint=False)
             at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
@@ -74,9 +76,11 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
             expander_labels = [e.label for e in at.expander]
             self.assertTrue(
-                any("self_esteem" in label for label in expander_labels),
-                f"expected a self_esteem theme expander, got: {expander_labels}",
+                any("PSY_AR_SIZE_FULL_015" in label for label in expander_labels),
+                f"expected an individual-suggestion expander for PSY_AR_SIZE_FULL_015, got: {expander_labels}",
             )
+            structured = json.loads((case_dir / "structured_analysis.json").read_text(encoding="utf-8"))
+            self.assertEqual(structured["combined_drawing_level_hypotheses"], [])
 
     def test_no_case_selected_shows_info_not_a_crash(self):
         at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
