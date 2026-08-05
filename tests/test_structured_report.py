@@ -194,11 +194,23 @@ class StructuredAnalysisEndToEndTests(unittest.TestCase):
         return out
 
     def test_full_page_drawing_alone_stays_individual_never_combined(self):
-        image = Image.new("RGB", (200, 200), "white")
-        ImageDraw.Draw(image).rectangle((2, 2, 197, 197), fill="black")
+        # Phase 2A migration note: the original synthetic image (a 200x200
+        # canvas with only a 2px white margin) satisfied coverage_full
+        # (>=0.90 bounding-box coverage) but is now correctly gated
+        # `not_assessable` by page_frame.py -- a 2px margin cannot pass the
+        # border-uniformity check, and a real finding from this phase is
+        # that coverage_full (>=0.90) and a genuinely detectable full-page
+        # margin are close to mutually exclusive under this heuristic's ~3%
+        # border band (see docs/PAGE_FRAME_ASSESSABILITY.md). This test is
+        # migrated to a wider margin that IS page-frame-assessable and
+        # triggers coverage_about_half (0.40-0.60) instead -- the invariant
+        # under test (a single triggered rule stays individual, never
+        # combined) is unchanged.
+        image = Image.new("RGB", (300, 300), "white")
+        ImageDraw.Draw(image).rectangle((40, 40, 259, 259), fill="black")
         out = self._analyze(image)
         doc = json.loads((out / "structured_analysis.json").read_text(encoding="utf-8"))
-        self.assertTrue(any(s["rule_id"] == "PSY_AR_SIZE_FULL_015" for s in doc["individual_rule_suggestions"]))
+        self.assertTrue(any(s["rule_id"] == "PSY_AR_SIZE_HALF_014" for s in doc["individual_rule_suggestions"]))
         self.assertEqual(doc["combined_drawing_level_hypotheses"], [])
 
     def test_unavailable_detectors_are_explicit_not_omitted(self):

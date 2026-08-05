@@ -36,6 +36,11 @@ top/bottom quartile of the SAME `stroke.intensity_proxy` distribution,
 which makes them structurally mutually exclusive (a value cannot be both
 >= the 75th percentile and <= the 25th percentile) -- not just
 conventionally, but by construction.
+
+This module also exports `apply_page_frame_gating`, which post-processes
+(never replaces) the historical `rules.py::evaluate_rules` output so its
+6 original page-coverage/placement rules become `not_assessable` -- not
+`not_matched` -- when the page is not visible in the image, per Section 3.
 """
 
 from __future__ import annotations
@@ -57,6 +62,47 @@ V2_RULE_IDS = frozenset({
     "EN_COMPILED_PLACEMENT_CENTER_029", "EN_COMPILED_LINE_HEAVY_PRESSURE_030",
     "EN_COMPILED_LINE_LIGHT_PRESSURE_031", "EN_COMPILED_LINE_SHAKY_BROKEN_032",
 })
+
+# The original 6 tier-1 rules dispatched by the HISTORICAL production engine
+# (rules.py::evaluate_rules / rules_registry.json) are page-coverage or
+# placement rules: their underlying measurement (composition.bounding_box_
+# coverage / composition.centroid_normalized) is only meaningful relative to
+# the full page. rules.py itself is never edited (per Phase 2A working-style
+# constraints); instead this function POST-PROCESSES its output, applied by
+# analysis.py right after evaluate_rules() returns -- additive, not a
+# replacement of the historical engine.
+PAGE_GATED_HISTORICAL_RULE_IDS = frozenset({
+    "PSY_AR_SIZE_HALF_014", "PSY_AR_SIZE_FULL_015", "PSY_AR_SIZE_SMALL_016",
+    "PSY_AR_PLACE_TOP_017", "PSY_AR_PLACE_LEFT_018", "PSY_AR_PLACE_RIGHT_019",
+})
+
+
+def apply_page_frame_gating(
+    rule_evaluations: list[dict[str, Any]], page_frame: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Rewrites the historical engine's page-coverage/placement rule
+    evaluations to `not_assessable` (never `not_matched`) when the page
+    is not visible/assessable in the uploaded image (Phase 2A, Section 3).
+    Leaves every other rule (including the 13 missing_detector rules and
+    any not_evaluated placement rows already produced by a missing
+    centroid) exactly as rules.py produced it."""
+    if page_frame.get("page_frame_status") in ASSESSABLE_STATUSES:
+        return rule_evaluations
+    gated = []
+    for rule_eval in rule_evaluations:
+        if rule_eval["rule_id"] in PAGE_GATED_HISTORICAL_RULE_IDS and rule_eval["status"] in ("weak_support", "not_matched"):
+            gated.append({
+                **rule_eval,
+                "status": "not_assessable",
+                "matched_evidence_ids": [],
+                "missing_evidence": ["page_frame_status_not_assessable"],
+                "rule_confidence": 0.0,
+                "professional_reasoning": None,
+                "parent_safe_wording": None,
+            })
+        else:
+            gated.append(rule_eval)
+    return gated
 
 
 def _base_eval(rule: dict[str, Any], status: str, matched: list[str], missing: list[str]) -> dict[str, Any]:

@@ -69,6 +69,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.2,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -112,6 +114,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.25,
+      "scientific_support": "indirect_expression_research_only",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -155,6 +159,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -198,6 +204,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -241,6 +249,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.05,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -283,6 +293,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -325,6 +337,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.05,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -367,6 +381,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -409,6 +425,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -451,6 +469,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_combined_claim",
       "observability_class": "process_required",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:process_required",
@@ -494,6 +514,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -536,6 +558,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -578,6 +602,8 @@
       "evidence_level_as_written": [
         "Weak / common-sense"
       ],
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_personality_claim",
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -620,6 +646,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.2,
+      "scientific_support": "indirect_size_research_conflicting",
       "observability_class": "static_direct",
       "required_feature_ids": [
         "composition.bounding_box_coverage"
@@ -668,6 +696,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.15,
+      "scientific_support": "not_found_for_threshold_claim",
       "observability_class": "static_direct",
       "required_feature_ids": [
         "composition.bounding_box_coverage"
@@ -716,6 +746,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.15,
+      "scientific_support": "indirect_size_research_does_not_validate_claim",
       "observability_class": "static_direct",
       "required_feature_ids": [
         "composition.bounding_box_coverage"
@@ -764,6 +796,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "placement_effects_weak_not_specific",
       "observability_class": "static_direct",
       "required_feature_ids": [
         "composition.centroid_normalized"
@@ -811,6 +845,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_direct",
       "required_feature_ids": [
         "composition.centroid_normalized"
@@ -858,6 +894,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "not_found_for_specific_claim",
       "observability_class": "static_direct",
       "required_feature_ids": [
         "composition.centroid_normalized"
@@ -905,6 +943,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -945,6 +985,8 @@
       "evidence_level_as_written": [
         "Moderate for basic emotion only"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -984,6 +1026,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1023,6 +1067,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1062,6 +1108,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1102,6 +1150,8 @@
       "evidence_level_as_written": [
         "Suggestive only"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "longitudinal_required",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:longitudinal_required",
@@ -1141,6 +1191,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "not_operational",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:not_operational",
@@ -1180,6 +1232,8 @@
       "evidence_level_as_written": [
         "Suggestive only"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "longitudinal_required",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:longitudinal_required",
@@ -1218,6 +1272,8 @@
       "evidence_level_as_written": [
         "Suggestive only"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "longitudinal_required",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:longitudinal_required",
@@ -1256,6 +1312,8 @@
       "evidence_level_as_written": [
         "Speculative"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "placement_effects_weak_not_specific",
       "observability_class": "static_direct",
       "required_feature_ids": [
         "composition.centroid_normalized"
@@ -1299,6 +1357,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "line_pressure_appearance_proxy_not_independently_validated",
       "observability_class": "static_proxy",
       "required_feature_ids": [
         "stroke.intensity_proxy"
@@ -1319,8 +1379,8 @@
       "limitations": [
         "Not specific to emotion; can reflect motor style."
       ],
-      "parent_safe_wording": "The drawing includes a feature (heavy line pressure appearance) some sources associate with tension, force, anger, or high energy. This is not a diagnosis, and the same feature has other common, non-clinical explanations.",
-      "professional_wording": "Observable 'heavy_line_pressure_appearance' matched. Source interpretation: tension, force, anger, or high energy -- a real proxy feature (stroke.intensity_proxy) is now wired via rule_engine_v2.py; must never be described as actual physical pencil pressure. Evidence grade as written in source: Weak / mixed.",
+      "parent_safe_wording": "The lines appear relatively dark or thick in the uploaded image. Some sources associate this visual appearance with tension, force, anger, or high energy -- but line darkness/thickness is also strongly affected by the drawing tool, paper, and scan/photo exposure. This is not a diagnosis, and it does not measure actual physical pencil pressure.",
+      "professional_wording": "The extracted line-intensity proxy (stroke.intensity_proxy) is elevated (>= the 75th percentile of a real, non-test reference sample), consistent with a relatively dark/thick line appearance in the image. Source interpretation: tension, force, anger, or high energy. This is an appearance-based proxy only, not a measurement of physical pencil pressure.",
       "question_template": "Would you be willing to ask your child about the heavy line pressure appearance in this drawing?",
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
@@ -1342,6 +1402,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "line_pressure_appearance_proxy_not_independently_validated",
       "observability_class": "static_proxy",
       "required_feature_ids": [
         "stroke.intensity_proxy"
@@ -1362,8 +1424,8 @@
       "limitations": [
         "Not specific to emotion."
       ],
-      "parent_safe_wording": "The drawing includes a feature (light line pressure appearance) some sources associate with hesitation, shyness, low energy, or delicacy. This is not a diagnosis, and the same feature has other common, non-clinical explanations.",
-      "professional_wording": "Observable 'light_line_pressure_appearance' matched. Source interpretation: hesitation, shyness, low energy, or delicacy -- same stroke.intensity_proxy feature at the opposite end. Evidence grade as written in source: Weak / mixed.",
+      "parent_safe_wording": "The lines appear relatively light or thin in the uploaded image. Some sources associate this visual appearance with hesitation, shyness, or low energy -- but line darkness/thickness is also strongly affected by the drawing tool, paper, and scan/photo exposure. This is not a diagnosis, and it does not measure actual physical pencil pressure.",
+      "professional_wording": "The extracted line-intensity proxy (stroke.intensity_proxy) is low (<= the 25th percentile of a real, non-test reference sample), consistent with a relatively light/thin line appearance in the image. Source interpretation: hesitation, shyness, low energy, or delicacy. This is an appearance-based proxy only, not a measurement of physical pencil pressure.",
       "question_template": "Would you be willing to ask your child about the light line pressure appearance in this drawing?",
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
@@ -1385,6 +1447,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": 0.1,
+      "scientific_support": "line_fragmentation_appearance_proxy_not_independently_validated",
       "observability_class": "static_proxy",
       "required_feature_ids": [
         "stroke.fragmentation"
@@ -1405,8 +1469,8 @@
       "limitations": [
         "Needs comparison with age and motor skills."
       ],
-      "parent_safe_wording": "The drawing includes a feature (shaky or broken lines) some sources associate with anxiety, uncertainty, distress, or motor difficulty. This is not a diagnosis, and the same feature has other common, non-clinical explanations.",
-      "professional_wording": "Observable 'shaky_or_broken_lines' matched. Source interpretation: anxiety, uncertainty, distress, or motor difficulty -- a real proxy feature (stroke.fragmentation) is now wired via rule_engine_v2.py. Evidence grade as written in source: Weak / mixed.",
+      "parent_safe_wording": "The extracted line-fragmentation proxy is elevated for this drawing. Some sources associate shaky or broken-looking lines with anxiety, uncertainty, or motor difficulty -- but line fragmentation is also strongly affected by drawing speed, tool, fine-motor development, and image resolution. This is not a diagnosis.",
+      "professional_wording": "The extracted line-fragmentation proxy (stroke.fragmentation) is elevated (>= the 75th percentile of a real, non-test reference sample). Source interpretation: anxiety, uncertainty, distress, or motor difficulty. This is an appearance-based proxy only.",
       "question_template": "Would you be willing to ask your child about the shaky or broken lines in this drawing?",
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
@@ -1428,6 +1492,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1467,6 +1533,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "process_required",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:process_required",
@@ -1506,6 +1574,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1545,6 +1615,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1584,6 +1656,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1623,6 +1697,8 @@
       "evidence_level_as_written": [
         "Suggestive only"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1662,6 +1738,8 @@
       "evidence_level_as_written": [
         "Suggestive only"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "process_required",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:process_required",
@@ -1700,6 +1778,8 @@
       "evidence_level_as_written": [
         "Suggestive only"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",
@@ -1738,6 +1818,8 @@
       "evidence_level_as_written": [
         "Weak / mixed"
       ],
+      "confidence_ceiling": null,
+      "scientific_support": null,
       "observability_class": "static_detector",
       "required_feature_ids": [],
       "required_detector_or_metadata": "detector_or_context_absent:static_detector",

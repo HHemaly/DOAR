@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,8 @@ from .case_output import finalize_case
 from .emotion import predict as predict_emotion
 from .features import objective_feature_row
 from .page_frame import assess_page_frame
+from .rule_engine_v2 import apply_page_frame_gating, evaluate_v2_rules
+from .registry_v2_build import build_registry_v2
 
 
 DISCLAIMER = (
@@ -319,6 +322,18 @@ def analyze_image(
     # already computed above regardless of quality_status; only emotion/
     # rules/concerns are quality-gated below.
     objective_features = objective_feature_row(image_path, analysis_context)
+    # DOAR-TRACE Phase 2A, Section 7: the 2 stroke-proxy features the new
+    # rule_engine_v2.py rules cite (via matched_evidence_ids) must exist as
+    # real Evidence records, or the claim verifier/chat grounding check
+    # correctly rejects them as unfounded (see test_chat.py). Reuses the
+    # real FeatureValue.evidence_id/confidence/method rather than
+    # re-deriving or hand-typing a matching ID.
+    for _fid in ("stroke.intensity_proxy", "stroke.fragmentation"):
+        _fv = objective_features[_fid]
+        evidence.append(Evidence(
+            _fv.evidence_id, "objective_feature", _fv.value, _fv.method, _fv.confidence,
+            ["Appearance-based proxy only -- does not measure actual physical pencil pressure or the child's intent."],
+        ))
     # Item 9 — enforce quality gating: when the image is UNSUPPORTED, suppress
     # emotion classification, psychologist rules and concern profiles, and record
     # which modules executed vs were suppressed and why.
@@ -344,6 +359,22 @@ def analyze_image(
                 ["Model probabilities are not psychological or diagnostic confidence."],
             ))
         rule_evaluations, concerns = evaluate_rules(composition, colour, evidence)
+        # DOAR-TRACE Phase 2A, Section 3+7: (a) post-process the historical
+        # engine's page-coverage/placement rules to `not_assessable` (never
+        # `not_matched`) when the page isn't visible -- rules.py itself is
+        # untouched; (b) merge in the 4 rules newly wired via the parallel
+        # v2 engine (rule_engine_v2.py), which are page-frame-gated the same
+        # way internally for EN_COMPILED_PLACEMENT_CENTER_029.
+        rule_evaluations = apply_page_frame_gating(rule_evaluations, page_frame)
+        registry_v2 = build_registry_v2()
+        rules_v2_by_id = {r["rule_id"]: r for r in registry_v2["rules"]}
+        # evaluate_v2_rules expects FeatureValue entries already serialized
+        # to plain dicts (the same shape Analysis.to_dict() would produce
+        # via dataclasses.asdict's recursive nested-dataclass conversion) --
+        # objective_features here still holds raw FeatureValue instances
+        # since the Analysis object hasn't been constructed yet.
+        objective_features_dicts = {fid: asdict(fv) for fid, fv in objective_features.items()}
+        rule_evaluations = rule_evaluations + evaluate_v2_rules(rules_v2_by_id, objective_features_dicts, page_frame)
         executed_modules += ["psychologist_rules", "concern_profiles"]
 
     module_execution = {

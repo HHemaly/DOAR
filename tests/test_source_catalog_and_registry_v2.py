@@ -231,14 +231,27 @@ class RegistryV2PhaseOneFiveTests(unittest.TestCase):
         required = {
             "rule_id", "registry_v2_status", "source_entry_ids", "source_document", "source_page",
             "source_section", "faithful_source_quote", "observable", "possible_interpretation",
-            "evidence_level_as_written", "observability_class", "required_feature_ids",
-            "required_detector_or_metadata", "evidence_family", "dependency_group", "target_construct",
-            "direction", "allowed_output_level", "alternative_explanations", "reference_ids",
+            "evidence_level_as_written", "confidence_ceiling", "scientific_support", "observability_class",
+            "required_feature_ids", "required_detector_or_metadata", "evidence_family", "dependency_group",
+            "target_construct", "direction", "allowed_output_level", "alternative_explanations", "reference_ids",
             "limitations", "parent_safe_wording", "professional_wording", "question_template",
             "psychologist_review_status", "validation_status", "threshold_source", "version",
         }
         for rule in self.registry["rules"]:
             self.assertEqual(set(rule.keys()), required, rule["rule_id"])
+
+    def test_confidence_ceiling_and_scientific_support_present_for_executable_rules(self):
+        # Phase 2A: confidence_ceiling/scientific_support are reused from
+        # rules_registry.json for the 6 already-in-production rules and
+        # explicitly, conservatively set for the 4 newly-activated
+        # EN_COMPILED_* rules -- but are allowed to be None for every other
+        # (still-disabled) rule, since only executable rules are ever run
+        # through rule_engine_v2.py's _base_eval, which requires them.
+        executable_ids = {rid for rid, r in self.rules_by_id.items() if r["allowed_output_level"] == "individual_heuristic_only"}
+        for rule_id in executable_ids:
+            rule = self.rules_by_id[rule_id]
+            self.assertIsNotNone(rule["confidence_ceiling"], rule_id)
+            self.assertIsNotNone(rule["scientific_support"], rule_id)
 
 
 if __name__ == "__main__":

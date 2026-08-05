@@ -18,6 +18,12 @@ def _rule_rows(analysis: dict, language: str) -> str:
     rows = []
     for rule in analysis["rule_evaluations"]:
         wording = rule["original_arabic"] if language == "ar" else rule["english_translation"]
+        if wording is None:
+            # Phase 2A: EN_COMPILED_* rules (rule_engine_v2.py) come only
+            # from the English-only compiled PDF and have no original
+            # Arabic source text -- stated honestly rather than fabricated
+            # or silently crashing.
+            wording = "لا يوجد نص عربي أصلي لهذه القاعدة (مصدرها ملف إنجليزي مجمّع فقط)."
         if rule["status"] == "not_matched":
             reasoning = (
                 "لم يُلاحظ الشرط البصري المطلوب، ولذلك لم يُنتج أي تفسير نفسي."

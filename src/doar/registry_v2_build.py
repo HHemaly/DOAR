@@ -271,22 +271,75 @@ _RULE_DEFS: list[dict[str, Any]] = [
      "observable": "placement_center", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": "visual_dominance_or_prominence", "direction": "supports",
      "interpretation": "balance, security, or comfort; a real feature (composition.centroid_normalized) exists and is now wired via rule_engine_v2.py, gated on page-frame assessability (see docs/PAGE_FRAME_ASSESSABILITY.md)",
-     "threshold_source": "invented_operational_standin"},
+     "threshold_source": "invented_operational_standin",
+     # Conservative, explicitly-invented ceiling (Phase 2A) -- no
+     # clinician-assigned value exists for this rule (it is not in
+     # rules_registry.json). Matches the lowest ceiling already used for
+     # the 3 comparable, similarly-unvalidated placement rules
+     # (PSY_AR_PLACE_TOP/LEFT/RIGHT, all 0.10) rather than inventing a new
+     # number. Not tuned to any agreement metric.
+     "confidence_ceiling": 0.10,
+     "scientific_support": "placement_effects_weak_not_specific"},
     {"rule_id": "EN_COMPILED_LINE_HEAVY_PRESSURE_030", "source_entry_ids": ["SRC_EN_028"],
      "observable": "heavy_line_pressure_appearance", "evidence_family": "line_intensity_quality", "observability_class": "static_proxy",
      "target_construct": "tension_or_anger_pattern", "direction": "supports",
      "interpretation": "tension, force, anger, or high energy -- a real proxy feature (stroke.intensity_proxy) is now wired via rule_engine_v2.py; must never be described as actual physical pencil pressure",
-     "threshold_source": "empirically_exploratory"},
+     "threshold_source": "empirically_exploratory",
+     "parent_safe_wording_override": (
+         "The lines appear relatively dark or thick in the uploaded image. Some sources associate this visual "
+         "appearance with tension, force, anger, or high energy -- but line darkness/thickness is also strongly "
+         "affected by the drawing tool, paper, and scan/photo exposure. This is not a diagnosis, and it does not "
+         "measure actual physical pencil pressure."
+     ),
+     "professional_wording_override": (
+         "The extracted line-intensity proxy (stroke.intensity_proxy) is elevated (>= the 75th percentile of a "
+         "real, non-test reference sample), consistent with a relatively dark/thick line appearance in the image. "
+         "Source interpretation: tension, force, anger, or high energy. This is an appearance-based proxy only, "
+         "not a measurement of physical pencil pressure."
+     ),
+     # Conservative, explicitly-invented ceiling (Phase 2A) -- same
+     # rationale as EN_COMPILED_PLACEMENT_CENTER_029 above: no
+     # clinician-assigned value exists, so this uses the lowest ceiling
+     # already established in rules_registry.json rather than a new number.
+     "confidence_ceiling": 0.10,
+     "scientific_support": "line_pressure_appearance_proxy_not_independently_validated"},
     {"rule_id": "EN_COMPILED_LINE_LIGHT_PRESSURE_031", "source_entry_ids": ["SRC_EN_029"],
      "observable": "light_line_pressure_appearance", "evidence_family": "line_intensity_quality", "observability_class": "static_proxy",
      "target_construct": "caution_or_low_visual_energy", "direction": "supports",
      "interpretation": "hesitation, shyness, low energy, or delicacy -- same stroke.intensity_proxy feature at the opposite end",
-     "threshold_source": "empirically_exploratory"},
+     "threshold_source": "empirically_exploratory",
+     "parent_safe_wording_override": (
+         "The lines appear relatively light or thin in the uploaded image. Some sources associate this visual "
+         "appearance with hesitation, shyness, or low energy -- but line darkness/thickness is also strongly "
+         "affected by the drawing tool, paper, and scan/photo exposure. This is not a diagnosis, and it does not "
+         "measure actual physical pencil pressure."
+     ),
+     "professional_wording_override": (
+         "The extracted line-intensity proxy (stroke.intensity_proxy) is low (<= the 25th percentile of a real, "
+         "non-test reference sample), consistent with a relatively light/thin line appearance in the image. Source "
+         "interpretation: hesitation, shyness, low energy, or delicacy. This is an appearance-based proxy only, not "
+         "a measurement of physical pencil pressure."
+     ),
+     "confidence_ceiling": 0.10,
+     "scientific_support": "line_pressure_appearance_proxy_not_independently_validated"},
     {"rule_id": "EN_COMPILED_LINE_SHAKY_BROKEN_032", "source_entry_ids": ["SRC_EN_030"],
      "observable": "shaky_or_broken_lines", "evidence_family": "line_fragmentation_quality", "observability_class": "static_proxy",
      "target_construct": "disorganisation_or_fragmentation", "direction": "supports",
      "interpretation": "anxiety, uncertainty, distress, or motor difficulty -- a real proxy feature (stroke.fragmentation) is now wired via rule_engine_v2.py",
-     "threshold_source": "empirically_exploratory"},
+     "threshold_source": "empirically_exploratory",
+     "parent_safe_wording_override": (
+         "The extracted line-fragmentation proxy is elevated for this drawing. Some sources associate shaky or "
+         "broken-looking lines with anxiety, uncertainty, or motor difficulty -- but line fragmentation is also "
+         "strongly affected by drawing speed, tool, fine-motor development, and image resolution. This is not a "
+         "diagnosis."
+     ),
+     "professional_wording_override": (
+         "The extracted line-fragmentation proxy (stroke.fragmentation) is elevated (>= the 75th percentile of a "
+         "real, non-test reference sample). Source interpretation: anxiety, uncertainty, distress, or motor "
+         "difficulty. This is an appearance-based proxy only."
+     ),
+     "confidence_ceiling": 0.10,
+     "scientific_support": "line_fragmentation_appearance_proxy_not_independently_validated"},
     {"rule_id": "EN_COMPILED_LINE_ZIGZAG_033", "source_entry_ids": ["SRC_EN_031"],
      "observable": "zigzag_lines", "evidence_family": "line_quality", "observability_class": "static_detector",
      "target_construct": "tension_or_anger_pattern", "direction": "supports",
@@ -364,6 +417,20 @@ def build_registry_v2() -> dict[str, Any]:
         allowed_output = _allowed_output_level(defn["observable"])
         evidence_level_terms = sorted({e["evidence_level_as_written"] for e in source_entries if e["evidence_level_as_written"]})
         reference_ids = list(production_by_id[rule_id]["references"]) if rule_id in production_by_id else []
+        # confidence_ceiling/scientific_support: for the 6 already-in-production
+        # rules, reuse the real clinician-set values from rules_registry.json
+        # (the same source `reference_ids` above already reuses). For the 4
+        # newly-activated EN_COMPILED_* rules (Phase 2A, Section 7), no such
+        # value exists anywhere -- `_RULE_DEFS` carries an explicit,
+        # conservative, non-silent value instead (see per-rule comments).
+        # Every other (still-disabled) rule has neither, which is fine: only
+        # executed rules are ever run through rule_engine_v2.py's _base_eval.
+        if rule_id in production_by_id:
+            confidence_ceiling = production_by_id[rule_id]["confidence_ceiling"]
+            scientific_support = production_by_id[rule_id]["scientific_support"]
+        else:
+            confidence_ceiling = defn.get("confidence_ceiling")
+            scientific_support = defn.get("scientific_support")
 
         rules.append({
             "rule_id": rule_id,
@@ -376,6 +443,8 @@ def build_registry_v2() -> dict[str, Any]:
             "observable": defn["observable"],
             "possible_interpretation": defn["interpretation"],
             "evidence_level_as_written": evidence_level_terms or None,
+            "confidence_ceiling": confidence_ceiling,
+            "scientific_support": scientific_support,
             "observability_class": defn["observability_class"],
             "required_feature_ids": _EXECUTABLE_STATIC_DIRECT_FEATURE_IDS.get(defn["observable"], []),
             "required_detector_or_metadata": _required_detector_or_metadata(rule_id, defn["observable"], defn["observability_class"]),
@@ -387,8 +456,16 @@ def build_registry_v2() -> dict[str, Any]:
             "alternative_explanations": list(ALTERNATIVE_EXPLANATIONS.get(family, [])),
             "reference_ids": reference_ids,
             "limitations": sorted({n for e in source_entries if (n := e.get("notes_as_written"))}),
-            "parent_safe_wording": f"The drawing includes a feature ({defn['observable'].replace('_', ' ')}) some sources associate with {defn['interpretation'].split(' -- ')[0].split(';')[0]}. This is not a diagnosis, and the same feature has other common, non-clinical explanations.",
-            "professional_wording": f"Observable '{defn['observable']}' matched. Source interpretation: {defn['interpretation']}. Evidence grade as written in source: {', '.join(evidence_level_terms) or 'not stated (Arabic source has no explicit evidence-level column)'}.",
+            "parent_safe_wording": defn.get("parent_safe_wording_override") or (
+                f"The drawing includes a feature ({defn['observable'].replace('_', ' ')}) some sources associate with "
+                f"{defn['interpretation'].split(' -- ')[0].split(';')[0]}. This is not a diagnosis, and the same feature "
+                f"has other common, non-clinical explanations."
+            ),
+            "professional_wording": defn.get("professional_wording_override") or (
+                f"Observable '{defn['observable']}' matched. Source interpretation: {defn['interpretation']}. "
+                f"Evidence grade as written in source: "
+                f"{', '.join(evidence_level_terms) or 'not stated (Arabic source has no explicit evidence-level column)'}."
+            ),
             "question_template": f"Would you be willing to ask your child about the {defn['observable'].replace('_', ' ')} in this drawing?",
             "psychologist_review_status": PSYCHOLOGIST_REVIEW_STATUS,
             # BUG FIX (Phase 2A): this previously checked `rule_id in

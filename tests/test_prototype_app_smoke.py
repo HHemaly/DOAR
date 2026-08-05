@@ -28,8 +28,14 @@ from doar.timed_analysis import analyze_image_with_timing
 @unittest.skipUnless(_STREAMLIT_TESTING_AVAILABLE, "streamlit.testing.v1.AppTest not available")
 class PrototypeAppSmokeTests(unittest.TestCase):
     def _build_case(self, tmp_dir: str, with_checkpoint: bool = False) -> Path:
-        image = Image.new("RGB", (200, 200), "white")
-        ImageDraw.Draw(image).rectangle((5, 5, 195, 195), fill="black")
+        # Phase 2A migration note: widened from a 200x200/5px-margin canvas.
+        # A margin that thin cannot pass page_frame.py's border-uniformity
+        # check, so PSY_AR_SIZE_FULL_015/HALF_014 would now be correctly
+        # gated `not_assessable` instead of triggering -- see
+        # docs/PAGE_FRAME_ASSESSABILITY.md. This margin IS wide enough to
+        # be detected as a real full page.
+        image = Image.new("RGB", (300, 300), "white")
+        ImageDraw.Draw(image).rectangle((40, 40, 259, 259), fill="black")
         path = Path(tmp_dir) / "drawing.png"
         image.save(path)
         case_dir = Path(tmp_dir) / "case"
@@ -63,11 +69,13 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
 
     def test_individual_suggestion_renders_and_never_becomes_a_combined_theme(self):
-        """DOAR-TRACE Phase 1.5: a full-page-coverage drawing reliably
-        triggers PSY_AR_SIZE_FULL_015 alone -- confirms it renders as an
-        individual rule suggestion (Section 3 of the Parent view) and,
-        per the Phase-1.5 bug fix, is never promoted to a combined
-        drawing-level hypothesis on its own."""
+        """DOAR-TRACE Phase 1.5: a page-coverage drawing reliably triggers
+        PSY_AR_SIZE_HALF_014 alone -- confirms it renders as an individual
+        rule suggestion (Section 3 of the Parent view) and, per the
+        Phase-1.5 bug fix, is never promoted to a combined drawing-level
+        hypothesis on its own. (Phase 2A migration: was PSY_AR_SIZE_FULL_015
+        on a thinner-margin canvas; that margin is no longer page-frame-
+        assessable, see _build_case.)"""
         with tempfile.TemporaryDirectory() as d:
             case_dir = self._build_case(d, with_checkpoint=False)
             at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
@@ -76,8 +84,8 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
             expander_labels = [e.label for e in at.expander]
             self.assertTrue(
-                any("PSY_AR_SIZE_FULL_015" in label for label in expander_labels),
-                f"expected an individual-suggestion expander for PSY_AR_SIZE_FULL_015, got: {expander_labels}",
+                any("PSY_AR_SIZE_HALF_014" in label for label in expander_labels),
+                f"expected an individual-suggestion expander for PSY_AR_SIZE_HALF_014, got: {expander_labels}",
             )
             structured = json.loads((case_dir / "structured_analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(structured["combined_drawing_level_hypotheses"], [])
