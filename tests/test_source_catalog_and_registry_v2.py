@@ -15,6 +15,12 @@ from doar.construct_registry_build import CONSTRUCT_REGISTRY_PATH, build_constru
 from doar.registry_v2_build import REGISTRY_V2_PATH, build_registry_v2
 from doar.source_catalog_build import AR_PDF, CATALOG_PATH, EN_PDF, build_source_catalog
 
+try:
+    import pypdf  # noqa: F401
+    _PYPDF = True
+except Exception:
+    _PYPDF = False
+
 AR_PDF_PATH = ROOT / AR_PDF
 EN_PDF_PATH = ROOT / "resources" / "psychology_sources" / EN_PDF
 
@@ -38,13 +44,13 @@ class SourcePDFPresenceTests(unittest.TestCase):
     def test_compiled_english_pdf_exists_at_the_required_path(self):
         self.assertTrue(EN_PDF_PATH.exists(), EN_PDF_PATH)
 
+    @unittest.skipUnless(_PYPDF, "pypdf not installed")
     def test_compiled_pdf_has_three_pages(self):
-        import pypdf
         reader = pypdf.PdfReader(str(EN_PDF_PATH))
         self.assertEqual(len(reader.pages), 3)
 
+    @unittest.skipUnless(_PYPDF, "pypdf not installed")
     def test_arabic_pdf_has_two_pages(self):
-        import pypdf
         reader = pypdf.PdfReader(str(AR_PDF_PATH))
         self.assertEqual(len(reader.pages), 2)
 

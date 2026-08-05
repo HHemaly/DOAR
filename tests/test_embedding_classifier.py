@@ -15,6 +15,12 @@ from doar.deep.embedding_classifier import (
     DEFAULT_MODELS, run_embedding_classifier_experiment,
 )
 
+try:
+    import sklearn  # noqa: F401
+    _SK = True
+except Exception:
+    _SK = False
+
 
 def _write_embeddings(root: Path, *, n_per_class=8, dim=12, seed=0):
     from doar.dataset import CLASSES
@@ -40,6 +46,7 @@ class EmbeddingClassifierTests(unittest.TestCase):
     def test_default_models_are_linear_probe_and_small_mlp(self):
         self.assertEqual(DEFAULT_MODELS, ("logistic_regression", "mlp_small"))
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_well_separated_embeddings_classify_well(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -50,6 +57,7 @@ class EmbeddingClassifierTests(unittest.TestCase):
             top = result["leaderboard"][0]
             self.assertGreater(top["mean_macro_f1"], 0.8)
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_test_split_never_referenced(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -58,6 +66,7 @@ class EmbeddingClassifierTests(unittest.TestCase):
             for run in result["runs"]:
                 self.assertTrue(run["test_used"] is False)
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_missing_split_raises(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -74,6 +83,7 @@ class EmbeddingClassifierTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_embedding_classifier_experiment(npz_path, root / "out", seeds=(42,))
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_custom_model_menu_falls_back_to_shared_classifier_library(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -82,6 +92,7 @@ class EmbeddingClassifierTests(unittest.TestCase):
                 npz, root / "out", models=["random_forest"], seeds=(42,))
             self.assertEqual({r["model"] for r in result["leaderboard"]}, {"random_forest"})
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_predictions_csv_and_checkpoint_written(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

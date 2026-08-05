@@ -14,6 +14,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from doar.dataset_gate import CleanSplitGateFailed
 from doar.stage0_runner import StageSpec, build_real_stage0_plan, run_stage0
 
+try:
+    import sklearn  # noqa: F401
+    _SK = True
+except Exception:
+    _SK = False
+
 
 def _fake_stage(sid: str, calls: list, *, fail: bool = False):
     def run(stage_dir: Path, smoke: bool):
@@ -135,6 +141,7 @@ class RealPlanSmokeTests(unittest.TestCase):
     against small synthetic data -- proves the real functions are called
     with the right arguments, never a scientific result."""
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_stage_a_objective_features_smoke(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -144,6 +151,7 @@ class RealPlanSmokeTests(unittest.TestCase):
             result = run_stage0([stage_a], root / "out", smoke=True, repo_root=d)
             self.assertEqual(result["results"]["A_objective_features"]["status"], "completed")
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_stage_b_handcrafted_groups_smoke_after_a(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -164,6 +172,7 @@ class RealPlanSmokeTests(unittest.TestCase):
             self.assertEqual(result["results"]["B_handcrafted_groups"]["status"], "failed")
             self.assertIn("Stage A", result["results"]["B_handcrafted_groups"]["error"])
 
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_stage_c_dinov2_smoke_uses_synthetic_embeddings_not_network(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

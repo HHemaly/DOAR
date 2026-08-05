@@ -14,6 +14,12 @@ from doar.handcrafted_comparison import (
     select_group_columns,
 )
 
+try:
+    import sklearn  # noqa: F401
+    _SK = True
+except Exception:
+    _SK = False
+
 
 class SelectGroupColumnsTests(unittest.TestCase):
     def test_hog_only_selects_hog_columns(self):
@@ -48,6 +54,7 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
         w.writerows(rows)
 
 
+@unittest.skipUnless(_SK, "sklearn not installed")
 class RunHandcraftedGroupComparisonTests(unittest.TestCase):
     def _fixture(self, root: Path):
         classes = ["Angry", "Fear", "Happy", "Sad"]

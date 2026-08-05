@@ -15,6 +15,12 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 
+try:
+    import sklearn  # noqa: F401
+    _SK = True
+except Exception:
+    _SK = False
+
 
 def _run(*args, timeout=120):
     return subprocess.run([sys.executable, "main.py", *args], cwd=ROOT,
@@ -69,6 +75,7 @@ class ExtractHogFeaturesCliTests(unittest.TestCase):
 
 
 class TrainHandcraftedGroupsCliTests(unittest.TestCase):
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_train_handcrafted_groups_cli(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -91,6 +98,7 @@ class TrainHandcraftedGroupsCliTests(unittest.TestCase):
 
 
 class TrainEmbeddingClassifierCliTests(unittest.TestCase):
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_train_embedding_classifier_cli(self):
         import numpy as np
         with tempfile.TemporaryDirectory() as d:
@@ -117,6 +125,7 @@ class TrainEmbeddingClassifierCliTests(unittest.TestCase):
 
 
 class RunStage0CliTests(unittest.TestCase):
+    @unittest.skipUnless(_SK, "sklearn not installed")
     def test_run_stage0_smoke_only_stage_a(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

@@ -20,6 +20,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+try:
+    import joblib  # noqa: F401
+    _JOBLIB = True
+except Exception:
+    _JOBLIB = False
+
 
 class EvaluateCheckpointDispatchTests(unittest.TestCase):
     def test_pt_checkpoint_raises_clear_error_not_unpickling_error(self):
@@ -39,9 +45,9 @@ class EvaluateCheckpointDispatchTests(unittest.TestCase):
             self.assertIn("export-probabilities", message)
             self.assertIn("evaluate-predictions", message)
 
+    @unittest.skipUnless(_JOBLIB, "joblib not installed")
     def test_fusion_bundle_raises_clear_error(self):
         from doar.models import evaluate_model
-        import joblib
         with tempfile.TemporaryDirectory() as tmp:
             fake_bundle = Path(tmp) / "fusion.joblib"
             joblib.dump({"checkpoint_type": "doar_fusion_bundle_v1"}, fake_bundle)

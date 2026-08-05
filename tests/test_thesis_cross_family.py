@@ -14,6 +14,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from doar.thesis import DATA_PROVENANCE_LABELS, build_cross_family_model_comparison
 
+try:
+    import matplotlib  # noqa: F401
+    _MPL = True
+except Exception:
+    _MPL = False
+
 
 def _write_leaderboard(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -86,6 +92,7 @@ class CrossFamilyComparisonTests(unittest.TestCase):
 
 
 class GenerateThesisOutputsNewFigureTypesTests(unittest.TestCase):
+    @unittest.skipUnless(_MPL, "matplotlib not installed")
     def test_all_three_new_leaderboard_types_generate_figures_when_present(self):
         from doar.thesis import generate_thesis_outputs
         with tempfile.TemporaryDirectory() as d:
