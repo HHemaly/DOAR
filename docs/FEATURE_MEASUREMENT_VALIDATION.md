@@ -39,8 +39,8 @@ compared with a per-case tolerance and classified `pass` / `fail` /
 | three_squares | segmentation.component_count | 3.0 | 3.0 | exact | pass |
 | three_squares | shape.contour_proxy_count | 3.0 | 3.0 | exact | pass |
 | two_squares_sizes | segmentation.largest_component_ratio | 0.9615 | 0.9566 | 0.02 | pass |
-| top_edge_strip | segmentation.border_touch_ratio | 0.25 | 0.015 | 0.05 | **fail** |
-| isolated_square | segmentation.border_touch_ratio | 0.0 | 0.0 | 0.01 | pass |
+| top_edge_strip | segmentation.border_touch_ratio | 0.25 | 0.015 | — | **known_unreliable** (retired, Phase 2A.1) |
+| isolated_square | segmentation.border_touch_ratio | 0.0 | 0.0 | — | **known_unreliable** (retired, Phase 2A.1) |
 | centered_circle | composition.symmetry | 1.0 | 1.0 | 0.03 | pass |
 | left_only_strip | composition.symmetry | <0.85 (asymmetric) | 0.6393 | ordinal | pass |
 | centered_square | stroke.intensity_proxy | 1.0 | 0.9744 | 0.05 | pass |
@@ -48,31 +48,53 @@ compared with a per-case tolerance and classified `pass` / `fail` /
 | centered_square | segmentation.empty_space_ratio | 0.75 | 0.7434 | 0.02 | pass |
 | blank_vs_hatched | stroke.edge_density | hatched > blank (ordinal) | blank=0.0, hatched=0.1267 | ordinal | pass |
 
-**20 pass, 1 not_applicable, 1 documented real fail** (22 checks total,
-some rows above cover 2 checks — 22 individual assertions).
+**Current (Phase 2A.1): 19 pass, 1 not_applicable, 2 known_unreliable**
+(22 checks total, some rows above cover 2 checks — 22 individual
+assertions). Originally (Phase 2A): 20 pass, 1 not_applicable, 1 fail —
+`isolated_square` moved from `pass` to `known_unreliable` because
+`border_touch_ratio`'s retirement (below) is unconditional: even a case
+where the value happens to look numerically correct is not selectively
+trusted, since nothing downstream can distinguish "right by luck" from
+"wrong by the same mechanism."
 
-## The 1 real fail: `segmentation.border_touch_ratio`
+## `segmentation.border_touch_ratio`: retired in Phase 2A.1 (originally documented as "the 1 real fail")
 
 Case `top_edge_strip`: a 200×20 black strip along the very top edge of a
 200×200 canvas, analytically expected to give
 `border_touch_ratio = 0.25` (the strip occupies the top quarter of the
 border-touching perimeter definition used). Measured: **0.015**.
 
-**Root cause, confirmed by direct debugging**: `_segment`'s morphological
-cleanup step (a `neighbours >= minimum` filter over a zero-padded 3×3
-window) erodes roughly 1–2px from the shape's edge — including the
-image's own border row, since the zero-padding treats anything outside
-the frame as background. A shape that is *supposed* to touch the image
-border loses that exact contact after cleanup.
+**Original (Phase 2A) root-cause explanation**: attributed to
+`_segment`'s morphological cleanup step eroding roughly 1–2px from the
+shape's edge, including the image's own border row.
 
-**This is a real finding about `analysis.py::_segment`, not a
-test-construction error** — confirmed by isolating the call and
-inspecting `_segment`'s intermediate mask directly. It is **not fixed
-here**: this module's explicit scope is validation, not patching
-`analysis.py`, and any fix to the morphological cleanup step needs its
-own dedicated regression testing against the existing 610+ baseline
-tests that already depend on `_segment`'s current behavior. Recorded as
-a known limitation for a future phase.
+**Corrected (Phase 2A.1) root cause**: direct debugging of the
+candidate-generation step (not just the final mask) found the original
+explanation was incomplete. The primary cause is upstream:
+`candidate_adaptive`'s BoxBlur-based local-contrast test structurally
+fails to detect thick, border-touching content (PIL's edge-padding
+erases the local contrast it depends on) — verified directly, zero
+foreground at the strip's border row *before* cleanup ever runs.
+`_candidate_score`'s `(1 - border_ratio)` term then compounds this by
+scoring the flawed candidate *higher* than the two that correctly
+detect the strip, causing it to be selected. Morphological cleanup,
+applied after selection, is a minor contributor that actually partially
+recovers the under-detected band. Full mechanism, with a regression
+test reproducing it exactly:
+`tests/test_border_touch_ratio_retirement.py`, `docs/BORDER_TOUCH_RATIO_DECISION.md`.
+
+**Decision**: retired from downstream use rather than patched — the
+real bug lives in shared `_segment` logic used by every feature and by
+`page_frame.py`'s own edge-touch evidence, not something isolated to
+this one feature; fixing it properly is out of a single-feature
+validation module's scope and risks an unreviewed, dataset-wide
+regression. `features.py`'s `KNOWN_UNRELIABLE` set now forces this
+feature's `confidence=0.0`/`missing=True` unconditionally (even on
+cases where its value happens to look correct), while preserving the
+historical computed value for comparison. Ground-truth
+`status_counts` changed from `{pass: 20, not_applicable: 1, fail: 1}`
+to `{pass: 19, not_applicable: 1, known_unreliable: 2}` as a direct
+result.
 
 ## A test-construction fix along the way (not a pipeline bug)
 

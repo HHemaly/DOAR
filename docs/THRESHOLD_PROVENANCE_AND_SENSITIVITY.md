@@ -111,9 +111,25 @@ prevalence** — see `docs/STATIC_PROXY_RULE_POLICY.md` and the explicit
 task instruction: "Do not interpret trigger frequency as psychological
 prevalence."
 
+## Phase 2A.1 update: `coverage_full` redefined
+
+`PSY_AR_SIZE_FULL_015`'s trigger condition changed from image-relative
+area (`bounding_box_coverage >= 0.90`) to a margin-based "all 4 page
+margins <= 0.15" test, gated on a real page reference
+(`docs/PAGE_COVERAGE_DEFINITION_DECISION.md`) — its `threshold_source`
+stays `invented_operational_standin` (still no numeric anchor in either
+source). Real, measured effect on the same 200-image sample
+(`per_class=50, seed=7`): trigger rate among assessable cases went from
+**25.81% (8/31)** under the old definition to **58.06% (18/31)** under
+the new one. Every other rule's real trigger rate is unchanged by this
+phase.
+
 ## Reproducibility
 
-Both `phase2a_threshold_sensitivity.py` and
-`phase2a_rule_trigger_distribution.py` were run twice independently on
-their full samples; output was byte-identical both times (seeded
-sampling, no other randomness).
+`phase2a_threshold_sensitivity.py` and
+`phase2a_rule_trigger_distribution.py` (plus `phase2a_page_frame_audit.py`,
+`phase2a_feature_ground_truth.py`, and `phase2a_feature_invariance.py`)
+were re-run twice independently on their full samples after every
+Phase 2A.1 code change, including the final state; output was
+byte-identical both times in every run (seeded sampling, no other
+randomness).

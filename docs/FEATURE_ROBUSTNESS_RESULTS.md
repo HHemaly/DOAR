@@ -84,3 +84,27 @@ had exactly 1 fail out of 80. Both are meaningfully more robust than the
 segmentation-derived features under this transform battery — a real
 argument in the 4 rules' favour, though not proof of psychological
 validity, only of relative measurement stability.
+
+## Phase 2A.1 follow-up: resolution sensitivity addressed, brightness/contrast deliberately not
+
+Per the audit in `docs/INPUT_NORMALIZATION_POLICY.md`, the `resize_*`
+transforms account for the largest cluster of real fails above
+(`segmentation.foreground_coverage`: 3+4 of its 13; `colour.dark_ratio`:
+2+1; `composition.symmetry`: 1) — resolution/geometry is genuinely
+capture-pipeline noise, not evidence. `canonical_input.py` now provides
+a resolution-normalized counterpart for exactly these 4 features
+(`segmentation.foreground_coverage`, `segmentation.bounding_box_coverage`,
+`composition.symmetry`, `colour.dark_ratio`), computed separately from,
+and never merged into, the original-image feature set every rule still
+evaluates against.
+
+The brightness/contrast-driven fails above (`brightness_down_0.7x`,
+`brightness_up_1.3x`, `contrast_down_0.7x`, `contrast_up_1.3x` — 12 of
+the 21 total) were deliberately **not** addressed by normalization:
+line darkness/thickness and contrast are themselves evidence several
+rules and features exist to measure, and the task's explicit
+instruction is that these must never be silently normalized away before
+feature extraction. They remain real, documented, unresolved sensitivity
+of `_segment`'s thresholding to lighting conditions — a risk noted in
+`docs/BORDER_TOUCH_RATIO_DECISION.md` and `CURRENT_TO_TARGET_GAP_V5.md`,
+not something this phase attempted to fix.

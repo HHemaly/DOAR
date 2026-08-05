@@ -176,6 +176,34 @@ counts for all 41 registry-v2 rules (10 executable, 31 not) are
 recorded in `artifacts/phase2a/rule_trigger_distribution.csv`, never
 interpreted as psychological prevalence.
 
+## 3.7. Page-reference model and measurement hardening (Phase 2A.1, new)
+
+`page_frame.py`'s status alone never identified an actual page region --
+every page-relative feature silently divided by the whole uploaded
+image. `page_reference.py` closes this: 6 modes
+(`auto_detected_page`/`user_confirmed_full_frame`/`user_defined_page_corners`
+are assessable and carry a real polygon;
+`cropped_or_content_only`/`uncertain`/`failed` are not, and never
+manufacture one), with an explicit `page_relative_features_assessable`
+boolean that `rule_engine_v2.py`'s gating and `page_frame_judge` both
+read directly — see `docs/PAGE_REFERENCE_MODEL.md`. An explicit user
+declaration always overrides the automatic reading.
+
+`PSY_AR_SIZE_FULL_015` (`coverage_full`)'s trigger condition was
+redefined from image-relative area (≥0.90, found to conflict
+structurally with page-frame detectability) to a margin-based
+"approaches all 4 page margins" test, chosen by definitional match, not
+trigger frequency — `docs/PAGE_COVERAGE_DEFINITION_DECISION.md`.
+`segmentation.border_touch_ratio` was retired from downstream use after
+its true root cause (a `_segment` candidate-selection bias, not the
+morphological-cleanup pass Phase 2A's own comment blamed) was traced
+precisely — `docs/BORDER_TOUCH_RATIO_DECISION.md`. A canonical
+(resolution-only) input-preparation pipeline was added for the 4
+features found resize-sensitive, strictly separate from and never
+confused with the original-image feature set every rule still
+evaluates against — brightness/contrast/colour are never normalized
+away, since they are themselves evidence — `docs/INPUT_NORMALIZATION_POLICY.md`.
+
 ## 4. Governing invariants (unchanged from `TARGET_APPLICATION_ARCHITECTURE.md`)
 
 1. No module writes to the original dataset or any existing

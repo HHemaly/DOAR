@@ -131,3 +131,36 @@ a real, useful finding about how these two independently-designed
 heuristics interact — not a bug in either one — and is worth keeping in
 mind if `coverage_full`'s threshold or the border-band fraction are
 revisited in a future phase.
+
+## Phase 2A.1 updates
+
+**Page-reference model built on top of this module**: `page_frame.py`
+itself is unchanged, but `page_reference.py` (Section 3,
+`docs/PAGE_REFERENCE_MODEL.md`) now resolves an explicit page
+polygon/mode from this module's status, and — critically — allows a
+real human declaration (`user_confirmed_full_frame`/
+`user_defined_page_corners`) to override an automatic
+`cropped_or_content_only` reading. Every gating decision downstream now
+reads `page_reference.page_relative_features_assessable`, not this
+module's `page_frame_status` directly.
+
+**`coverage_full` redefined**: the structural finding above led to a
+real fix, not just documentation — see
+`docs/PAGE_COVERAGE_DEFINITION_DECISION.md`.
+
+**A corrected finding about the underlying `_segment` heuristic**:
+Phase 2A.1's investigation into `segmentation.border_touch_ratio`
+(`docs/BORDER_TOUCH_RATIO_DECISION.md`) found that `_segment`'s
+candidate-selection scoring can, in some cases, systematically
+under-detect content that touches the image border — the same
+underlying mechanism `page_frame.py`'s own edge-touch evidence
+(`_content_touches_edge`/`_edge_touch_ratio`) depends on. This was
+**not** fixed in Phase 2A.1 (out of scope — see that document for why),
+but is recorded here as a live caveat on this module's real-image
+accuracy: a page-frame classification could, in principle, be affected
+by the same candidate-selection bias for images where content
+genuinely touches the border. The 120-image real audit
+(`artifacts/phase2a/dataset_page_frame_audit.csv`) was re-run unchanged
+after every Phase 2A.1 code change and produced byte-identical results
+each time, so this is a theoretical exposure identified for future
+investigation, not an observed discrepancy on this dataset.
