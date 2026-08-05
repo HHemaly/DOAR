@@ -11,6 +11,7 @@ from .rules import evaluate_rules
 from .case_output import finalize_case
 from .emotion import predict as predict_emotion
 from .features import objective_feature_row
+from .page_frame import assess_page_frame
 
 
 DISCLAIMER = (
@@ -280,6 +281,11 @@ def analyze_image(
     image = Image.open(image_path).convert("RGB")
     rgb = np.asarray(image)
     mask, background, seg_conf, candidates, seg_diagnostics = _segment(rgb)
+    # DOAR-TRACE Phase 2A Section 3: page-frame assessability. Computed
+    # once here (reusing the real mask/background_stability _segment
+    # already produced) and consumed downstream by structured_report.py
+    # to gate page-relative rules -- never invented.
+    page_frame = assess_page_frame(rgb, mask, seg_diagnostics.get("background_stability", 0.0)).to_dict()
     composition = _composition(mask)
     colour = _colour(rgb, mask, background)
     output = Path(output_dir)
@@ -378,6 +384,7 @@ def analyze_image(
         module_execution=module_execution,
         label_provenance=label_provenance,
         objective_features=objective_features,
+        page_frame=page_frame,
     )
     output.mkdir(parents=True, exist_ok=True)
     portable = result.to_dict()

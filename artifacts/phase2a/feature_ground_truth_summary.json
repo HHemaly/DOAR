@@ -1,0 +1,10 @@
+{
+  "schema_version": "feature_ground_truth_summary_v1",
+  "n_cases": 22,
+  "status_counts": {
+    "pass": 20,
+    "not_applicable": 1,
+    "fail": 1
+  },
+  "note": "Validates measurement implementation only -- does NOT validate any psychological interpretation."
+}

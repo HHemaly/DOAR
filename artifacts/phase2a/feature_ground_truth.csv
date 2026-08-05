@@ -1,0 +1,23 @@
+case_id,feature_id,expected_value,measured_value,absolute_error,relative_error,tolerance,status,limitations
+centered_square,segmentation.foreground_coverage,0.25,0.256578,0.006578,0.026311,0.02,pass,Anti-aliasing/cleanup morphology at shape edges can shift coverage by ~1-2%.
+centered_square,segmentation.bounding_box_coverage,0.25,0.256711,0.006711,0.026844,0.02,pass,A solid filled square's bbox coverage should equal its foreground coverage.
+centered_square,composition.centroid_x,0.5,0.498333,0.001667,0.003333,0.02,pass,
+centered_square,composition.centroid_y,0.5,0.498333,0.001667,0.003333,0.02,pass,
+top_left_square,composition.centroid_x,0.166667,0.165,0.001667,0.01,0.03,pass,
+top_left_square,composition.centroid_y,0.166667,0.165,0.001667,0.01,0.03,pass,
+top_left_square,composition.placement,top_left,top_left,0.0,,0,pass,"Categorical match, not a numeric error."
+right_square,composition.placement,middle_right,middle_right,0.0,,0,pass,"Categorical match, not a numeric error."
+centered_square,colour.dark_ratio,1.0,0.974363,0.025637,0.025637,0.05,pass,"dark_ratio thresholds fg pixel mean<80; solid black (0,0,0) should be ~100% dark."
+gray_square,colour.dark_ratio,0.0,0.0,0.0,,0.05,pass,"Mid-gray (150,150,150) mean=150 > 80 dark threshold -> expected ~0% dark."
+light_ratio,colour.light_ratio,n/a,NOT_IMPLEMENTED,,,,not_applicable,No colour.light_ratio (or equivalent) feature exists in features.py -- cannot validate what is not implemented.
+three_squares,segmentation.component_count,3.0,3.0,0.0,0.0,0,pass,Exact integer match expected; _connected_components subsamples large masks but these squares are well above the subsampling step size at 300x300.
+three_squares,shape.contour_proxy_count,3.0,3.0,0.0,0.0,0,pass,shape.contour_proxy_count and segmentation.component_count share an identical formula (len(component_sizes)) -- verified here to confirm they always agree.
+two_squares_sizes,segmentation.largest_component_ratio,0.961538,0.956554,0.004985,0.005184,0.02,pass,Subsampling for large masks (>512px longest side is not triggered at 300x300) should keep this near-exact.
+top_edge_strip,segmentation.border_touch_ratio,0.25,0.015,0.235,0.94,0.05,fail,"REAL FINDING: _segment's morphological cleanup erodes ~1-2px from shape edges, including the image's own border row/column -- border-touching content is measurably under-counted by border_touch_ratio. See docs/FEATURE_MEASUREMENT_VALIDATION.md."
+isolated_square,segmentation.border_touch_ratio,0.0,0.0,0.0,,0.01,pass,
+centered_circle,composition.symmetry,1.0,1.0,0.0,0.0,0.03,pass,composition.symmetry is left-right (horizontal-flip) symmetry only; no separate vertical (up-down) symmetry feature exists in features.py.
+left_only_strip,composition.symmetry,<0.85 (asymmetric),0.6392888888888889,,,,pass,"Directional expectation (must be clearly below the symmetric case), not a single exact target value."
+centered_square,stroke.intensity_proxy,1.0,0.974363,0.025637,0.025637,0.05,pass,intensity_proxy = (255 - fg_mean)/255; solid black fg (mean=0) -> expected 1.0 exactly.
+gray_square,stroke.intensity_proxy,0.411765,0.401208,0.010556,0.025637,0.05,pass,
+centered_square,segmentation.empty_space_ratio,0.75,0.743422,0.006578,0.00877,0.02,pass,Used here as the 'background occupancy' proxy: 1 - foreground_coverage.
+blank_vs_hatched,stroke.edge_density,hatched > blank (ordinal),"blank=0.0000, hatched=0.1267",,,,pass,"edge_density has no single analytically-exact expected value for arbitrary content; validated ordinally (denser hatching must score higher than a blank page), not against an absolute target."

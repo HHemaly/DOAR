@@ -1,0 +1,17 @@
+{
+  "schema_version": "feature_invariance_summary_v1",
+  "n_rows": 880,
+  "n_images": 4,
+  "n_transforms": 20,
+  "n_features": 11,
+  "status_counts": {
+    "fail": 21,
+    "pass": 351,
+    "expected_change": 508
+  },
+  "tolerances": {
+    "geometry_relative_pct": 0.08,
+    "stroke_relative_pct": 0.35,
+    "colour_relative_pct": 0.1
+  }
+}

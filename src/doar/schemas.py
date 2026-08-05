@@ -37,6 +37,10 @@ class Analysis:
     # kept as dict[str, Any] here (not FeatureValue) to avoid a schemas.py
     # -> features.py import for a dataclass this module never constructs.
     objective_features: dict[str, Any] = field(default_factory=dict)
+    # DOAR-TRACE Phase 2A Section 3: page_frame.py's assessment, computed
+    # for EVERY analyze_image run. Gates page-relative rule evaluation in
+    # structured_report.py -- see docs/PAGE_FRAME_ASSESSABILITY.md.
+    page_frame: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
