@@ -30,6 +30,13 @@ class Analysis:
     artifacts: dict[str, str]
     module_execution: dict[str, Any] = field(default_factory=dict)
     label_provenance: dict[str, Any] = field(default_factory=dict)
+    # DOAR-TRACE 4B: objective_feature_row's output, persisted for EVERY
+    # analyze_image run (previously computed only inside emotion.py's
+    # fusion-checkpoint branch -- see CURRENT_TO_TARGET_GAP_V2.md). Keys are
+    # feature_id strings, values are features.py::FeatureValue instances;
+    # kept as dict[str, Any] here (not FeatureValue) to avoid a schemas.py
+    # -> features.py import for a dataclass this module never constructs.
+    objective_features: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

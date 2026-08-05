@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .judges import run_judges
+from .objective_features_report import build_objective_features_document
 from .reports import save_reports
 
 
@@ -60,6 +61,12 @@ def finalize_case(analysis: dict, output: Path) -> None:
     _write(output / "judges.json", judges)
     _write(output / "detections.json", {"status": "unavailable", "detections": []})
     _write(output / "emotion.json", analysis["emotion"])
+    # DOAR-TRACE 4B: objective features are now computed for every run
+    # (analysis.py::analyze_image); persist them as their own document too,
+    # not only nested inside analysis.json, so a consumer that only needs
+    # features doesn't have to parse the whole case.
+    _write(output / "objective_features.json",
+           build_objective_features_document(analysis.get("objective_features", {})))
     review = output / "clinician_review.json"
     if not review.exists():
         _write(review, {"status": "not_submitted", "history": [], "ai_output_preserved": True})

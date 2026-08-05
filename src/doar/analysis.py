@@ -10,6 +10,7 @@ from .dataset import CLASSES
 from .rules import evaluate_rules
 from .case_output import finalize_case
 from .emotion import predict as predict_emotion
+from .features import objective_feature_row
 
 
 DISCLAIMER = (
@@ -305,6 +306,13 @@ def analyze_image(
         "composition": composition,
         "colour": colour,
     }
+    # DOAR-TRACE 4B: compute objective features for EVERY run, independent
+    # of quality/emotion/checkpoint type -- previously only computed inside
+    # emotion.py's fusion-checkpoint branch (CURRENT_TO_TARGET_GAP_V2.md).
+    # Safe to run unconditionally here: segmentation/composition/colour are
+    # already computed above regardless of quality_status; only emotion/
+    # rules/concerns are quality-gated below.
+    objective_features = objective_feature_row(image_path, analysis_context)
     # Item 9 — enforce quality gating: when the image is UNSUPPORTED, suppress
     # emotion classification, psychologist rules and concern profiles, and record
     # which modules executed vs were suppressed and why.
@@ -369,6 +377,7 @@ def analyze_image(
         artifacts=artifacts,
         module_execution=module_execution,
         label_provenance=label_provenance,
+        objective_features=objective_features,
     )
     output.mkdir(parents=True, exist_ok=True)
     portable = result.to_dict()
