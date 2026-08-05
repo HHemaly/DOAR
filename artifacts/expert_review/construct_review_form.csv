@@ -1,0 +1,13 @@
+construct_id,definition_clarity_1_4,contributing_rules_appropriate_y_n,missing_rules,contradictory_rules,minimum_evidence_family_requirement_appropriate_y_n,parent_safe_wording,comments
+low_mood_or_emotional_distress_pattern,,,,,,possible low-mood or emotional-distress pattern,"Currently mapped rules: EN_COMPILED_FACE_EXPRESSION_021, EN_COMPILED_REPEATED_FAMILY_CONFLICT_027, EN_COMPILED_MISSING_MOUTH_036, EN_COMPILED_DARK_COLORS_SAD_ISOLATION_038"
+fear_or_insecurity_pattern,,,,,,possible fear or insecurity pattern,"Currently mapped rules: PSY_AR_SIZE_SMALL_016, EN_COMPILED_REPEATED_MONSTERS_DANGER_025, EN_COMPILED_VERY_SMALL_DRAWING_026, EN_COMPILED_EXAGGERATED_BODY_PARTS_037"
+tension_or_anger_pattern,,,,,,possible tension or anger pattern,"Currently mapped rules: PSY_AR_EYES_STERN_002, PSY_AR_ANIMAL_TIGER_WOLF_004, EN_COMPILED_LINE_HEAVY_PRESSURE_030, EN_COMPILED_LINE_ZIGZAG_033"
+visual_dominance_or_prominence,,,,,,possible visual prominence pattern,"Currently mapped rules: PSY_AR_SIZE_FULL_015, EN_COMPILED_PLACEMENT_CENTER_029"
+social_distance_or_isolation,,,,,,possible social-distance or isolation pattern,"Currently mapped rules: PSY_AR_CIRCLES_011, PSY_AR_PLACE_LEFT_018, EN_COMPILED_REPEATED_ISOLATION_THEMES_028"
+affiliation_or_connection,,,,,,possible affiliation or connection pattern,"Currently mapped rules: PSY_AR_TRANSPORT_012, PSY_AR_HEARTS_013, PSY_AR_PLACE_RIGHT_019"
+protection_or_coping,,,,,,possible protection or coping theme,Currently mapped rules: PSY_AR_ANIMAL_SQUIRREL_006
+positive_affective_tone,,,,,,possible positive affective tone,Currently mapped rules: PSY_AR_FLOWERS_CLOUDS_SUN_010
+disorganisation_or_fragmentation,,,,,,possible disorganisation or fragmentation pattern,"Currently mapped rules: EN_COMPILED_LINE_SHAKY_BROKEN_032, EN_COMPILED_NEGLECT_BACKGROUND_041"
+repetition_or_rigidity,,,,,,possible repetition or rigidity pattern,"Currently mapped rules: PSY_AR_GEOMETRY_008, EN_COMPILED_EXCESSIVE_DETAIL_040"
+high_visual_energy_or_expansiveness,,,,,,possible high visual energy or expansiveness pattern,Currently mapped rules: none
+caution_or_low_visual_energy,,,,,,possible caution or low visual energy pattern,Currently mapped rules: EN_COMPILED_LINE_LIGHT_PRESSURE_031

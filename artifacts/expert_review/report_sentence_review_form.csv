@@ -1,0 +1,2 @@
+claim_id,claim_type,sentence_text,construct_id,evidence_ids,rule_ids,verification_status,accurate_y_n,safe_wording_y_n,comments
+claim_001,individual_rule_suggestion,"The drawing includes a feature (coverage full) some sources associate with high self-respect/self-esteem. This is not a diagnosis, and the same feature has other common, non-clinical explanations.",visual_dominance_or_prominence,ev_bbox_coverage,PSY_AR_SIZE_FULL_015,accepted,,,
