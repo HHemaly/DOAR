@@ -46,6 +46,12 @@ class Analysis:
     # explicit "what counts as the page" decision that page_frame.py's
     # status alone never captured. See docs/PAGE_REFERENCE_MODEL.md.
     page_reference: dict[str, Any] = field(default_factory=dict)
+    # DOAR-TRACE Phase 2A.1 Section 6: canonical_input.py's
+    # resolution-normalized counterparts for the specific features Phase
+    # 2A found resize-sensitive -- SEPARATE from objective_features
+    # (which always reflects the original, unmodified upload). See
+    # docs/INPUT_NORMALIZATION_POLICY.md.
+    canonical_features: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

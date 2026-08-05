@@ -12,6 +12,7 @@ from .rules import evaluate_rules
 from .case_output import finalize_case
 from .emotion import predict as predict_emotion
 from .features import objective_feature_row
+from .canonical_input import canonicalize_image, compute_canonical_geometry_features
 from .page_frame import assess_page_frame
 from .page_reference import resolve_page_reference
 from .rule_engine_v2 import apply_page_frame_gating, evaluate_v2_rules, redefine_coverage_full
@@ -306,6 +307,24 @@ def analyze_image(
     ).to_dict()
     composition = _composition(mask)
     colour = _colour(rgb, mask, background)
+    # DOAR-TRACE Phase 2A.1 Section 6: resolution-normalized counterparts
+    # for the specific features Phase 2A found resize-sensitive. Only
+    # geometry/resolution is normalized -- brightness/contrast/colour are
+    # never touched, since they are themselves evidence sources. When the
+    # image is already within the canonical size (the common case), the
+    # already-computed rgb/mask are reused rather than re-running
+    # segmentation on an unchanged image.
+    canonical_image, canonicalization_info = canonicalize_image(image)
+    if canonicalization_info["resized"]:
+        canonical_rgb = np.asarray(canonical_image)
+        canonical_mask, _c_bg, _c_conf, _c_cand, _c_diag = _segment(canonical_rgb)
+    else:
+        canonical_rgb, canonical_mask = rgb, mask
+    canonical_features = {
+        "schema_version": "canonical_input_v1",
+        "canonicalization": canonicalization_info,
+        "features": compute_canonical_geometry_features(canonical_rgb, canonical_mask),
+    }
     output = Path(output_dir)
     artifacts = _save_artifacts(image, mask, composition, candidates, output / "artifacts")
     quality = _quality(image)
@@ -438,6 +457,7 @@ def analyze_image(
         objective_features=objective_features,
         page_frame=page_frame,
         page_reference=page_reference,
+        canonical_features=canonical_features,
     )
     output.mkdir(parents=True, exist_ok=True)
     portable = result.to_dict()
