@@ -8,6 +8,7 @@ from pathlib import Path
 from .judges import run_judges
 from .objective_features_report import build_objective_features_document
 from .reports import save_reports
+from .structured_report import build_structured_analysis
 
 
 def write_versioned(path: Path, value) -> None:
@@ -67,6 +68,8 @@ def finalize_case(analysis: dict, output: Path) -> None:
     # features doesn't have to parse the whole case.
     _write(output / "objective_features.json",
            build_objective_features_document(analysis.get("objective_features", {})))
+    # DOAR-TRACE 4D: deterministic structured report -- planner only, no LLM.
+    _write(output / "structured_analysis.json", build_structured_analysis(analysis))
     review = output / "clinician_review.json"
     if not review.exists():
         _write(review, {"status": "not_submitted", "history": [], "ai_output_preserved": True})
