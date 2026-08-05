@@ -60,8 +60,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .page_frame import ASSESSABLE_STATUSES
-
 # Empirically-derived from a real, non-test, class-balanced 80-image
 # sample (phase2a_threshold_sensitivity-style sampling, seed=11) --
 # see docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md for the full
@@ -105,15 +103,19 @@ ALL_PAGE_GATED_RULE_IDS = PAGE_GATED_HISTORICAL_RULE_IDS | {"EN_COMPILED_PLACEME
 
 
 def apply_page_frame_gating(
-    rule_evaluations: list[dict[str, Any]], page_frame: dict[str, Any],
+    rule_evaluations: list[dict[str, Any]], page_reference: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Rewrites the historical engine's page-coverage/placement rule
-    evaluations to `not_assessable` (never `not_matched`) when the page
-    is not visible/assessable in the uploaded image (Phase 2A, Section 3).
+    evaluations to `not_assessable` (never `not_matched`) when no page
+    reference is assessable (Phase 2A, Section 3; Phase 2A.1, Section 3
+    -- gates on the RESOLVED `page_reference.page_relative_features_assessable`,
+    not the raw automatic `page_frame` status directly, so an explicit
+    `user_confirmed_full_frame`/`user_defined_page_corners` declaration
+    correctly overrides an automatic `cropped_or_content_only` reading).
     Leaves every other rule (including the 13 missing_detector rules and
     any not_evaluated placement rows already produced by a missing
     centroid) exactly as rules.py produced it."""
-    if page_frame.get("page_frame_status") in ASSESSABLE_STATUSES:
+    if page_reference.get("page_relative_features_assessable"):
         return rule_evaluations
     gated = []
     for rule_eval in rule_evaluations:
@@ -122,7 +124,7 @@ def apply_page_frame_gating(
                 **rule_eval,
                 "status": "not_assessable",
                 "matched_evidence_ids": [],
-                "missing_evidence": ["page_frame_status_not_assessable"],
+                "missing_evidence": ["page_reference_not_assessable"],
                 "rule_confidence": 0.0,
                 "professional_reasoning": None,
                 "parent_safe_wording": None,
@@ -158,20 +160,24 @@ def _base_eval(rule: dict[str, Any], status: str, matched: list[str], missing: l
 
 
 def evaluate_v2_rules(
-    rules_v2_by_id: dict[str, dict[str, Any]], objective_features: dict[str, Any], page_frame: dict[str, Any],
+    rules_v2_by_id: dict[str, dict[str, Any]], objective_features: dict[str, Any], page_reference: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """`objective_features` is `Analysis.to_dict()["objective_features"]`
-    (feature_id -> asdict(FeatureValue)). `page_frame` is
-    `Analysis.to_dict()["page_frame"]` (page_frame.py's assessment)."""
+    (feature_id -> asdict(FeatureValue)). `page_reference` is
+    `Analysis.to_dict()["page_reference"]` (page_reference.py's resolved
+    reference -- Phase 2A.1, Section 3; gates on
+    `page_relative_features_assessable`, which correctly reflects an
+    explicit user declaration overriding the automatic page_frame
+    assessment, not the raw automatic status directly)."""
     evaluations = []
-    page_assessable = page_frame.get("page_frame_status") in ASSESSABLE_STATUSES
+    page_assessable = bool(page_reference.get("page_relative_features_assessable"))
 
-    # --- EN_COMPILED_PLACEMENT_CENTER_029: page-frame-gated ------------------
+    # --- EN_COMPILED_PLACEMENT_CENTER_029: page-reference-gated --------------
     rule = rules_v2_by_id["EN_COMPILED_PLACEMENT_CENTER_029"]
     cx_fv = objective_features.get("composition.centroid_x")
     cy_fv = objective_features.get("composition.centroid_y")
     if not page_assessable:
-        evaluations.append(_base_eval(rule, "not_assessable", [], ["page_frame_status_not_assessable"]))
+        evaluations.append(_base_eval(rule, "not_assessable", [], ["page_reference_not_assessable"]))
     elif cx_fv is None or cy_fv is None or cx_fv.get("missing") or cy_fv.get("missing"):
         evaluations.append(_base_eval(rule, "not_matched", [], ["centroid_unavailable"]))
     else:

@@ -394,13 +394,17 @@ def analyze_image(
                 ["Model probabilities are not psychological or diagnostic confidence."],
             ))
         rule_evaluations, concerns = evaluate_rules(composition, colour, evidence)
-        # DOAR-TRACE Phase 2A, Section 3+7: (a) post-process the historical
-        # engine's page-coverage/placement rules to `not_assessable` (never
-        # `not_matched`) when the page isn't visible -- rules.py itself is
-        # untouched; (b) merge in the 4 rules newly wired via the parallel
-        # v2 engine (rule_engine_v2.py), which are page-frame-gated the same
-        # way internally for EN_COMPILED_PLACEMENT_CENTER_029.
-        rule_evaluations = apply_page_frame_gating(rule_evaluations, page_frame)
+        # DOAR-TRACE Phase 2A, Section 3+7 / Phase 2A.1, Section 3: (a)
+        # post-process the historical engine's page-coverage/placement
+        # rules to `not_assessable` (never `not_matched`) when no page
+        # reference is assessable -- rules.py itself is untouched; (b)
+        # merge in the 4 rules newly wired via the parallel v2 engine
+        # (rule_engine_v2.py), which are page-reference-gated the same way
+        # internally for EN_COMPILED_PLACEMENT_CENTER_029. Both gate on
+        # `page_reference` (not the raw automatic `page_frame`), so an
+        # explicit user_confirmed_full_frame/user_defined_page_corners
+        # declaration correctly overrides an automatic cropped reading.
+        rule_evaluations = apply_page_frame_gating(rule_evaluations, page_reference)
         # DOAR-TRACE Phase 2A.1, Section 4: redefines coverage_full's
         # trigger condition (margin-based, page-reference-aware) for
         # whichever cases are still assessable after the gating step above
@@ -414,7 +418,7 @@ def analyze_image(
         # objective_features here still holds raw FeatureValue instances
         # since the Analysis object hasn't been constructed yet.
         objective_features_dicts = {fid: asdict(fv) for fid, fv in objective_features.items()}
-        rule_evaluations = rule_evaluations + evaluate_v2_rules(rules_v2_by_id, objective_features_dicts, page_frame)
+        rule_evaluations = rule_evaluations + evaluate_v2_rules(rules_v2_by_id, objective_features_dicts, page_reference)
         executed_modules += ["psychologist_rules", "concern_profiles"]
 
     module_execution = {

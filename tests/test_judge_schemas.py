@@ -225,17 +225,20 @@ class AggregationJudgeOperationalTests(unittest.TestCase):
 
 
 class PageFrameJudgeV2Tests(unittest.TestCase):
-    """DOAR-TRACE Phase 2A, Section 8: page_frame_judge re-verifies, from
-    the saved output alone, that page-relative rules are never left
-    ungated when the page isn't visible."""
+    """DOAR-TRACE Phase 2A, Section 8 (updated Phase 2A.1, Section 3):
+    page_frame_judge re-verifies, from the saved output alone, that
+    page-relative rules are never left ungated when no page reference is
+    assessable. Checks the RESOLVED page_reference, not the raw
+    automatic page_frame status, so it agrees with what gating actually
+    used (including an explicit user override)."""
 
-    def test_no_page_frame_supplied_is_not_implemented(self):
+    def test_no_page_reference_supplied_is_not_implemented(self):
         verdict = page_frame_judge_v2({})
         self.assertEqual(verdict.status, "not_implemented")
 
     def test_assessable_page_with_any_rule_statuses_passes(self):
         analysis = {
-            "page_frame": {"page_frame_status": "full_page_detected", "confidence": 0.9},
+            "page_reference": {"page_reference_mode": "auto_detected_page", "page_relative_features_assessable": True, "confidence": 0.9},
             "rule_evaluations": [
                 {"rule_id": "PSY_AR_SIZE_FULL_015", "status": "weak_support"},
                 {"rule_id": "PSY_AR_PLACE_TOP_017", "status": "not_matched"},
@@ -246,7 +249,7 @@ class PageFrameJudgeV2Tests(unittest.TestCase):
 
     def test_not_assessable_page_with_gated_rules_correctly_not_assessable_passes(self):
         analysis = {
-            "page_frame": {"page_frame_status": "cropped_or_content_only", "confidence": 0.7},
+            "page_reference": {"page_reference_mode": "cropped_or_content_only", "page_relative_features_assessable": False, "confidence": 0.7},
             "rule_evaluations": [
                 {"rule_id": "PSY_AR_SIZE_FULL_015", "status": "not_assessable"},
                 {"rule_id": "EN_COMPILED_PLACEMENT_CENTER_029", "status": "not_assessable"},
@@ -256,11 +259,23 @@ class PageFrameJudgeV2Tests(unittest.TestCase):
         verdict = page_frame_judge_v2(analysis)
         self.assertEqual(verdict.status, "pass", verdict.reasons)
 
+    def test_user_override_makes_a_case_assessable_and_the_judge_agrees(self):
+        # An explicit user_confirmed_full_frame declaration overrides an
+        # automatic cropped reading -- the judge must not flag this as a
+        # violation just because it would look non-assessable by the raw
+        # automatic signal alone.
+        analysis = {
+            "page_reference": {"page_reference_mode": "user_confirmed_full_frame", "page_relative_features_assessable": True, "confidence": 1.0},
+            "rule_evaluations": [{"rule_id": "PSY_AR_SIZE_FULL_015", "status": "weak_support"}],
+        }
+        verdict = page_frame_judge_v2(analysis)
+        self.assertEqual(verdict.status, "pass", verdict.reasons)
+
     def test_not_assessable_page_with_a_weak_support_gated_rule_is_caught(self):
         # Seeded violation: a page-gated rule slipped through as weak_support
         # while the page itself is not assessable -- must never happen.
         analysis = {
-            "page_frame": {"page_frame_status": "uncertain", "confidence": 0.3},
+            "page_reference": {"page_reference_mode": "uncertain", "page_relative_features_assessable": False, "confidence": 0.3},
             "rule_evaluations": [
                 {"rule_id": "PSY_AR_SIZE_FULL_015", "status": "weak_support"},
             ],
@@ -272,7 +287,7 @@ class PageFrameJudgeV2Tests(unittest.TestCase):
     def test_not_assessable_page_with_a_not_matched_gated_rule_is_caught(self):
         # Section 3's explicit "must not become not_matched" requirement.
         analysis = {
-            "page_frame": {"page_frame_status": "failed", "confidence": 0.0},
+            "page_reference": {"page_reference_mode": "failed", "page_relative_features_assessable": False, "confidence": 0.0},
             "rule_evaluations": [
                 {"rule_id": "PSY_AR_PLACE_LEFT_018", "status": "not_matched"},
             ],

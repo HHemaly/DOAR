@@ -228,45 +228,53 @@ def aggregation_judge_v2(
 
 def page_frame_judge_v2(analysis: dict[str, Any]) -> JudgeVerdict:
     """DOAR-TRACE Phase 2A, Section 8: operational, not a stub.
-    Independently re-verifies (from the saved `page_frame` and
+    Independently re-verifies (from the saved `page_reference` and
     `rule_evaluations` output alone -- never by re-running
     `analysis.py`'s own gating call) that every page-relative rule in
     `rule_engine_v2.ALL_PAGE_GATED_RULE_IDS` is `not_assessable` whenever
-    the page is not visible, and specifically that it is never
+    no page reference is assessable, and specifically that it is never
     `not_matched` in that case (Section 3's explicit "must not become
-    not_matched" requirement)."""
-    from .page_frame import ASSESSABLE_STATUSES
+    not_matched" requirement).
+
+    Phase 2A.1, Section 3: checks `page_reference.page_relative_features_assessable`
+    (the RESOLVED reference), not the raw automatic `page_frame` status --
+    an explicit `user_confirmed_full_frame`/`user_defined_page_corners`
+    declaration can make a case assessable even when the automatic
+    `page_frame` heuristic alone would have said `cropped_or_content_only`,
+    and this judge must agree with what gating actually used, not
+    re-derive a different (stale) answer from the automatic signal alone."""
     from .rule_engine_v2 import ALL_PAGE_GATED_RULE_IDS
 
-    page_frame = analysis.get("page_frame") or {}
-    status = page_frame.get("page_frame_status")
-    target = f"page_frame_status={status}"
-    if status is None:
+    page_reference = analysis.get("page_reference") or {}
+    mode = page_reference.get("page_reference_mode")
+    target = f"page_reference_mode={mode}"
+    if mode is None:
         return _not_implemented(
             "page_frame_judge", "unavailable",
-            reasons=["No page_frame assessment was supplied to judge (analysis predates Phase 2A or page_frame "
+            reasons=["No page_reference was supplied to judge (analysis predates Phase 2A.1 or page_reference "
                      "is missing from the saved output)."],
-            limitations=["Cannot judge page-relative rule gating without a page_frame assessment."],
+            limitations=["Cannot judge page-relative rule gating without a resolved page_reference."],
         )
 
+    assessable = bool(page_reference.get("page_relative_features_assessable"))
     reasons: list[str] = []
-    if status not in ASSESSABLE_STATUSES:
+    if not assessable:
         for rule_eval in analysis.get("rule_evaluations", []):
             if rule_eval["rule_id"] not in ALL_PAGE_GATED_RULE_IDS:
                 continue
             if rule_eval["status"] in ("weak_support", "not_matched"):
                 reasons.append(
-                    f"{rule_eval['rule_id']}: status={rule_eval['status']!r} while page_frame_status={status!r} "
-                    f"(not in {sorted(ASSESSABLE_STATUSES)}) -- should be not_assessable"
+                    f"{rule_eval['rule_id']}: status={rule_eval['status']!r} while page_reference_mode={mode!r} "
+                    f"is not assessable -- should be not_assessable"
                 )
 
     verdict_status = "fail" if reasons else "pass"
     return JudgeVerdict(
-        judge_id="page_frame_judge", target=target, status=verdict_status, confidence=page_frame.get("confidence"),
-        reasons=reasons or [f"All page-relative rules correctly gated for page_frame_status={status!r}."],
-        limitations=["Checks only the gating invariant (not_assessable, never not_matched, when the page isn't "
-                     "visible); does not independently re-derive the page-frame heuristic's own correctness -- "
-                     "see docs/PAGE_FRAME_ASSESSABILITY.md for that."],
+        judge_id="page_frame_judge", target=target, status=verdict_status, confidence=page_reference.get("confidence"),
+        reasons=reasons or [f"All page-relative rules correctly gated for page_reference_mode={mode!r}."],
+        limitations=["Checks only the gating invariant (not_assessable, never not_matched, when no page reference "
+                     "is assessable); does not independently re-derive the page-frame heuristic's own correctness "
+                     "-- see docs/PAGE_FRAME_ASSESSABILITY.md/docs/PAGE_REFERENCE_MODEL.md for that."],
         version="page_frame_judge_v1",
     )
 

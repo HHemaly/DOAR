@@ -43,8 +43,12 @@ def _objective_features(**overrides: float) -> dict:
     return base
 
 
-_ASSESSABLE_PAGE = {"page_frame_status": "full_page_detected"}
-_NOT_ASSESSABLE_PAGE = {"page_frame_status": "cropped_or_content_only"}
+# Phase 2A.1 migration: apply_page_frame_gating/evaluate_v2_rules now
+# gate on the RESOLVED page_reference (page_relative_features_assessable),
+# not the raw automatic page_frame status directly -- see
+# docs/PAGE_REFERENCE_MODEL.md and rule_engine_v2.py's docstrings.
+_ASSESSABLE_PAGE = {"page_reference_mode": "auto_detected_page", "page_relative_features_assessable": True}
+_NOT_ASSESSABLE_PAGE = {"page_reference_mode": "cropped_or_content_only", "page_relative_features_assessable": False}
 
 
 class MutualExclusivityByConstructionTests(unittest.TestCase):
@@ -94,7 +98,7 @@ class PlacementCenterPageFrameGatingTests(unittest.TestCase):
         evaluations = evaluate_v2_rules(self.rules_v2_by_id, _objective_features(), _NOT_ASSESSABLE_PAGE)
         by_id = {e["rule_id"]: e for e in evaluations}
         self.assertEqual(by_id["EN_COMPILED_PLACEMENT_CENTER_029"]["status"], "not_assessable")
-        self.assertEqual(by_id["EN_COMPILED_PLACEMENT_CENTER_029"]["missing_evidence"], ["page_frame_status_not_assessable"])
+        self.assertEqual(by_id["EN_COMPILED_PLACEMENT_CENTER_029"]["missing_evidence"], ["page_reference_not_assessable"])
 
     def test_evaluated_normally_when_page_visible(self):
         lo, hi = PLACEMENT_CENTER_BAND
