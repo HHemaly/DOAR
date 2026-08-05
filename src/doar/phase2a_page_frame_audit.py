@@ -65,13 +65,18 @@ def audit_one_image(row: dict) -> dict[str, Any]:
         }
 
 
-def run_audit(manifest_path: Path = DEFAULT_MANIFEST, per_class: int = 30, seed: int = 42) -> dict[str, Any]:
+def run_audit(
+    manifest_path: Path = DEFAULT_MANIFEST, per_class: int = 30, seed: int = 42, output_path: Path = OUTPUT_PATH,
+) -> dict[str, Any]:
+    """`output_path` defaults to the canonical committed artifact --
+    override it (e.g. in tests using a small `per_class`) so a reduced
+    sample never clobbers the real, full-sample audit result."""
     rows = list(csv.DictReader(open(manifest_path, encoding="utf-8")))
     sample = _sample_balanced(rows, per_class=per_class, seed=seed)
     results = [audit_one_image(row) for row in sample]
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with OUTPUT_PATH.open("w", newline="", encoding="utf-8") as handle:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDS)
         writer.writeheader()
         for row in results:
@@ -84,7 +89,7 @@ def run_audit(manifest_path: Path = DEFAULT_MANIFEST, per_class: int = 30, seed:
     return {
         "n_images": len(results), "status_counts": status_counts,
         "n_assessable": n_assessable, "assessable_fraction": round(n_assessable / max(1, len(results)), 4),
-        "output_path": str(OUTPUT_PATH),
+        "output_path": str(output_path),
     }
 
 

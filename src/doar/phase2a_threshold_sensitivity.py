@@ -92,7 +92,12 @@ def _measure(rows: list[dict]) -> list[tuple[float, float]]:
     return out
 
 
-def run_threshold_sensitivity(manifest_path: Path = DEFAULT_MANIFEST, n_per_class: int = 75, seed: int = 42) -> dict[str, Any]:
+def run_threshold_sensitivity(
+    manifest_path: Path = DEFAULT_MANIFEST, n_per_class: int = 75, seed: int = 42, output_path: Path = CSV_PATH,
+) -> dict[str, Any]:
+    """`output_path` defaults to the canonical committed artifact --
+    override it (e.g. in tests using a small `n_per_class`) so a reduced
+    sample never clobbers the real, full-sample sensitivity sweep."""
     sample_rows = _sample(manifest_path, n_per_class, seed)
     measurements = _measure(sample_rows)
     n_total = len(measurements)
@@ -130,14 +135,14 @@ def run_threshold_sensitivity(manifest_path: Path = DEFAULT_MANIFEST, n_per_clas
                 "impact_on_combined_hypotheses": _COMBINED_IMPACT_NOTE,
             })
 
-    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with CSV_PATH.open("w", newline="", encoding="utf-8") as handle:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
         writer.writeheader()
         for row in out_rows:
             writer.writerow(row)
 
-    return {"n_total_sampled": n_total, "n_rows": len(out_rows), "output_path": str(CSV_PATH)}
+    return {"n_total_sampled": n_total, "n_rows": len(out_rows), "output_path": str(output_path)}
 
 
 if __name__ == "__main__":

@@ -1,0 +1,42 @@
+rule_id,observable,executable,trigger_count,assessable_count,not_assessable_count,trigger_rate_among_assessable_pct,source_evidence_grade,limitations
+PSY_AR_EYES_WIDE_001,wide_eyes,False,,,,,Weak / mixed,"Children's facial-expression drawings research; general projective tradition. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_EYES_STERN_002,stern_eyes,False,,,,,Weak / mixed,"General emotion-symbol heuristics. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_EYES_CLOSED_003,closed_eyes,False,,,,,Speculative,"No strong standard reference found. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_ANIMAL_TIGER_WOLF_004,tiger_or_wolf,False,,,,,Speculative,"No fixed universal rule found. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_ANIMAL_FOX_005,fox,False,,,,,Speculative,"No fixed universal rule found. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_ANIMAL_SQUIRREL_006,squirrel,False,,,,,Speculative,"No fixed universal rule found. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_ANIMAL_LION_007,lion,False,,,,,Speculative,"No fixed universal rule found. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_GEOMETRY_008,repeated_geometric_shapes,False,,,,,Speculative,"Projective tradition, weak support. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_STARS_009,stars,False,,,,,Speculative,"No strong standard reference found. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_FLOWERS_CLOUDS_SUN_010,flowers_clouds_sun,False,,,,,Speculative,"No fixed rule; depends heavily on context. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_CIRCLES_011,circles,False,,,,,Speculative,"Common heuristic, not standardized. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_TRANSPORT_012,vehicles,False,,,,,Speculative,"No strong literature basis found. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_HEARTS_013,hearts,False,,,,,Weak / common-sense,"Symbolic meaning is culturally obvious, not psychometric. (allowed_output_level=disabled -- no evaluator wired, never run)"
+PSY_AR_SIZE_HALF_014,coverage_about_half,True,5,31,168,16.13,Speculative,No standardized cutoff.
+PSY_AR_SIZE_FULL_015,coverage_full,True,8,31,168,25.81,Weak / mixed,Page occupation is a common projective heuristic.
+PSY_AR_SIZE_SMALL_016,coverage_small,True,0,31,168,0.0,Weak / mixed,Projective interpretation.
+PSY_AR_PLACE_TOP_017,placement_top,True,1,32,167,3.12,Weak / mixed,Projective page-position heuristics.
+PSY_AR_PLACE_LEFT_018,placement_left,True,0,32,167,0.0,Speculative,No strong standard rule found.
+PSY_AR_PLACE_RIGHT_019,placement_right,True,0,32,167,0.0,Speculative,No strong standard rule found.
+EN_COMPILED_EYES_MISSING_DETAIL_020,eyes_missing_or_undetailed,False,,,,,Weak / mixed,"Not specific.; Projective drawing heuristics; developmental factors important. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_FACE_EXPRESSION_021,face_expression,False,,,,,Moderate for basic emotion only,"Children do encode emotions in faces, but not as a diagnosis test. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_ANIMAL_CHOICE_GENERAL_022,animal_choice_general,False,,,,,Weak / mixed,"Animal-drawing tests and apperception traditions. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_HOUSE_023,house,False,,,,,Weak / mixed,"Projective drawing traditions. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_TREE_024,tree,False,,,,,Weak / mixed,"Projective tree-drawing traditions. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_REPEATED_MONSTERS_DANGER_025,repeated_monsters_danger_injury,False,,,,,Suggestive only,"Best used with interview.; Trauma-informed assessment principles. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_VERY_SMALL_DRAWING_026,very_small_drawing_absolute,False,,,,,Weak / mixed,"Size is a common but nonspecific cue. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_REPEATED_FAMILY_CONFLICT_027,repeated_family_conflict,False,,,,,Suggestive only,"Context is essential. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_REPEATED_ISOLATION_THEMES_028,repeated_isolation_themes,False,,,,,Suggestive only,"Not diagnostic. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_PLACEMENT_CENTER_029,placement_center,True,29,31,168,93.55,Speculative,Common heuristic.
+EN_COMPILED_LINE_HEAVY_PRESSURE_030,heavy_line_pressure_appearance,True,36,199,0,18.09,Weak / mixed,Not specific to emotion; can reflect motor style.
+EN_COMPILED_LINE_LIGHT_PRESSURE_031,light_line_pressure_appearance,True,65,199,0,32.66,Weak / mixed,Not specific to emotion.
+EN_COMPILED_LINE_SHAKY_BROKEN_032,shaky_or_broken_lines,True,40,199,0,20.1,Weak / mixed,Needs comparison with age and motor skills.
+EN_COMPILED_LINE_ZIGZAG_033,zigzag_lines,False,,,,,Weak / mixed,"Older projective and graphological traditions. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_LINE_OVER_ERASING_034,over_erasing_appearance,False,,,,,Weak / mixed,"Also common in normal development. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_MISSING_HANDS_035,missing_hands,False,,,,,Weak / mixed,"Can be developmental. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_MISSING_MOUTH_036,missing_mouth,False,,,,,Weak / mixed,"Not specific. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_EXAGGERATED_BODY_PARTS_037,exaggerated_body_parts,False,,,,,Weak / mixed,"Very tentative. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_DARK_COLORS_SAD_ISOLATION_038,dark_colors_sad_faces_isolation,False,,,,,Suggestive only,"Color evidence is mixed; not diagnostic. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_REFUSAL_TO_DRAW_039,refusal_to_draw_figures,False,,,,,Suggestive only,"Can have many causes. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_EXCESSIVE_DETAIL_040,excessive_detail_or_fixation,False,,,,,Suggestive only,"Not specific. (allowed_output_level=disabled -- no evaluator wired, never run)"
+EN_COMPILED_NEGLECT_BACKGROUND_041,neglect_of_background,False,,,,,Weak / mixed,"Not a pathology sign by itself. (allowed_output_level=disabled -- no evaluator wired, never run)"
