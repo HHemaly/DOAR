@@ -106,14 +106,18 @@ because the rule itself was judged unworthy.
 
 **Wording discipline**: a stroke/line-darkness feature is never described
 as physical pencil pressure — always "dark/thick-line appearance proxy."
-This was written before the compiled English PDF's line-quality/pressure
-family existed in the registry; Phase 1.5's
 `EN_COMPILED_LINE_HEAVY_PRESSURE_030`/`EN_COMPILED_LINE_LIGHT_PRESSURE_031`
 are exactly this case, `observable` named
 `heavy_line_pressure_appearance`/`light_line_pressure_appearance` (never
-just "pressure"), and both are still `allowed_output_level: disabled`
-today, since the underlying `stroke.intensity_proxy` feature is real but
-not wired to any evaluator.
+just "pressure"). **Phase 2A update**: these 2 rules, plus
+`EN_COMPILED_LINE_SHAKY_BROKEN_032` and `EN_COMPILED_PLACEMENT_CENTER_029`,
+are now `allowed_output_level: individual_heuristic_only` — wired to a
+real, additive, parallel evaluator (`rule_engine_v2.py`), never modifying
+`rules.py`/`rules_registry.json`. See `docs/STATIC_PROXY_RULE_POLICY.md`
+for the full per-rule activation audit and
+`docs/PAGE_FRAME_ASSESSABILITY.md`/`docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md`
+for the measurement validation and threshold provenance behind that
+decision.
 
 ## 3. Evidence-v2 contract (summary — full schema in `trace_evidence.py`)
 
@@ -141,6 +145,36 @@ mandatory for every triggered rule), C (combined hypothesis, only when a
 construct's own policy is satisfied by >=2 independent contributors) —
 specified in full in `docs/AGGREGATION_POLICY.md`, including the ordinal
 0-4 scale and the `global_expressive_content_model` evidence family.
+
+## 3.6. Page-frame assessability and measurement validation (Phase 2A, new)
+
+A page-relative rule (page-coverage or placement) is only meaningful
+when the whole physical page is visible in the uploaded image.
+`page_frame.py` adds an explicit, classical-CV-only (no trained
+detector) assessment with 5 statuses; only `full_page_detected`/
+`likely_full_page` permit normal evaluation. Otherwise, the rule's
+status becomes `not_assessable` — a status distinct from both
+`not_matched` (evaluated, found false) and `missing_detector` (no
+evaluator exists at all) — never silently reinterpreted as either. A
+120-image real audit found only 12.5% of the current dataset
+assessable; see `docs/PAGE_FRAME_ASSESSABILITY.md`.
+
+Every executable rule's underlying feature is validated two ways before
+activation: synthetic ground-truth checks (does the pipeline recover an
+analytically known value?) and transformation-invariance checks (does
+the feature survive resize/rotation/compression/lighting/crop noise
+within a stated tolerance?) — `docs/FEATURE_MEASUREMENT_VALIDATION.md`
+and `docs/FEATURE_ROBUSTNESS_RESULTS.md`. Both validate measurement
+implementation only, never psychological validity — that distinction is
+stated in both documents' own text, not left implicit.
+
+Every executable rule's threshold carries one of 5 documented
+provenance categories (`directly_sourced` through
+`empirically_exploratory`) and a real sensitivity sweep on non-test
+data — `docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md`. Real trigger
+counts for all 41 registry-v2 rules (10 executable, 31 not) are
+recorded in `artifacts/phase2a/rule_trigger_distribution.csv`, never
+interpreted as psychological prevalence.
 
 ## 4. Governing invariants (unchanged from `TARGET_APPLICATION_ARCHITECTURE.md`)
 

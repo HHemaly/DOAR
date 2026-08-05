@@ -63,11 +63,25 @@ source's own evidence-level/notes columns where present, is in
 **Directly measurable rules today**: the original 6 tier-1
 composition/placement rules (`coverage_small/about_half/full`,
 `placement_top/left/right`) — `allowed_output_level:
-individual_heuristic_only`. **Every other rule (35 of 41) is
-`allowed_output_level: disabled`** — no new detector, proxy wiring, or
-evaluator was built in this phase (explicitly out of scope).
+individual_heuristic_only`. **Every other rule (35 of 41) was
+`allowed_output_level: disabled`** as of Phase 1.5 — no new detector,
+proxy wiring, or evaluator was built in that phase (explicitly out of
+scope then).
 
-## Threshold provenance (unchanged from Phase 1, re-verified)
+**Phase 2A update**: 4 more rules are now executable —
+`EN_COMPILED_PLACEMENT_CENTER_029` (the 1 previously-unwired
+`static_direct` row above), `EN_COMPILED_LINE_HEAVY_PRESSURE_030`,
+`EN_COMPILED_LINE_LIGHT_PRESSURE_031`, and
+`EN_COMPILED_LINE_SHAKY_BROKEN_032` (all 3 `static_proxy` rows above) —
+wired via a new, additive, parallel evaluator (`rule_engine_v2.py`)
+that never modifies `rules.py`/`rules_registry.json`. **10 of 41 rules
+are now `allowed_output_level: individual_heuristic_only`; 31 remain
+`disabled`.** Full activation audit, including the specific reasons
+`EN_COMPILED_EXCESSIVE_DETAIL_040`/`EN_COMPILED_NEGLECT_BACKGROUND_041`
+were deliberately NOT activated despite superficially plausible feature
+names: `docs/STATIC_PROXY_RULE_POLICY.md`.
+
+## Threshold provenance (unchanged from Phase 1, re-verified; superseded by Phase 2A's fuller audit)
 
 | Threshold | Status |
 |---|---|
@@ -75,6 +89,13 @@ evaluator was built in this phase (explicitly out of scope).
 | `coverage_about_half` 40-60% | Center sourced ("about 50%"), tolerance band invented |
 | `coverage_full` >=90% | Invented stand-in for "covers the whole page" |
 | `placement_top/left/right` 0.4/0.6 splits | Entirely invented — neither source gives a number |
+
+Phase 2A adds a 5-category provenance vocabulary applied consistently to
+all 10 executable rules (including the 4 new ones, all
+`invented_operational_standin`/`empirically_exploratory`) plus a real
+300-image sensitivity sweep for every threshold above — see
+`docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md` for the current,
+authoritative version of this table.
 
 ## Constructs currently capable of real convergence
 
