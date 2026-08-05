@@ -486,7 +486,13 @@ with technical_tab:
              # grouping (double-counting safety), and validation status --
              # previously only visible by opening the raw JSON.
              "threshold_source": r.get("threshold_source"), "dependency_group": ", ".join(r.get("dependency_group") or []),
-             "validation_status": r.get("validation_status"), "confidence_ceiling": r.get("confidence_ceiling")}
+             "validation_status": r.get("validation_status"), "confidence_ceiling": r.get("confidence_ceiling"),
+             # DOAR-TRACE Phase 2A.1, Section 8: rule policy after
+             # measurement hardening.
+             "page_reference_requirement": r.get("page_reference_requirement"),
+             "feature_version": r.get("feature_version"),
+             "expert_review_status": r.get("expert_review_status"),
+             "known_robustness_limitations": r.get("known_robustness_limitations")}
             for r in registry_v2_doc["rules"]
         ], use_container_width=True)
         n_executable = sum(1 for r in registry_v2_doc["rules"] if r["allowed_output_level"] == "individual_heuristic_only")

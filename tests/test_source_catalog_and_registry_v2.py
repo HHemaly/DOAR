@@ -235,7 +235,9 @@ class RegistryV2PhaseOneFiveTests(unittest.TestCase):
             "required_feature_ids", "required_detector_or_metadata", "evidence_family", "dependency_group",
             "target_construct", "direction", "allowed_output_level", "alternative_explanations", "reference_ids",
             "limitations", "parent_safe_wording", "professional_wording", "question_template",
-            "psychologist_review_status", "validation_status", "threshold_source", "version",
+            "psychologist_review_status", "validation_status", "threshold_source",
+            "page_reference_requirement", "feature_version", "known_robustness_limitations",
+            "expert_review_status", "version",
         }
         for rule in self.registry["rules"]:
             self.assertEqual(set(rule.keys()), required, rule["rule_id"])

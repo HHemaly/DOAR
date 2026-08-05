@@ -34,6 +34,20 @@ replacing `rules.py`/`rules_registry.json`): `EN_COMPILED_PLACEMENT_CENTER_029`,
 docs/STATIC_PROXY_RULE_POLICY.md for the full per-rule audit, including
 why `EXCESSIVE_DETAIL_040`/`NEGLECT_BACKGROUND_041` were deliberately
 NOT activated despite superficially similarly-named features.
+
+**Phase 2A.1, Section 8**: every rule now additionally records
+`page_reference_requirement` (`required` for the 7 page-relative rules,
+`not_required` otherwise), `feature_version` (the real
+`features.FeatureValue.version` the underlying measurement carries),
+`known_robustness_limitations` (real Phase 2A transform-invariance
+findings for the underlying feature -- `docs/FEATURE_ROBUSTNESS_RESULTS.md`
+-- not a generic disclaimer), and `expert_review_status`
+(`pending_review` for the 10 executable rules now that Section 7's
+review forms exist; `not_applicable_rule_disabled` otherwise). None of
+this promotes any rule to a higher `allowed_output_level` -- rules with
+exploratory thresholds stay `individual_heuristic_only` and page-relative
+rules stay gated `not_assessable` when the page reference isn't
+resolved, regardless of these new descriptive fields.
 """
 
 from __future__ import annotations
@@ -42,12 +56,66 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .rule_engine_v2 import ALL_PAGE_GATED_RULE_IDS
 from .source_catalog_build import build_source_catalog
 
 REGISTRY_V2_PATH = Path(__file__).resolve().parents[2] / "resources" / "psychology_sources" / "rules_registry_v2.json"
 REGISTRY_V2_SCHEMA_VERSION = "rules_registry_v2_v2"  # Phase 1.5 -- distinct from Phase 1's "rules_registry_v2_draft_1"
 
 PSYCHOLOGIST_REVIEW_STATUS = "supplied_by_named_source_not_independently_reviewed"
+
+# DOAR-TRACE Phase 2A.1, Section 8: real Phase 2A transform-invariance
+# findings (docs/FEATURE_ROBUSTNESS_RESULTS.md), keyed by the underlying
+# feature each executable rule's observable maps to -- not a generic
+# disclaimer, the actual measured fail count out of 80 real
+# (4 images x 20 transforms) measurements per feature.
+_ROBUSTNESS_LIMITATIONS_BY_FEATURE: dict[str, str] = {
+    "composition.bounding_box_coverage": (
+        "0 of 80 real transform-invariance measurements failed for this exact feature in Phase 2A testing; "
+        "segmentation.foreground_coverage (a related but distinct feature) was the most transform-sensitive "
+        "feature measured (13 failures, mostly resize-driven)."
+    ),
+    "composition.centroid_normalized": (
+        "0 of 80 real transform-invariance measurements failed for composition.centroid_x/centroid_y in "
+        "Phase 2A testing."
+    ),
+    "stroke.intensity_proxy": (
+        "1 of 80 real transform-invariance measurements failed (brightness_down_0.7x) in Phase 2A testing."
+    ),
+    "stroke.fragmentation": (
+        "1 of 80 real transform-invariance measurements failed (brightness_down_0.7x) in Phase 2A testing."
+    ),
+}
+
+_FEATURE_ID_BY_OBSERVABLE: dict[str, str] = {
+    "coverage_about_half": "composition.bounding_box_coverage",
+    "coverage_full": "composition.bounding_box_coverage",
+    "coverage_small": "composition.bounding_box_coverage",
+    "placement_top": "composition.centroid_normalized",
+    "placement_left": "composition.centroid_normalized",
+    "placement_right": "composition.centroid_normalized",
+    "placement_center": "composition.centroid_normalized",
+    "heavy_line_pressure_appearance": "stroke.intensity_proxy",
+    "light_line_pressure_appearance": "stroke.intensity_proxy",
+    "shaky_or_broken_lines": "stroke.fragmentation",
+}
+
+_FEATURE_VERSION = "3.1.0"  # features.FeatureValue's current version constant -- shared by every feature today
+
+
+def _page_reference_requirement(rule_id: str) -> str:
+    return "required" if rule_id in ALL_PAGE_GATED_RULE_IDS else "not_required"
+
+
+def _known_robustness_limitations(observable: str, allowed_output: str) -> str:
+    if allowed_output != "individual_heuristic_only":
+        return "not_applicable_rule_disabled"
+    feature_id = _FEATURE_ID_BY_OBSERVABLE.get(observable)
+    return _ROBUSTNESS_LIMITATIONS_BY_FEATURE.get(feature_id, "no Phase 2A robustness data recorded for this feature")
+
+
+def _expert_review_status(allowed_output: str) -> str:
+    return "pending_review" if allowed_output == "individual_heuristic_only" else "not_applicable_rule_disabled"
 
 # ---------------------------------------------------------------------------
 # Evidence-family -> generic, honest alternative explanations (extended from
@@ -474,6 +542,12 @@ def build_registry_v2() -> dict[str, Any]:
             # False and no rule's validation_status was ever correctly set.
             "validation_status": "IMPLEMENTED_UNVALIDATED" if allowed_output == "individual_heuristic_only" else "DETECTOR_UNAVAILABLE",
             "threshold_source": defn.get("threshold_source", "not_applicable"),
+            # DOAR-TRACE Phase 2A.1, Section 8: rule policy after
+            # measurement hardening -- real, not generic, per-rule record.
+            "page_reference_requirement": _page_reference_requirement(rule_id),
+            "feature_version": _FEATURE_VERSION if allowed_output == "individual_heuristic_only" else None,
+            "known_robustness_limitations": _known_robustness_limitations(defn["observable"], allowed_output),
+            "expert_review_status": _expert_review_status(allowed_output),
             "version": REGISTRY_V2_SCHEMA_VERSION,
         })
 

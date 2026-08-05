@@ -96,6 +96,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -141,6 +145,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -186,6 +194,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -231,6 +243,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -275,6 +291,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -319,6 +339,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -363,6 +387,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -407,6 +435,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -451,6 +483,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -496,6 +532,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -540,6 +580,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -584,6 +628,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -628,6 +676,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -678,6 +730,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "source_centre_with_invented_band",
+      "page_reference_requirement": "required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "0 of 80 real transform-invariance measurements failed for this exact feature in Phase 2A testing; segmentation.foreground_coverage (a related but distinct feature) was the most transform-sensitive feature measured (13 failures, mostly resize-driven).",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -728,6 +784,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "invented_operational_standin",
+      "page_reference_requirement": "required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "0 of 80 real transform-invariance measurements failed for this exact feature in Phase 2A testing; segmentation.foreground_coverage (a related but distinct feature) was the most transform-sensitive feature measured (13 failures, mostly resize-driven).",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -778,6 +838,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "directly_sourced",
+      "page_reference_requirement": "required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "0 of 80 real transform-invariance measurements failed for this exact feature in Phase 2A testing; segmentation.foreground_coverage (a related but distinct feature) was the most transform-sensitive feature measured (13 failures, mostly resize-driven).",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -827,6 +891,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "invented_operational_standin",
+      "page_reference_requirement": "required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "0 of 80 real transform-invariance measurements failed for composition.centroid_x/centroid_y in Phase 2A testing.",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -876,6 +944,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "invented_operational_standin",
+      "page_reference_requirement": "required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "0 of 80 real transform-invariance measurements failed for composition.centroid_x/centroid_y in Phase 2A testing.",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -925,6 +997,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "invented_operational_standin",
+      "page_reference_requirement": "required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "0 of 80 real transform-invariance measurements failed for composition.centroid_x/centroid_y in Phase 2A testing.",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -968,6 +1044,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1009,6 +1089,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1050,6 +1134,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1091,6 +1179,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1132,6 +1224,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1174,6 +1270,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1215,6 +1315,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1255,6 +1359,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1295,6 +1403,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1340,6 +1452,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "invented_operational_standin",
+      "page_reference_requirement": "required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "0 of 80 real transform-invariance measurements failed for composition.centroid_x/centroid_y in Phase 2A testing.",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1385,6 +1501,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "empirically_exploratory",
+      "page_reference_requirement": "not_required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "1 of 80 real transform-invariance measurements failed (brightness_down_0.7x) in Phase 2A testing.",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1430,6 +1550,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "empirically_exploratory",
+      "page_reference_requirement": "not_required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "1 of 80 real transform-invariance measurements failed (brightness_down_0.7x) in Phase 2A testing.",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1475,6 +1599,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "IMPLEMENTED_UNVALIDATED",
       "threshold_source": "empirically_exploratory",
+      "page_reference_requirement": "not_required",
+      "feature_version": "3.1.0",
+      "known_robustness_limitations": "1 of 80 real transform-invariance measurements failed (brightness_down_0.7x) in Phase 2A testing.",
+      "expert_review_status": "pending_review",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1516,6 +1644,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1557,6 +1689,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1598,6 +1734,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1639,6 +1779,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1680,6 +1824,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1721,6 +1869,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1761,6 +1913,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1801,6 +1957,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     },
     {
@@ -1841,6 +2001,10 @@
       "psychologist_review_status": "supplied_by_named_source_not_independently_reviewed",
       "validation_status": "DETECTOR_UNAVAILABLE",
       "threshold_source": "not_applicable",
+      "page_reference_requirement": "not_required",
+      "feature_version": null,
+      "known_robustness_limitations": "not_applicable_rule_disabled",
+      "expert_review_status": "not_applicable_rule_disabled",
       "version": "rules_registry_v2_v2"
     }
   ]
