@@ -11,10 +11,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from doar.page_reference import (
     ASSESSABLE_PAGE_REFERENCE_MODES,
+    PARENT_PAGE_DECLARATION_CHOICES,
     InvalidPagePolygonError,
     PageReference,
     page_relative_bounding_box_coverage,
     resolve_page_reference,
+    user_page_declaration_from_choice,
 )
 
 
@@ -180,6 +182,55 @@ class PageReferenceSchemaTests(unittest.TestCase):
                 page_reference_mode="uncertain", page_polygon=None, confidence=1.5,
                 obtained_via="x", page_relative_features_assessable=False, limitations=[], evidence_id="ev_page_reference",
             )
+
+
+class ParentPageDeclarationChoiceTests(unittest.TestCase):
+    """DOAR-TRACE Phase 2A.2, Section 6: the 4-option parent-facing
+    control, mapped to the real page_reference API."""
+
+    def test_auto_means_no_declaration(self):
+        self.assertIsNone(user_page_declaration_from_choice("auto"))
+
+    def test_yes_maps_to_user_confirmed_full_frame(self):
+        self.assertEqual(user_page_declaration_from_choice("yes"), {"mode": "user_confirmed_full_frame"})
+
+    def test_no_maps_to_a_declaration_that_resolves_to_cropped(self):
+        decl = user_page_declaration_from_choice("no")
+        ref = resolve_page_reference(_pf("full_page_detected"), user_page_declaration=decl)
+        self.assertEqual(ref.page_reference_mode, "cropped_or_content_only")
+        self.assertFalse(ref.page_relative_features_assessable)
+        self.assertEqual(ref.obtained_via, "explicit_user_assertion_v1")
+
+    def test_unsure_maps_to_a_declaration_that_resolves_to_uncertain(self):
+        decl = user_page_declaration_from_choice("unsure")
+        ref = resolve_page_reference(_pf("full_page_detected"), user_page_declaration=decl)
+        self.assertEqual(ref.page_reference_mode, "uncertain")
+        self.assertFalse(ref.page_relative_features_assessable)
+        self.assertEqual(ref.obtained_via, "explicit_user_assertion_v1")
+
+    def test_no_declaration_overrides_an_automatic_full_page_reading(self):
+        # A user explicitly saying "no, this is cropped" must override even
+        # an automatic full_page_detected reading -- an explicit human
+        # decision always wins.
+        decl = user_page_declaration_from_choice("no")
+        ref = resolve_page_reference(_pf("full_page_detected", 0.99), user_page_declaration=decl)
+        self.assertFalse(ref.page_relative_features_assessable)
+
+    def test_unknown_choice_rejected(self):
+        with self.assertRaises(ValueError):
+            user_page_declaration_from_choice("maybe")
+
+    def test_exactly_four_choices_exist(self):
+        self.assertEqual(set(PARENT_PAGE_DECLARATION_CHOICES), {"auto", "yes", "no", "unsure"})
+
+    def test_user_declared_cropped_is_traceable_and_distinct_from_automatic(self):
+        # Same page_reference_mode as an automatic cropped reading, but a
+        # different obtained_via -- traceable/distinguishable in the saved
+        # case output.
+        auto = resolve_page_reference(_pf("cropped_or_content_only"))
+        declared = resolve_page_reference(_pf("full_page_detected"), user_page_declaration={"mode": "user_declared_cropped"})
+        self.assertEqual(auto.page_reference_mode, declared.page_reference_mode)
+        self.assertNotEqual(auto.obtained_via, declared.obtained_via)
 
 
 class PageRelativeCoverageTests(unittest.TestCase):

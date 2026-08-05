@@ -208,6 +208,40 @@ def resolve_page_reference(
                 ],
                 evidence_id="ev_page_reference",
             )
+        if mode == "user_declared_cropped":
+            # DOAR-TRACE Phase 2A.2, Section 6: the parent-facing "No, this
+            # image is cropped" choice. Same page_reference_mode string
+            # (`cropped_or_content_only`) and outcome
+            # (page_relative_features_assessable=False) as the automatic
+            # path -- the gating behaviour is identical either way -- but a
+            # distinct `obtained_via` makes the explicit human statement
+            # traceable and distinguishable from an automatic reading.
+            return PageReference(
+                page_reference_mode="cropped_or_content_only",
+                page_polygon=None,
+                confidence=1.0,
+                obtained_via="explicit_user_assertion_v1",
+                page_relative_features_assessable=False,
+                limitations=[
+                    "The user explicitly stated this image does not show the complete sheet of paper; a recorded "
+                    "human decision, not an automatic inference.",
+                ],
+                evidence_id="ev_page_reference",
+            )
+        if mode == "user_declared_uncertain":
+            # The parent-facing "I am not sure" choice.
+            return PageReference(
+                page_reference_mode="uncertain",
+                page_polygon=None,
+                confidence=0.5,
+                obtained_via="explicit_user_assertion_v1",
+                page_relative_features_assessable=False,
+                limitations=[
+                    "The user explicitly stated they are not sure whether the complete sheet is visible; a "
+                    "recorded human decision, not an automatic inference.",
+                ],
+                evidence_id="ev_page_reference",
+            )
         raise ValueError(f"unknown user_page_declaration mode {mode!r}")
 
     # No user declaration: fall back to the automatic classical-CV
@@ -289,3 +323,36 @@ def page_relative_bounding_box_coverage(
     if not area_fraction or area_fraction <= 0:
         return None
     return float(min(1.0, bounding_box_coverage / area_fraction))
+
+
+# ---------------------------------------------------------------------------
+# DOAR-TRACE Phase 2A.2, Section 6: the minimal, parent-facing page-
+# reference control -- 4 plain choices, mapped to the API above. No corner
+# editor is implemented in this phase (explicitly out of scope); the
+# choices below are the only user-facing entry point into this module for
+# the interactive prototype.
+# ---------------------------------------------------------------------------
+
+PARENT_PAGE_DECLARATION_CHOICES = ("auto", "yes", "no", "unsure")
+
+PARENT_PAGE_DECLARATION_LABELS: dict[str, dict[str, str]] = {
+    "auto": {"en": "Let the system decide", "ar": "دع النظام يقرر"},
+    "yes": {"en": "Yes, the complete sheet is visible", "ar": "نعم، الورقة كاملة ظاهرة"},
+    "no": {"en": "No, this image is cropped", "ar": "لا، هذه الصورة مقصوصة"},
+    "unsure": {"en": "I am not sure", "ar": "لست متأكداً"},
+}
+
+
+def user_page_declaration_from_choice(choice: str) -> dict[str, str] | None:
+    """Maps a parent-facing choice (Section 6's 4 options) to the real
+    `user_page_declaration` argument `resolve_page_reference`/`analyze_image`
+    already accept. `"auto"` maps to `None` (no declaration -- the
+    automatic classical-CV assessment alone decides)."""
+    if choice not in PARENT_PAGE_DECLARATION_CHOICES:
+        raise ValueError(f"unknown page declaration choice {choice!r}, expected one of {PARENT_PAGE_DECLARATION_CHOICES}")
+    return {
+        "auto": None,
+        "yes": {"mode": "user_confirmed_full_frame"},
+        "no": {"mode": "user_declared_cropped"},
+        "unsure": {"mode": "user_declared_uncertain"},
+    }[choice]

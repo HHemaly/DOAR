@@ -18,10 +18,11 @@ from .schemas import Analysis
 
 
 def analyze_image_with_timing(
-    image_path: str | Path, output_dir: str | Path, emotion_checkpoint: str | Path | None = None
+    image_path: str | Path, output_dir: str | Path, emotion_checkpoint: str | Path | None = None,
+    user_page_declaration: dict | None = None,
 ) -> tuple[Analysis, dict]:
     start = time.perf_counter()
-    result = analyze_image(image_path, output_dir, emotion_checkpoint)
+    result = analyze_image(image_path, output_dir, emotion_checkpoint, user_page_declaration=user_page_declaration)
     elapsed_seconds = time.perf_counter() - start
     timing = {
         "processing_seconds": round(elapsed_seconds, 4),
