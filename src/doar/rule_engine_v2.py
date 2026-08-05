@@ -76,6 +76,12 @@ PAGE_GATED_HISTORICAL_RULE_IDS = frozenset({
     "PSY_AR_PLACE_TOP_017", "PSY_AR_PLACE_LEFT_018", "PSY_AR_PLACE_RIGHT_019",
 })
 
+# All page-relative rules across BOTH engines -- the full set page_frame_judge
+# (judge_schemas.py) checks are never left ungated. EN_COMPILED_PLACEMENT_CENTER_029
+# is already gated internally by evaluate_v2_rules above; included here so the
+# judge has one authoritative list to check against.
+ALL_PAGE_GATED_RULE_IDS = PAGE_GATED_HISTORICAL_RULE_IDS | {"EN_COMPILED_PLACEMENT_CENTER_029"}
+
 
 def apply_page_frame_gating(
     rule_evaluations: list[dict[str, Any]], page_frame: dict[str, Any],

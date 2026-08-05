@@ -40,6 +40,7 @@ class AutomaticPersistenceTests(unittest.TestCase):
         self.assertEqual(set(doc.keys()), {
             "quality_judge", "feature_judge", "detection_judge", "relation_judge",
             "model_judge", "rule_judge", "aggregation_judge", "language_judge",
+            "page_frame_judge",  # Phase 2A, Section 8
         })
 
     def test_generated_claims_json_written_automatically(self):

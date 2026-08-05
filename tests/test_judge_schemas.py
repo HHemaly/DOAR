@@ -18,8 +18,8 @@ from doar.analysis import analyze_image
 from doar.judges import run_judges
 from doar.judge_schemas import (
     JUDGE_IDS, JudgeVerdict, aggregation_judge_v2, detection_judge_v2, feature_judge_v2,
-    language_judge_v2, model_judge_v2, quality_judge_v2, relation_judge_v2, rule_judge_v2,
-    run_all_judges_v2,
+    language_judge_v2, model_judge_v2, page_frame_judge_v2, quality_judge_v2, relation_judge_v2,
+    rule_judge_v2, run_all_judges_v2,
 )
 
 
@@ -224,15 +224,80 @@ class AggregationJudgeOperationalTests(unittest.TestCase):
         self.assertTrue(any("contradiction" in r for r in verdict.reasons))
 
 
+class PageFrameJudgeV2Tests(unittest.TestCase):
+    """DOAR-TRACE Phase 2A, Section 8: page_frame_judge re-verifies, from
+    the saved output alone, that page-relative rules are never left
+    ungated when the page isn't visible."""
+
+    def test_no_page_frame_supplied_is_not_implemented(self):
+        verdict = page_frame_judge_v2({})
+        self.assertEqual(verdict.status, "not_implemented")
+
+    def test_assessable_page_with_any_rule_statuses_passes(self):
+        analysis = {
+            "page_frame": {"page_frame_status": "full_page_detected", "confidence": 0.9},
+            "rule_evaluations": [
+                {"rule_id": "PSY_AR_SIZE_FULL_015", "status": "weak_support"},
+                {"rule_id": "PSY_AR_PLACE_TOP_017", "status": "not_matched"},
+            ],
+        }
+        verdict = page_frame_judge_v2(analysis)
+        self.assertEqual(verdict.status, "pass", verdict.reasons)
+
+    def test_not_assessable_page_with_gated_rules_correctly_not_assessable_passes(self):
+        analysis = {
+            "page_frame": {"page_frame_status": "cropped_or_content_only", "confidence": 0.7},
+            "rule_evaluations": [
+                {"rule_id": "PSY_AR_SIZE_FULL_015", "status": "not_assessable"},
+                {"rule_id": "EN_COMPILED_PLACEMENT_CENTER_029", "status": "not_assessable"},
+                {"rule_id": "PSY_AR_EYES_WIDE_001", "status": "missing_detector"},  # not page-gated, irrelevant
+            ],
+        }
+        verdict = page_frame_judge_v2(analysis)
+        self.assertEqual(verdict.status, "pass", verdict.reasons)
+
+    def test_not_assessable_page_with_a_weak_support_gated_rule_is_caught(self):
+        # Seeded violation: a page-gated rule slipped through as weak_support
+        # while the page itself is not assessable -- must never happen.
+        analysis = {
+            "page_frame": {"page_frame_status": "uncertain", "confidence": 0.3},
+            "rule_evaluations": [
+                {"rule_id": "PSY_AR_SIZE_FULL_015", "status": "weak_support"},
+            ],
+        }
+        verdict = page_frame_judge_v2(analysis)
+        self.assertEqual(verdict.status, "fail")
+        self.assertTrue(any("PSY_AR_SIZE_FULL_015" in r for r in verdict.reasons))
+
+    def test_not_assessable_page_with_a_not_matched_gated_rule_is_caught(self):
+        # Section 3's explicit "must not become not_matched" requirement.
+        analysis = {
+            "page_frame": {"page_frame_status": "failed", "confidence": 0.0},
+            "rule_evaluations": [
+                {"rule_id": "PSY_AR_PLACE_LEFT_018", "status": "not_matched"},
+            ],
+        }
+        verdict = page_frame_judge_v2(analysis)
+        self.assertEqual(verdict.status, "fail")
+        self.assertTrue(any("PSY_AR_PLACE_LEFT_018" in r for r in verdict.reasons))
+
+    def test_real_case_from_analyze_image_passes(self):
+        temp, analysis, _judges_output = _real_case()
+        self.addCleanup(temp.cleanup)
+        verdict = page_frame_judge_v2(analysis)
+        self.assertEqual(verdict.status, "pass", verdict.reasons)
+
+
 class RunAllJudgesV2Tests(unittest.TestCase):
     def setUp(self):
         self.temp, self.analysis, self.judges_output = _real_case()
         self.addCleanup(self.temp.cleanup)
 
-    def test_returns_exactly_the_eight_required_judges(self):
+    def test_returns_exactly_the_nine_required_judges(self):
+        # Phase 2A, Section 8: page_frame_judge added as the 9th judge.
         verdicts = run_all_judges_v2(self.analysis, self.judges_output)
         self.assertEqual(set(verdicts.keys()), set(JUDGE_IDS))
-        self.assertEqual(len(verdicts), 8)
+        self.assertEqual(len(verdicts), 9)
 
     def test_every_verdict_is_a_valid_judgeverdict(self):
         verdicts = run_all_judges_v2(self.analysis, self.judges_output)

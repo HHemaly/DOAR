@@ -1,18 +1,22 @@
 """Judge architecture (DOAR-TRACE 4G, `aggregation_judge` made operational
-in Phase 1.5 Section 8): a shared `JudgeVerdict` schema for 8 named
-judges (quality, feature, detection, relation, model, rule, aggregation,
-language).
+in Phase 1.5 Section 8; `page_frame_judge` added in Phase 2A Section 8):
+a shared `JudgeVerdict` schema for 9 named judges (quality, feature,
+detection, relation, model, rule, aggregation, language, page_frame).
 
 Per the task's explicit instruction, this module does **not** pretend
-unimplemented judges are operational. Four of the eight (`quality_judge`,
-`feature_judge`, `rule_judge`, `aggregation_judge`) have real, tested
-logic: the first three wrap `judges.py::run_judges`'s already-tested
-checks; `aggregation_judge` (Phase 1.5) independently re-verifies every
-`structured_report.py` combined hypothesis against the construct policy
-in `construct_registry.json` -- not just a rerun of
-`structured_report.py`'s own unit tests. `model_judge` is built directly
-from the same real `emotion_ran`/`emotion_status` signal `judges.py`
-already computes.
+unimplemented judges are operational. Five of the nine (`quality_judge`,
+`feature_judge`, `rule_judge`, `aggregation_judge`, `page_frame_judge`)
+have real, tested logic: the first three wrap `judges.py::run_judges`'s
+already-tested checks; `aggregation_judge` (Phase 1.5) independently
+re-verifies every `structured_report.py` combined hypothesis against the
+construct policy in `construct_registry.json`; `page_frame_judge`
+(Phase 2A) independently re-verifies that every page-relative rule
+(`rule_engine_v2.ALL_PAGE_GATED_RULE_IDS`) was actually gated to
+`not_assessable` when the page isn't visible -- not just a rerun of
+`analysis.py`'s own gating call, but an independent check against the
+saved `page_frame`/`rule_evaluations` output. `model_judge` is built
+directly from the same real `emotion_ran`/`emotion_status` signal
+`judges.py` already computes.
 
 The other three (`detection_judge`, `relation_judge`, `language_judge`)
 have **no underlying capability to judge yet** (no object detector, no
@@ -30,6 +34,7 @@ from typing import Any
 JUDGE_IDS = (
     "quality_judge", "feature_judge", "detection_judge", "relation_judge",
     "model_judge", "rule_judge", "aggregation_judge", "language_judge",
+    "page_frame_judge",
 )
 
 STATUSES = frozenset({"pass", "fail", "requires_review", "not_implemented"})
@@ -221,6 +226,51 @@ def aggregation_judge_v2(
     )
 
 
+def page_frame_judge_v2(analysis: dict[str, Any]) -> JudgeVerdict:
+    """DOAR-TRACE Phase 2A, Section 8: operational, not a stub.
+    Independently re-verifies (from the saved `page_frame` and
+    `rule_evaluations` output alone -- never by re-running
+    `analysis.py`'s own gating call) that every page-relative rule in
+    `rule_engine_v2.ALL_PAGE_GATED_RULE_IDS` is `not_assessable` whenever
+    the page is not visible, and specifically that it is never
+    `not_matched` in that case (Section 3's explicit "must not become
+    not_matched" requirement)."""
+    from .page_frame import ASSESSABLE_STATUSES
+    from .rule_engine_v2 import ALL_PAGE_GATED_RULE_IDS
+
+    page_frame = analysis.get("page_frame") or {}
+    status = page_frame.get("page_frame_status")
+    target = f"page_frame_status={status}"
+    if status is None:
+        return _not_implemented(
+            "page_frame_judge", "unavailable",
+            reasons=["No page_frame assessment was supplied to judge (analysis predates Phase 2A or page_frame "
+                     "is missing from the saved output)."],
+            limitations=["Cannot judge page-relative rule gating without a page_frame assessment."],
+        )
+
+    reasons: list[str] = []
+    if status not in ASSESSABLE_STATUSES:
+        for rule_eval in analysis.get("rule_evaluations", []):
+            if rule_eval["rule_id"] not in ALL_PAGE_GATED_RULE_IDS:
+                continue
+            if rule_eval["status"] in ("weak_support", "not_matched"):
+                reasons.append(
+                    f"{rule_eval['rule_id']}: status={rule_eval['status']!r} while page_frame_status={status!r} "
+                    f"(not in {sorted(ASSESSABLE_STATUSES)}) -- should be not_assessable"
+                )
+
+    verdict_status = "fail" if reasons else "pass"
+    return JudgeVerdict(
+        judge_id="page_frame_judge", target=target, status=verdict_status, confidence=page_frame.get("confidence"),
+        reasons=reasons or [f"All page-relative rules correctly gated for page_frame_status={status!r}."],
+        limitations=["Checks only the gating invariant (not_assessable, never not_matched, when the page isn't "
+                     "visible); does not independently re-derive the page-frame heuristic's own correctness -- "
+                     "see docs/PAGE_FRAME_ASSESSABILITY.md for that."],
+        version="page_frame_judge_v1",
+    )
+
+
 def language_judge_v2(text: str | None) -> JudgeVerdict:
     return _not_implemented(
         "language_judge", text[:80] + "..." if text and len(text) > 80 else (text or "unavailable"),
@@ -245,6 +295,7 @@ def run_all_judges_v2(
         "relation_judge": relation_judge_v2(analysis),
         "aggregation_judge": aggregation_judge_v2(structured_analysis),
         "language_judge": language_judge_v2(None),
+        "page_frame_judge": page_frame_judge_v2(analysis),
     }
     assert set(verdicts.keys()) == set(JUDGE_IDS)
     return verdicts

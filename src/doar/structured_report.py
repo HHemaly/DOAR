@@ -42,6 +42,7 @@ from typing import Any
 
 from .construct_registry_build import build_construct_registry
 from .registry_v2_build import build_registry_v2
+from .rule_engine_v2 import ALL_PAGE_GATED_RULE_IDS, V2_RULE_IDS
 
 STRUCTURED_ANALYSIS_SCHEMA_VERSION = "structured_analysis_v2"  # Phase 1.5 -- distinct from Phase 1's "structured_analysis_v1"
 
@@ -314,6 +315,12 @@ def build_structured_analysis(analysis: dict[str, Any], registry_v2: dict[str, A
     all_references = sorted({ref for r in rule_evaluations for ref in r.get("references", [])})
     all_limitations = sorted({lim for r in rule_evaluations for lim in r.get("limitations", [])})
 
+    page_frame = analysis.get("page_frame", {})
+    not_assessable_rule_ids = sorted({
+        r["rule_id"] for r in rule_evaluations_v2
+        if r["status"] == "not_assessable" and r["rule_id"] in ALL_PAGE_GATED_RULE_IDS
+    })
+
     return {
         "schema_version": STRUCTURED_ANALYSIS_SCHEMA_VERSION,
         "registry_v2_schema_version": registry_v2["schema_version"],
@@ -322,6 +329,18 @@ def build_structured_analysis(analysis: dict[str, Any], registry_v2: dict[str, A
         "quality": analysis.get("quality", {}),
         "segmentation": analysis.get("segmentation", {}),
         "objective_features": analysis.get("objective_features", {}),
+        # DOAR-TRACE Phase 2A, Section 3+9: the real page-frame assessment
+        # this case's page-relative rules were gated against -- surfaced
+        # here (not just inside judges_v2.json/page_frame_judge) so the
+        # Parent/Technical views and structured_analysis.json readers don't
+        # need to separately reconstruct it.
+        "page_frame_assessment": page_frame,
+        "page_relative_rules_not_assessable": not_assessable_rule_ids,
+        # Phase 2A, Section 7/12: which rules were newly wired this phase --
+        # documented here so downstream consumers can distinguish
+        # Phase-1.5-era executable rules from Phase-2A ones without
+        # re-deriving it from registry_v2_schema_version bumps.
+        "newly_operational_rule_ids_phase2a": sorted(V2_RULE_IDS),
         "detections": {
             "status": "unavailable", "detections": [],
             "reason": "No object detector is implemented in this release (detectors/ is schema-only scaffolding).",
