@@ -162,11 +162,19 @@ class RegistryV2PhaseOneFiveTests(unittest.TestCase):
             for ref in rule["reference_ids"]:
                 self.assertIn(ref, known_refs, f"{rule['rule_id']} cites unknown reference {ref!r}")
 
-    def test_only_original_six_tier_one_rules_are_individually_executable(self):
+    def test_only_ten_rules_are_individually_executable(self):
+        # Phase 1.5: the original 6 tier-1 composition/placement rules.
+        # Phase 2A, Section 7: 4 more rules wired via rule_engine_v2.py
+        # (see registry_v2_build.py module docstring and
+        # docs/STATIC_PROXY_RULE_POLICY.md). Every other rule remains
+        # `disabled` -- this test must be updated deliberately, never
+        # silently, whenever a rule is newly activated.
         executable = {rid for rid, r in self.rules_by_id.items() if r["allowed_output_level"] == "individual_heuristic_only"}
         self.assertEqual(executable, {
             "PSY_AR_SIZE_HALF_014", "PSY_AR_SIZE_FULL_015", "PSY_AR_SIZE_SMALL_016",
             "PSY_AR_PLACE_TOP_017", "PSY_AR_PLACE_LEFT_018", "PSY_AR_PLACE_RIGHT_019",
+            "EN_COMPILED_PLACEMENT_CENTER_029", "EN_COMPILED_LINE_HEAVY_PRESSURE_030",
+            "EN_COMPILED_LINE_LIGHT_PRESSURE_031", "EN_COMPILED_LINE_SHAKY_BROKEN_032",
         })
 
     def test_all_construct_mappings_point_to_valid_constructs(self):

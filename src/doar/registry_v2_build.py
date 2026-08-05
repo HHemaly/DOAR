@@ -12,16 +12,28 @@ for the exact before/after. The original 19 production rule IDs
 registry `rules.py` actually dispatches against) is never edited or
 replaced by this module.
 
-**No new detector, proxy wiring, or evaluator was built in this phase.**
-Every rule beyond the original 6 tier-1 composition/placement rules is
+**Phase 1.5**: no new detector, proxy wiring, or evaluator was built.
+Every rule beyond the original 6 tier-1 composition/placement rules was
 `allowed_output_level: disabled` -- including rules whose
 `observability_class` is `static_direct`/`static_proxy` (i.e. a real
-underlying feature technically exists) but which are simply not wired
-into any evaluator yet. `observability_class` answers "could this be
+underlying feature technically exists) but which were simply not wired
+into any evaluator. `observability_class` answers "could this be
 computed in principle from what already exists in this codebase";
 `allowed_output_level` answers "is it actually computed and shown today"
 -- these are two different questions, both answered honestly here rather
 than conflated.
+
+**Phase 2A, Section 7**: exactly 4 more rules were audited, found to
+satisfy every one of the 7 required activation conditions, and wired to
+a real evaluator (`rule_engine_v2.py`, additive/parallel -- never
+replacing `rules.py`/`rules_registry.json`): `EN_COMPILED_PLACEMENT_CENTER_029`,
+`EN_COMPILED_LINE_HEAVY_PRESSURE_030`, `EN_COMPILED_LINE_LIGHT_PRESSURE_031`,
+`EN_COMPILED_LINE_SHAKY_BROKEN_032`. These now carry
+`allowed_output_level: individual_heuristic_only`. All other
+`EN_COMPILED_*` rules remain `disabled` -- see
+docs/STATIC_PROXY_RULE_POLICY.md for the full per-rule audit, including
+why `EXCESSIVE_DETAIL_040`/`NEGLECT_BACKGROUND_041` were deliberately
+NOT activated despite superficially similarly-named features.
 """
 
 from __future__ import annotations
@@ -70,6 +82,14 @@ ALTERNATIVE_EXPLANATIONS: dict[str, list[str]] = {
         "Line appearance is strongly affected by the drawing tool, paper, and motor development, not only emotional state.",
         "This is a visual appearance proxy only -- it does not measure actual physical pencil pressure, which cannot be recovered from a flat scan/photo.",
     ],
+    "line_intensity_quality": [
+        "Line darkness/thickness appearance is strongly affected by the drawing tool (marker vs. pencil), paper, scan/photo exposure, and motor development, not only emotional state.",
+        "This is an extracted line-darkness proxy only -- it does not measure actual physical pencil pressure, which cannot be recovered from a flat scan/photo.",
+    ],
+    "line_fragmentation_quality": [
+        "Line continuity/fragmentation appearance is strongly affected by drawing speed, tool, fine-motor development, and image resolution, not only emotional state.",
+        "This is an extracted line-fragmentation proxy only -- it does not measure the child's felt anxiety or intent.",
+    ],
     "missing_body_part": [
         "Omitted or simplified body parts are common at many normal developmental stages and skill levels.",
         "May reflect running out of time or space, not an emotional signal.",
@@ -108,6 +128,17 @@ _EXECUTABLE_STATIC_DIRECT_FEATURE_IDS = {
     "placement_top": ["composition.centroid_normalized"],
     "placement_left": ["composition.centroid_normalized"],
     "placement_right": ["composition.centroid_normalized"],
+    # Phase 2A, Section 7 -- 4 rules newly wired to rule_engine_v2.py. The
+    # dict name predates static_proxy rules being added here; despite the
+    # name, this dict now also gates the 2 static_proxy line-quality rules
+    # below (their `observability_class` remains "static_proxy" -- see
+    # docs/STATIC_PROXY_RULE_POLICY.md for why proxy rules are still safe
+    # to wire, unlike EXCESSIVE_DETAIL_040/NEGLECT_BACKGROUND_041, which
+    # were deliberately left unwired).
+    "placement_center": ["composition.centroid_normalized"],
+    "heavy_line_pressure_appearance": ["stroke.intensity_proxy"],
+    "light_line_pressure_appearance": ["stroke.intensity_proxy"],
+    "shaky_or_broken_lines": ["stroke.fragmentation"],
 }
 
 # rule_id -> definition. Fields not repeated per-rule (professional_wording/
@@ -173,12 +204,12 @@ _RULE_DEFS: list[dict[str, Any]] = [
      "observable": "coverage_about_half", "evidence_family": "size_composition", "observability_class": "static_direct",
      "target_construct": None, "direction": "supports",
      "interpretation": "outgoing at times and introverted at other times -- bidirectional by the source's own wording, so not mapped to a single-direction construct",
-     "threshold_source": "sourced_center_invented_band"},
+     "threshold_source": "source_centre_with_invented_band"},
     {"rule_id": "PSY_AR_SIZE_FULL_015", "source_entry_ids": ["SRC_AR_015", "SRC_EN_020"],
      "observable": "coverage_full", "evidence_family": "size_composition", "observability_class": "static_direct",
      "target_construct": "visual_dominance_or_prominence", "direction": "supports",
      "interpretation": "high self-respect/self-esteem; English source frames this as expansiveness/strong energy/self-assertion",
-     "threshold_source": "invented_numeric_stand_in"},
+     "threshold_source": "invented_operational_standin"},
     {"rule_id": "PSY_AR_SIZE_SMALL_016", "source_entry_ids": ["SRC_AR_016", "SRC_EN_023"],
      "observable": "coverage_small", "evidence_family": "size_composition", "observability_class": "static_direct",
      "target_construct": "fear_or_insecurity_pattern", "direction": "supports",
@@ -188,17 +219,17 @@ _RULE_DEFS: list[dict[str, Any]] = [
      "observable": "placement_top", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": None, "direction": "supports",
      "interpretation": "dreamy personality, fantasy world, difficulty adapting -- does not cleanly fit any of the 12 broad constructs",
-     "threshold_source": "invented_no_anchor"},
+     "threshold_source": "invented_operational_standin"},
     {"rule_id": "PSY_AR_PLACE_LEFT_018", "source_entry_ids": ["SRC_AR_018", "SRC_EN_025"],
      "observable": "placement_left", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": "social_distance_or_isolation", "direction": "supports",
      "interpretation": "introverted personality; English source adds past orientation/dependence",
-     "threshold_source": "invented_no_anchor"},
+     "threshold_source": "invented_operational_standin"},
     {"rule_id": "PSY_AR_PLACE_RIGHT_019", "source_entry_ids": ["SRC_AR_019", "SRC_EN_026"],
      "observable": "placement_right", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": "affiliation_or_connection", "direction": "supports",
      "interpretation": "outgoing personality; English source adds future orientation/outward movement",
-     "threshold_source": "invented_no_anchor"},
+     "threshold_source": "invented_operational_standin"},
     # ===== New rules from the compiled English PDF only =====
     {"rule_id": "EN_COMPILED_EYES_MISSING_DETAIL_020", "source_entry_ids": ["SRC_EN_004", "SRC_EN_035"],
      "observable": "eyes_missing_or_undetailed", "evidence_family": "facial_feature_style", "observability_class": "static_detector",
@@ -239,19 +270,23 @@ _RULE_DEFS: list[dict[str, Any]] = [
     {"rule_id": "EN_COMPILED_PLACEMENT_CENTER_029", "source_entry_ids": ["SRC_EN_027"],
      "observable": "placement_center", "evidence_family": "spatial_placement", "observability_class": "static_direct",
      "target_construct": "visual_dominance_or_prominence", "direction": "supports",
-     "interpretation": "balance, security, or comfort; a real feature (composition.centroid_normalized) exists that could compute this, but no evaluator has been wired to dispatch it (see registry_v2_build.py module docstring)"},
+     "interpretation": "balance, security, or comfort; a real feature (composition.centroid_normalized) exists and is now wired via rule_engine_v2.py, gated on page-frame assessability (see docs/PAGE_FRAME_ASSESSABILITY.md)",
+     "threshold_source": "invented_operational_standin"},
     {"rule_id": "EN_COMPILED_LINE_HEAVY_PRESSURE_030", "source_entry_ids": ["SRC_EN_028"],
-     "observable": "heavy_line_pressure_appearance", "evidence_family": "line_quality", "observability_class": "static_proxy",
+     "observable": "heavy_line_pressure_appearance", "evidence_family": "line_intensity_quality", "observability_class": "static_proxy",
      "target_construct": "tension_or_anger_pattern", "direction": "supports",
-     "interpretation": "tension, force, anger, or high energy -- a real proxy feature (stroke.intensity_proxy) exists but is not wired to any evaluator; must never be described as actual physical pencil pressure"},
+     "interpretation": "tension, force, anger, or high energy -- a real proxy feature (stroke.intensity_proxy) is now wired via rule_engine_v2.py; must never be described as actual physical pencil pressure",
+     "threshold_source": "empirically_exploratory"},
     {"rule_id": "EN_COMPILED_LINE_LIGHT_PRESSURE_031", "source_entry_ids": ["SRC_EN_029"],
-     "observable": "light_line_pressure_appearance", "evidence_family": "line_quality", "observability_class": "static_proxy",
+     "observable": "light_line_pressure_appearance", "evidence_family": "line_intensity_quality", "observability_class": "static_proxy",
      "target_construct": "caution_or_low_visual_energy", "direction": "supports",
-     "interpretation": "hesitation, shyness, low energy, or delicacy -- same stroke.intensity_proxy feature at the opposite end"},
+     "interpretation": "hesitation, shyness, low energy, or delicacy -- same stroke.intensity_proxy feature at the opposite end",
+     "threshold_source": "empirically_exploratory"},
     {"rule_id": "EN_COMPILED_LINE_SHAKY_BROKEN_032", "source_entry_ids": ["SRC_EN_030"],
-     "observable": "shaky_or_broken_lines", "evidence_family": "line_quality", "observability_class": "static_proxy",
+     "observable": "shaky_or_broken_lines", "evidence_family": "line_fragmentation_quality", "observability_class": "static_proxy",
      "target_construct": "disorganisation_or_fragmentation", "direction": "supports",
-     "interpretation": "anxiety, uncertainty, distress, or motor difficulty -- a real proxy feature (stroke.fragmentation) exists but is not wired to any evaluator"},
+     "interpretation": "anxiety, uncertainty, distress, or motor difficulty -- a real proxy feature (stroke.fragmentation) is now wired via rule_engine_v2.py",
+     "threshold_source": "empirically_exploratory"},
     {"rule_id": "EN_COMPILED_LINE_ZIGZAG_033", "source_entry_ids": ["SRC_EN_031"],
      "observable": "zigzag_lines", "evidence_family": "line_quality", "observability_class": "static_detector",
      "target_construct": "tension_or_anger_pattern", "direction": "supports",
@@ -292,9 +327,11 @@ _RULE_DEFS: list[dict[str, Any]] = [
 
 
 def _allowed_output_level(observable: str) -> str:
-    # Only the 6 original tier-1 composition/placement rules are actually
-    # wired into any evaluator today -- every other rule, regardless of its
-    # observability_class, is disabled in practice (see module docstring).
+    # The 6 original tier-1 composition/placement rules plus the 4 rules
+    # newly wired in Phase 2A, Section 7 (see rule_engine_v2.py) are the
+    # only rules actually dispatched by any evaluator today -- every other
+    # rule, regardless of its observability_class, remains disabled in
+    # practice (see module docstring).
     if observable in _EXECUTABLE_STATIC_DIRECT_FEATURE_IDS:
         return "individual_heuristic_only"
     return "disabled"
@@ -303,12 +340,7 @@ def _allowed_output_level(observable: str) -> str:
 def _required_detector_or_metadata(rule_id: str, observable: str, observability_class: str) -> str | None:
     if observable in _EXECUTABLE_STATIC_DIRECT_FEATURE_IDS:
         return None
-    return {
-        "EN_COMPILED_PLACEMENT_CENTER_029": "composition.centroid_normalized (computed, not wired to any evaluator)",
-        "EN_COMPILED_LINE_HEAVY_PRESSURE_030": "stroke.intensity_proxy (computed, not wired to any evaluator; proxy only)",
-        "EN_COMPILED_LINE_LIGHT_PRESSURE_031": "stroke.intensity_proxy (computed, not wired to any evaluator; proxy only)",
-        "EN_COMPILED_LINE_SHAKY_BROKEN_032": "stroke.fragmentation (computed, not wired to any evaluator; proxy only)",
-    }.get(rule_id, f"detector_or_context_absent:{observability_class}")
+    return f"detector_or_context_absent:{observability_class}"
 
 
 def build_registry_v2() -> dict[str, Any]:
@@ -359,7 +391,11 @@ def build_registry_v2() -> dict[str, Any]:
             "professional_wording": f"Observable '{defn['observable']}' matched. Source interpretation: {defn['interpretation']}. Evidence grade as written in source: {', '.join(evidence_level_terms) or 'not stated (Arabic source has no explicit evidence-level column)'}.",
             "question_template": f"Would you be willing to ask your child about the {defn['observable'].replace('_', ' ')} in this drawing?",
             "psychologist_review_status": PSYCHOLOGIST_REVIEW_STATUS,
-            "validation_status": "IMPLEMENTED_UNVALIDATED" if rule_id in _EXECUTABLE_STATIC_DIRECT_FEATURE_IDS else "DETECTOR_UNAVAILABLE",
+            # BUG FIX (Phase 2A): this previously checked `rule_id in
+            # _EXECUTABLE_STATIC_DIRECT_FEATURE_IDS`, but that dict is keyed
+            # by `observable`, not `rule_id` -- so the condition was always
+            # False and no rule's validation_status was ever correctly set.
+            "validation_status": "IMPLEMENTED_UNVALIDATED" if allowed_output == "individual_heuristic_only" else "DETECTOR_UNAVAILABLE",
             "threshold_source": defn.get("threshold_source", "not_applicable"),
             "version": REGISTRY_V2_SCHEMA_VERSION,
         })
