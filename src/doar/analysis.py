@@ -14,7 +14,7 @@ from .emotion import predict as predict_emotion
 from .features import objective_feature_row
 from .page_frame import assess_page_frame
 from .page_reference import resolve_page_reference
-from .rule_engine_v2 import apply_page_frame_gating, evaluate_v2_rules
+from .rule_engine_v2 import apply_page_frame_gating, evaluate_v2_rules, redefine_coverage_full
 from .registry_v2_build import build_registry_v2
 
 
@@ -382,6 +382,11 @@ def analyze_image(
         # v2 engine (rule_engine_v2.py), which are page-frame-gated the same
         # way internally for EN_COMPILED_PLACEMENT_CENTER_029.
         rule_evaluations = apply_page_frame_gating(rule_evaluations, page_frame)
+        # DOAR-TRACE Phase 2A.1, Section 4: redefines coverage_full's
+        # trigger condition (margin-based, page-reference-aware) for
+        # whichever cases are still assessable after the gating step above
+        # -- see docs/PAGE_COVERAGE_DEFINITION_DECISION.md.
+        rule_evaluations = redefine_coverage_full(rule_evaluations, composition, page_reference)
         registry_v2 = build_registry_v2()
         rules_v2_by_id = {r["rule_id"]: r for r in registry_v2["rules"]}
         # evaluate_v2_rules expects FeatureValue entries already serialized

@@ -75,9 +75,21 @@ class PrototypeAppSmokeTests(unittest.TestCase):
         Phase-1.5 bug fix, is never promoted to a combined drawing-level
         hypothesis on its own. (Phase 2A migration: was PSY_AR_SIZE_FULL_015
         on a thinner-margin canvas; that margin is no longer page-frame-
-        assessable, see _build_case.)"""
+        assessable. Phase 2A.1 migration: the centered 40px-margin square
+        `_build_case` uses now ALSO satisfies the redefined coverage_full
+        + placement_center together -- a real, correct Level-C combination
+        (Section 4) -- so this test uses its own OFF-CENTER image instead,
+        which triggers coverage_about_half + 2 unmapped placement rules
+        that can never combine.)"""
         with tempfile.TemporaryDirectory() as d:
-            case_dir = self._build_case(d, with_checkpoint=False)
+            image = Image.new("RGB", (300, 300), "white")
+            ImageDraw.Draw(image).rectangle((20, 20, 209, 209), fill="black")
+            path = Path(d) / "drawing.png"
+            image.save(path)
+            case_dir = Path(d) / "case"
+            analyze_image_with_timing(str(path), str(case_dir), None)
+            save_profile(case_dir, ChildProfile(age_range="6-7", drawing_instruction="draw anything",
+                                                 date="2026-08-05", parent_concern="checking in"))
             at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
             at.session_state["case_dir"] = str(case_dir.resolve())
             at.run(timeout=60)

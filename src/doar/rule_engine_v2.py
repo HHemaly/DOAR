@@ -41,10 +41,23 @@ This module also exports `apply_page_frame_gating`, which post-processes
 (never replaces) the historical `rules.py::evaluate_rules` output so its
 6 original page-coverage/placement rules become `not_assessable` -- not
 `not_matched` -- when the page is not visible in the image, per Section 3.
+
+**Phase 2A.1, Section 4**: `redefine_coverage_full` post-processes
+`PSY_AR_SIZE_FULL_015` (`coverage_full`) specifically, replacing its
+image-relative `bounding_box_coverage >= 0.90` trigger condition with a
+margin-based "approaches all four page margins" definition -- see
+`docs/PAGE_COVERAGE_DEFINITION_DECISION.md` for the full comparison of
+5 candidate definitions and why this one was chosen. `rules.py` itself
+still computes its own (unused-downstream) `bounding_box_coverage`-based
+verdict first; this function overrides it, exactly like
+`apply_page_frame_gating` overrides status without ever editing
+`rules.py`.
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from .page_frame import ASSESSABLE_STATUSES
@@ -57,6 +70,14 @@ INTENSITY_PROXY_HEAVY_THRESHOLD = 0.6488   # p75
 INTENSITY_PROXY_LIGHT_THRESHOLD = 0.4300   # p25
 FRAGMENTATION_SHAKY_THRESHOLD = 0.2573     # p75
 PLACEMENT_CENTER_BAND = (0.40, 0.60)       # matches the existing top/left/right convention exactly
+
+# Phase 2A.1, Section 4: `coverage_full`'s redefined trigger condition --
+# content must come within this fraction of EVERY page margin (left,
+# top, right, bottom). `invented_operational_standin`: neither source
+# PDF gives a number for "covers the whole page" at all (same honest
+# status the original >=0.90 area threshold carried); NOT tuned to
+# trigger frequency -- see docs/PAGE_COVERAGE_DEFINITION_DECISION.md.
+COVERAGE_FULL_MARGIN_THRESHOLD = 0.15
 
 V2_RULE_IDS = frozenset({
     "EN_COMPILED_PLACEMENT_CENTER_029", "EN_COMPILED_LINE_HEAVY_PRESSURE_030",
@@ -187,3 +208,55 @@ def evaluate_v2_rules(
                                        ["ev_feature_stroke_fragmentation"] if matched else [], []))
 
     return evaluations
+
+
+_PRODUCTION_REGISTRY_PATH = Path(__file__).resolve().parents[2] / "resources" / "psychology_sources" / "rules_registry.json"
+
+
+def redefine_coverage_full(
+    rule_evaluations: list[dict[str, Any]], composition: dict[str, Any], page_reference: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """DOAR-TRACE Phase 2A.1, Section 4: overrides `PSY_AR_SIZE_FULL_015`'s
+    (`coverage_full`) status with the margin-based "approaches all four
+    page margins" definition -- see docs/PAGE_COVERAGE_DEFINITION_DECISION.md
+    for why this replaced the original image-relative
+    `bounding_box_coverage >= 0.90` condition. Applies AFTER
+    `apply_page_frame_gating`: any evaluation already `not_assessable`
+    (page not visible) is left untouched -- this function only
+    re-evaluates the trigger condition for cases where the page WAS
+    confirmed/detected, using the confirmed page's own margins
+    (`composition.margins_normalized`, currently identical to the
+    image's margins for the two whole-image page-reference modes; see
+    page_reference.py for when this would differ)."""
+    if not page_reference.get("page_relative_features_assessable"):
+        return rule_evaluations  # nothing to redefine -- already not_assessable
+
+    production = json.loads(_PRODUCTION_REGISTRY_PATH.read_text(encoding="utf-8"))
+    rule_def = next(r for r in production["rules"] if r["rule_id"] == "PSY_AR_SIZE_FULL_015")
+    margins = composition.get("margins_normalized")
+
+    out = []
+    for rule_eval in rule_evaluations:
+        if rule_eval["rule_id"] != "PSY_AR_SIZE_FULL_015" or rule_eval["status"] == "not_assessable":
+            out.append(rule_eval)
+            continue
+        if margins is None:
+            out.append({
+                **rule_eval, "status": "not_matched", "matched_evidence_ids": [],
+                "missing_evidence": ["margins_unavailable"], "rule_confidence": 0.0,
+                "professional_reasoning": None, "parent_safe_wording": None,
+            })
+            continue
+        matched = all(m <= COVERAGE_FULL_MARGIN_THRESHOLD for m in margins)
+        status = "weak_support" if matched else "not_matched"
+        ceiling = float(rule_eval["confidence_ceiling"])
+        out.append({
+            **rule_eval,
+            "status": status,
+            "matched_evidence_ids": ["ev_bbox_coverage"] if matched else [],
+            "missing_evidence": [],
+            "rule_confidence": round(min(0.5, ceiling), 4) if status == "weak_support" else 0.0,
+            "professional_reasoning": rule_def["professional_reasoning"] if status == "weak_support" else None,
+            "parent_safe_wording": rule_def["parent_safe_wording"] if status == "weak_support" else None,
+        })
+    return out

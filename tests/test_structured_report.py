@@ -201,17 +201,51 @@ class StructuredAnalysisEndToEndTests(unittest.TestCase):
         # border-uniformity check, and a real finding from this phase is
         # that coverage_full (>=0.90) and a genuinely detectable full-page
         # margin are close to mutually exclusive under this heuristic's ~3%
-        # border band (see docs/PAGE_FRAME_ASSESSABILITY.md). This test is
-        # migrated to a wider margin that IS page-frame-assessable and
-        # triggers coverage_about_half (0.40-0.60) instead -- the invariant
-        # under test (a single triggered rule stays individual, never
-        # combined) is unchanged.
+        # border band (see docs/PAGE_FRAME_ASSESSABILITY.md).
+        #
+        # Phase 2A.1 migration note: a centered 300x300/40px-margin
+        # rectangle (this test's first migration) now ALSO satisfies
+        # coverage_full's redefined margin-based condition (Section 4,
+        # docs/PAGE_COVERAGE_DEFINITION_DECISION.md) as well as
+        # placement_center -- 2 independent rules/families genuinely
+        # converging on `visual_dominance_or_prominence`, correctly
+        # promoted to a real Level-C hypothesis. That is CORRECT new
+        # behavior, not a regression -- see
+        # test_two_independent_rules_do_combine_under_the_redefined_coverage_full
+        # below, which asserts exactly that. This test's own intent (a
+        # single triggered rule stays individual, never combined) is
+        # migrated again to an OFF-CENTER rectangle, which triggers
+        # coverage_about_half + 2 unmapped placement rules
+        # (target_construct=None, so neither can ever combine) instead.
         image = Image.new("RGB", (300, 300), "white")
-        ImageDraw.Draw(image).rectangle((40, 40, 259, 259), fill="black")
+        ImageDraw.Draw(image).rectangle((20, 20, 209, 209), fill="black")
         out = self._analyze(image)
         doc = json.loads((out / "structured_analysis.json").read_text(encoding="utf-8"))
         self.assertTrue(any(s["rule_id"] == "PSY_AR_SIZE_HALF_014" for s in doc["individual_rule_suggestions"]))
         self.assertEqual(doc["combined_drawing_level_hypotheses"], [])
+
+    def test_two_independent_rules_do_combine_under_the_redefined_coverage_full(self):
+        # Real, correct new behavior introduced by Phase 2A.1 Section 4:
+        # a centered, page-frame-assessable rectangle whose margins are
+        # all <=15% now satisfies BOTH the redefined coverage_full
+        # (approaches all 4 margins) and placement_center -- 2
+        # independent rules, 2 independent evidence families
+        # (size_composition + spatial_placement), both mapping to
+        # visual_dominance_or_prominence -- a genuine Level-C
+        # convergence, the first ever reachable via 2 registry rules
+        # alone (previously only the expressive model could supply a
+        # second family; see docs/AGGREGATION_POLICY.md).
+        image = Image.new("RGB", (300, 300), "white")
+        ImageDraw.Draw(image).rectangle((40, 40, 259, 259), fill="black")
+        out = self._analyze(image)
+        doc = json.loads((out / "structured_analysis.json").read_text(encoding="utf-8"))
+        hyps = doc["combined_drawing_level_hypotheses"]
+        self.assertEqual(len(hyps), 1)
+        self.assertEqual(hyps[0]["target_construct"], "visual_dominance_or_prominence")
+        self.assertEqual(
+            set(hyps[0]["contributing_rule_ids"]),
+            {"PSY_AR_SIZE_FULL_015", "EN_COMPILED_PLACEMENT_CENTER_029"},
+        )
 
     def test_unavailable_detectors_are_explicit_not_omitted(self):
         image = Image.new("RGB", (200, 200), "white")
