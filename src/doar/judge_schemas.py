@@ -1,21 +1,25 @@
-"""Judge architecture (DOAR-TRACE 4G): a shared `JudgeVerdict` schema for
-8 named judges (quality, feature, detection, relation, model, rule,
-aggregation, language).
+"""Judge architecture (DOAR-TRACE 4G, `aggregation_judge` made operational
+in Phase 1.5 Section 8): a shared `JudgeVerdict` schema for 8 named
+judges (quality, feature, detection, relation, model, rule, aggregation,
+language).
 
 Per the task's explicit instruction, this module does **not** pretend
-unimplemented judges are operational. Three of the eight
-(`quality_judge`, `feature_judge`, `rule_judge`) already have real,
-tested logic in `judges.py::run_judges` -- this module wraps that real
-output into the new shared schema, it does not reimplement the checks.
-`model_judge` is new but built directly from the same real
-`emotion_ran`/`emotion_status` signal `judges.py` already computes.
+unimplemented judges are operational. Four of the eight (`quality_judge`,
+`feature_judge`, `rule_judge`, `aggregation_judge`) have real, tested
+logic: the first three wrap `judges.py::run_judges`'s already-tested
+checks; `aggregation_judge` (Phase 1.5) independently re-verifies every
+`structured_report.py` combined hypothesis against the construct policy
+in `construct_registry.json` -- not just a rerun of
+`structured_report.py`'s own unit tests. `model_judge` is built directly
+from the same real `emotion_ran`/`emotion_status` signal `judges.py`
+already computes.
 
-The other four (`detection_judge`, `relation_judge`, `aggregation_judge`,
-`language_judge`) have **no underlying capability to judge yet**
-(no object detector, no spatial-relationship extractor, no automated
-aggregation-quality check, no automated bilingual-wording-quality check)
--- they always report `status="not_implemented"`, with an honest reason,
-never a fabricated pass or fail.
+The other three (`detection_judge`, `relation_judge`, `language_judge`)
+have **no underlying capability to judge yet** (no object detector, no
+spatial-relationship extractor, no automated bilingual-wording-quality
+judge -- `language_judge` stays `not_implemented` because no LLM exists
+in this phase) -- they always report `status="not_implemented"`, with an
+honest reason, never a fabricated pass or fail.
 """
 
 from __future__ import annotations
@@ -151,15 +155,69 @@ def relation_judge_v2(analysis: dict[str, Any]) -> JudgeVerdict:
     )
 
 
-def aggregation_judge_v2(structured_analysis: dict[str, Any] | None) -> JudgeVerdict:
-    target = "structured_analysis" if structured_analysis else "unavailable"
-    return _not_implemented(
-        "aggregation_judge", target,
-        reasons=["No automated check exists yet for the correctness of structured_report.py's theme aggregation "
-                 "beyond its own unit tests (tests/test_structured_report.py) -- there is no independent judge "
-                 "verifying a specific case's aggregation output at analysis time."],
-        limitations=["The aggregator's dependency-aware no-double-counting and escalation-threshold logic is "
-                     "unit-tested, but not judged per-case here."],
+def aggregation_judge_v2(
+    structured_analysis: dict[str, Any] | None, construct_registry: dict[str, Any] | None = None,
+) -> JudgeVerdict:
+    """DOAR-TRACE Phase 1.5, Section 8: operational, not a stub. Re-verifies
+    every combined_drawing_level_hypotheses entry against
+    structured_report.py's own construct policy -- an independent
+    per-case check, not just a rerun of structured_report.py's own unit
+    tests. Checks: minimum evidence-family count, minimum evidence-ID
+    count, no repeated evidence IDs (unique dependency groups), a valid
+    ordinal output level, that no hypothesis is founded on a single rule
+    alone, and that every real cross-theme contradiction is recorded."""
+    if not structured_analysis:
+        return _not_implemented(
+            "aggregation_judge", "unavailable",
+            reasons=["No structured_analysis.json was supplied to judge."],
+            limitations=["Cannot judge aggregation without the structured analysis document."],
+        )
+    from .construct_registry_build import build_construct_registry
+    from .structured_report import OPPOSING_CONSTRUCTS
+    construct_registry = construct_registry or build_construct_registry()
+    constructs_by_id = {c["construct_id"]: c for c in construct_registry["constructs"]}
+
+    reasons: list[str] = []
+    hypotheses = structured_analysis.get("combined_drawing_level_hypotheses", [])
+    for hyp in hypotheses:
+        construct = constructs_by_id.get(hyp["target_construct"])
+        if construct is None:
+            reasons.append(f"{hyp['target_construct']}: not a known construct_id")
+            continue
+        n_families = len(set(hyp["contributing_evidence_families"]))
+        n_evidence_ids = len(set(hyp["contributing_evidence_ids"]))
+        if n_families < construct["minimum_independent_evidence_families"]:
+            reasons.append(f"{hyp['target_construct']}: only {n_families} evidence families, needs >={construct['minimum_independent_evidence_families']}")
+        if n_evidence_ids < 2:
+            reasons.append(f"{hyp['target_construct']}: only {n_evidence_ids} distinct evidence IDs, needs >=2")
+        if len(hyp["contributing_evidence_ids"]) != n_evidence_ids:
+            reasons.append(f"{hyp['target_construct']}: repeated evidence_id detected (dependency double-counting)")
+        if hyp["ordinal_level"] not in (2, 3, 4):
+            reasons.append(f"{hyp['target_construct']}: invalid ordinal_level {hyp['ordinal_level']} for a combined hypothesis")
+        sole_contributor_count = len(set(hyp["contributing_rule_ids"])) + (1 if hyp["uses_expressive_model"] else 0)
+        if sole_contributor_count < 2:
+            reasons.append(f"{hyp['target_construct']}: promoted to combined hypothesis from a single contributor")
+
+    by_construct = {h["target_construct"] for h in hypotheses}
+    recorded_pairs = {
+        tuple(sorted((c["construct_a"], c["construct_b"])))
+        for c in structured_analysis.get("cross_theme_contradictions", [])
+    }
+    for construct_id in by_construct:
+        opposite = OPPOSING_CONSTRUCTS.get(construct_id)
+        if opposite and opposite in by_construct:
+            pair = tuple(sorted((construct_id, opposite)))
+            if pair not in recorded_pairs:
+                reasons.append(f"contradiction between {pair[0]} and {pair[1]} present but not recorded")
+
+    status = "pass" if not reasons else "fail"
+    return JudgeVerdict(
+        judge_id="aggregation_judge", target=f"{len(hypotheses)} combined hypothesis(es)",
+        status=status, confidence=None,
+        reasons=reasons or ["All combined hypotheses satisfy the construct policy; all real contradictions are recorded."],
+        limitations=["Independently re-checks structured_report.py's own policy; does not re-derive whether the "
+                     "underlying rule triggers themselves are scientifically correct."],
+        version="aggregation_judge_v1",
     )
 
 

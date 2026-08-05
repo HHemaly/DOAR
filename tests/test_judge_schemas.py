@@ -116,7 +116,7 @@ class InterfaceOnlyJudgeTests(unittest.TestCase):
         verdict = relation_judge_v2(self.analysis)
         self.assertEqual(verdict.status, "not_implemented")
 
-    def test_aggregation_judge_is_not_implemented(self):
+    def test_aggregation_judge_is_not_implemented_with_no_structured_analysis(self):
         verdict = aggregation_judge_v2(None)
         self.assertEqual(verdict.status, "not_implemented")
 
@@ -124,14 +124,104 @@ class InterfaceOnlyJudgeTests(unittest.TestCase):
         verdict = language_judge_v2("some claim text")
         self.assertEqual(verdict.status, "not_implemented")
 
-    def test_none_of_the_four_interface_only_judges_ever_report_pass(self):
+    def test_none_of_the_three_interface_only_judges_ever_report_pass(self):
         for factory, arg in (
-            (detection_judge_v2, self.analysis), (relation_judge_v2, self.analysis),
-            (aggregation_judge_v2, None), (language_judge_v2, "x"),
+            (detection_judge_v2, self.analysis), (relation_judge_v2, self.analysis), (language_judge_v2, "x"),
         ):
             verdict = factory(arg)
             self.assertNotEqual(verdict.status, "pass", factory.__name__)
             self.assertNotEqual(verdict.status, "fail", factory.__name__)
+
+
+class AggregationJudgeOperationalTests(unittest.TestCase):
+    """DOAR-TRACE Phase 1.5 Section 8: aggregation_judge is now real."""
+
+    def test_no_combined_hypotheses_passes_trivially(self):
+        verdict = aggregation_judge_v2({"combined_drawing_level_hypotheses": [], "cross_theme_contradictions": []})
+        self.assertEqual(verdict.status, "pass")
+
+    def test_a_valid_combined_hypothesis_passes(self):
+        structured = {
+            "combined_drawing_level_hypotheses": [{
+                "target_construct": "fear_or_insecurity_pattern",
+                "contributing_evidence_families": ["size_composition", "global_expressive_content_model"],
+                "contributing_evidence_ids": ["ev_bbox_coverage", "ev_emotion_prediction"],
+                "contributing_rule_ids": ["PSY_AR_SIZE_SMALL_016"],
+                "uses_expressive_model": True,
+                "ordinal_level": 2,
+            }],
+            "cross_theme_contradictions": [],
+        }
+        verdict = aggregation_judge_v2(structured)
+        self.assertEqual(verdict.status, "pass", verdict.reasons)
+
+    def test_seeded_single_contributor_hypothesis_is_caught(self):
+        # A hypothesis whose only real contributor is one rule (no model,
+        # no second rule) should never have been promoted -- the judge
+        # must catch it even if it slipped past the aggregator itself.
+        structured = {
+            "combined_drawing_level_hypotheses": [{
+                "target_construct": "fear_or_insecurity_pattern",
+                "contributing_evidence_families": ["size_composition", "spatial_placement"],
+                "contributing_evidence_ids": ["ev_bbox_coverage", "ev_centroid"],
+                "contributing_rule_ids": ["PSY_AR_SIZE_SMALL_016"],  # only 1 real rule
+                "uses_expressive_model": False,
+                "ordinal_level": 2,
+            }],
+            "cross_theme_contradictions": [],
+        }
+        verdict = aggregation_judge_v2(structured)
+        self.assertEqual(verdict.status, "fail")
+        self.assertTrue(any("single contributor" in r for r in verdict.reasons))
+
+    def test_seeded_repeated_evidence_id_is_caught(self):
+        structured = {
+            "combined_drawing_level_hypotheses": [{
+                "target_construct": "fear_or_insecurity_pattern",
+                "contributing_evidence_families": ["size_composition", "global_expressive_content_model"],
+                "contributing_evidence_ids": ["ev_bbox_coverage", "ev_bbox_coverage"],  # duplicated
+                "contributing_rule_ids": ["PSY_AR_SIZE_SMALL_016"],
+                "uses_expressive_model": True,
+                "ordinal_level": 2,
+            }],
+            "cross_theme_contradictions": [],
+        }
+        verdict = aggregation_judge_v2(structured)
+        self.assertEqual(verdict.status, "fail")
+        self.assertTrue(any("double-counting" in r for r in verdict.reasons))
+
+    def test_seeded_below_threshold_family_count_is_caught(self):
+        structured = {
+            "combined_drawing_level_hypotheses": [{
+                "target_construct": "fear_or_insecurity_pattern",
+                "contributing_evidence_families": ["size_composition"],  # only 1 family
+                "contributing_evidence_ids": ["ev_bbox_coverage", "ev_x"],
+                "contributing_rule_ids": ["PSY_AR_SIZE_SMALL_016"],
+                "uses_expressive_model": False,
+                "ordinal_level": 2,
+            }],
+            "cross_theme_contradictions": [],
+        }
+        verdict = aggregation_judge_v2(structured)
+        self.assertEqual(verdict.status, "fail")
+
+    def test_seeded_omitted_contradiction_is_caught(self):
+        structured = {
+            "combined_drawing_level_hypotheses": [
+                {"target_construct": "low_mood_or_emotional_distress_pattern",
+                 "contributing_evidence_families": ["facial_feature_style", "global_expressive_content_model"],
+                 "contributing_evidence_ids": ["ev_a", "ev_b"], "contributing_rule_ids": ["r1"],
+                 "uses_expressive_model": True, "ordinal_level": 2},
+                {"target_construct": "positive_affective_tone",
+                 "contributing_evidence_families": ["shape_symbolism", "global_expressive_content_model"],
+                 "contributing_evidence_ids": ["ev_c", "ev_d"], "contributing_rule_ids": ["r2"],
+                 "uses_expressive_model": True, "ordinal_level": 2},
+            ],
+            "cross_theme_contradictions": [],  # omitted despite the two constructs being opposites
+        }
+        verdict = aggregation_judge_v2(structured)
+        self.assertEqual(verdict.status, "fail")
+        self.assertTrue(any("contradiction" in r for r in verdict.reasons))
 
 
 class RunAllJudgesV2Tests(unittest.TestCase):
@@ -150,12 +240,19 @@ class RunAllJudgesV2Tests(unittest.TestCase):
             self.assertIsInstance(verdict, JudgeVerdict)
             self.assertEqual(verdict.judge_id, judge_id)
 
-    def test_exactly_four_are_operational_and_four_are_not_implemented(self):
+    def test_exactly_three_are_not_implemented_without_structured_analysis(self):
+        # aggregation_judge is real but reports not_implemented when no
+        # structured_analysis is supplied (as here) -- so 3 not_implemented
+        # (detection/relation/language) + aggregation_judge (not_implemented
+        # here specifically because of missing input, not missing capability).
         verdicts = run_all_judges_v2(self.analysis, self.judges_output)
-        not_implemented = [j for j, v in verdicts.items() if v.status == "not_implemented"]
-        operational = [j for j, v in verdicts.items() if v.status != "not_implemented"]
-        self.assertEqual(set(not_implemented), {"detection_judge", "relation_judge", "aggregation_judge", "language_judge"})
-        self.assertEqual(set(operational), {"quality_judge", "feature_judge", "rule_judge", "model_judge"})
+        not_implemented = {j for j, v in verdicts.items() if v.status == "not_implemented"}
+        self.assertEqual(not_implemented, {"detection_judge", "relation_judge", "aggregation_judge", "language_judge"})
+
+    def test_aggregation_judge_becomes_operational_when_structured_analysis_supplied(self):
+        structured = {"combined_drawing_level_hypotheses": [], "cross_theme_contradictions": []}
+        verdicts = run_all_judges_v2(self.analysis, self.judges_output, structured_analysis=structured)
+        self.assertEqual(verdicts["aggregation_judge"].status, "pass")
 
 
 if __name__ == "__main__":

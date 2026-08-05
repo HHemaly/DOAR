@@ -5,8 +5,11 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .claims_pipeline import build_claims_and_verification
+from .judge_schemas import run_all_judges_v2
 from .judges import run_judges
 from .objective_features_report import build_objective_features_document
+from .registry_v2_build import build_registry_v2
 from .reports import save_reports
 from .structured_report import build_structured_analysis
 
@@ -68,8 +71,20 @@ def finalize_case(analysis: dict, output: Path) -> None:
     # features doesn't have to parse the whole case.
     _write(output / "objective_features.json",
            build_objective_features_document(analysis.get("objective_features", {})))
-    # DOAR-TRACE 4D: deterministic structured report -- planner only, no LLM.
-    _write(output / "structured_analysis.json", build_structured_analysis(analysis))
+    # DOAR-TRACE 4D/Phase-1.5-6: deterministic structured report -- planner
+    # only, no LLM. registry_v2 is built once here and reused for both the
+    # structured analysis and claim verification below, so the two always
+    # see the exact same registry snapshot within one case.
+    registry_v2 = build_registry_v2()
+    structured_analysis = build_structured_analysis(analysis, registry_v2=registry_v2)
+    _write(output / "structured_analysis.json", structured_analysis)
+    # DOAR-TRACE Phase 1.5 Section 8: automatic judges-v2 + claim
+    # verification for EVERY case -- previously only callable ad hoc.
+    judges_v2 = run_all_judges_v2(analysis, judges, structured_analysis=structured_analysis)
+    _write(output / "judges_v2.json", {jid: v.to_dict() for jid, v in judges_v2.items()})
+    generated_claims, verification_report = build_claims_and_verification(structured_analysis, analysis, registry_v2)
+    _write(output / "generated_claims.json", generated_claims)
+    _write(output / "verification_report.json", verification_report)
     review = output / "clinician_review.json"
     if not review.exists():
         _write(review, {"status": "not_submitted", "history": [], "ai_output_preserved": True})
