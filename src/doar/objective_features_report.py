@@ -9,7 +9,7 @@ this increment's report needs: feature_id, value, unit, method, missing,
 evidence_id, judge_status, limitations.
 
 `unit` is honestly `None` for every feature: `features.py` does not track
-physical units for any of its 59 features today, and inventing units here
+physical units for any of its 60 features today, and inventing units here
 (e.g. guessing "pixels" or "ratio") would be a fabricated addition beyond
 what the extractor actually records -- flagged as a real, known gap rather
 than silently patched.

@@ -35,7 +35,9 @@ class ObjectiveFeaturePersistenceTests(unittest.TestCase):
         image = Image.new("RGB", (200, 200), "white")
         ImageDraw.Draw(image).ellipse((50, 50, 150, 150), fill="black")
         result, out = self._analyze(image, checkpoint=None)
-        self.assertEqual(len(result.objective_features), 59)
+        # 60, not 59: Phase 2A.1 Section 3 adds
+        # segmentation.page_relative_bounding_box_coverage.
+        self.assertEqual(len(result.objective_features), 60)
 
     def test_no_checkpoint_run_writes_objective_features_json(self):
         image = Image.new("RGB", (200, 200), "white")
@@ -44,7 +46,7 @@ class ObjectiveFeaturePersistenceTests(unittest.TestCase):
         doc_path = out / "objective_features.json"
         self.assertTrue(doc_path.exists(), "objective_features.json was not written")
         doc = json.loads(doc_path.read_text(encoding="utf-8"))
-        self.assertEqual(doc["feature_count"], 59)
+        self.assertEqual(doc["feature_count"], 60)
         self.assertEqual(doc["missing_count"], 2)
 
     def test_analysis_json_also_contains_objective_features(self):
@@ -53,7 +55,7 @@ class ObjectiveFeaturePersistenceTests(unittest.TestCase):
         _, out = self._analyze(image, checkpoint=None)
         analysis_doc = json.loads((out / "analysis.json").read_text(encoding="utf-8"))
         self.assertIn("objective_features", analysis_doc)
-        self.assertEqual(len(analysis_doc["objective_features"]), 59)
+        self.assertEqual(len(analysis_doc["objective_features"]), 60)
 
     def test_every_feature_envelope_has_the_required_fields(self):
         image = Image.new("RGB", (200, 200), "white")
@@ -84,9 +86,11 @@ class ObjectiveFeaturePersistenceTests(unittest.TestCase):
         image = Image.new("RGB", (20, 20), "white")
         result, out = self._analyze(image, checkpoint=None)
         self.assertEqual(result.quality["quality_status"], "unsupported")
-        self.assertEqual(len(result.objective_features), 59)
+        # 60, not 59: Phase 2A.1 Section 3 adds
+        # segmentation.page_relative_bounding_box_coverage.
+        self.assertEqual(len(result.objective_features), 60)
         doc = json.loads((out / "objective_features.json").read_text(encoding="utf-8"))
-        self.assertEqual(doc["feature_count"], 59)
+        self.assertEqual(doc["feature_count"], 60)
 
     def test_result_matches_direct_objective_feature_row_call_in_shape(self):
         """Sanity check: analyze_image's persisted features have the same

@@ -95,7 +95,7 @@ def feature_judge_v2(analysis: dict[str, Any], judges_output: dict[str, Any]) ->
         judge_id="feature_judge", target=analysis.get("image_path", "unknown"),
         status=real["status"], confidence=None, reasons=reasons,
         limitations=["Judges only 2 structural sanity checks (blank-has-no-centroid, bbox-evidence-present), "
-                     "not per-feature correctness of all 59 objective features."],
+                     "not per-feature correctness of all 60 objective features."],
         version="judges.py_run_judges_v1",
     )
 

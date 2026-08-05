@@ -41,6 +41,11 @@ class Analysis:
     # for EVERY analyze_image run. Gates page-relative rule evaluation in
     # structured_report.py -- see docs/PAGE_FRAME_ASSESSABILITY.md.
     page_frame: dict[str, Any] = field(default_factory=dict)
+    # DOAR-TRACE Phase 2A.1 Section 3: page_reference.py's resolved
+    # PageReference (mode, polygon, confidence, provenance) -- the
+    # explicit "what counts as the page" decision that page_frame.py's
+    # status alone never captured. See docs/PAGE_REFERENCE_MODEL.md.
+    page_reference: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

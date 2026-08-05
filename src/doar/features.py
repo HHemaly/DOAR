@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageFilter
 
+from .page_reference import PageReference, page_relative_bounding_box_coverage
+
 
 @dataclass(frozen=True)
 class FeatureValue:
@@ -78,6 +80,17 @@ def objective_feature_row(image_path: str | Path, analysis: dict) -> dict[str, F
     foreground_mean = fg.mean(axis=0) if len(fg) else np.array([math.nan] * 3)
     dark_ratio = float((fg.mean(axis=1) < 80).mean()) if len(fg) else 0.0
     colour_bins = analysis["colour"].get("colour_proportions", {})
+    # DOAR-TRACE Phase 2A.1, Section 3: `page_reference` is optional in
+    # `analysis` for backward compatibility with older callers (synthetic
+    # test harnesses, Phase 2A experiment scripts) that predate this key --
+    # absent/falsy means "no page reference was resolved", so this feature
+    # is honestly NaN/missing, never silently 0 or defaulted to the whole
+    # image without evidence.
+    page_reference_dict = analysis.get("page_reference")
+    page_relative_coverage = (
+        page_relative_bounding_box_coverage(comp["bounding_box_coverage"], PageReference(**page_reference_dict))
+        if page_reference_dict else None
+    )
 
     values = {
         "quality.width": image.width,
@@ -95,6 +108,15 @@ def objective_feature_row(image_path: str | Path, analysis: dict) -> dict[str, F
         "segmentation.foreground_coverage": comp["foreground_coverage"],
         "segmentation.empty_space_ratio": comp["empty_space_ratio"],
         "segmentation.bounding_box_coverage": comp["bounding_box_coverage"],
+        # DOAR-TRACE Phase 2A.1, Section 3: bounding-box coverage
+        # re-expressed relative to the CONFIRMED/DETECTED page polygon
+        # (page_reference.py), not silently the whole uploaded image.
+        # NaN/missing whenever no page reference is assessable (e.g. a
+        # cropped/content-only image) -- never defaulted to the plain
+        # image-relative value in that case.
+        "segmentation.page_relative_bounding_box_coverage": (
+            page_relative_coverage if page_relative_coverage is not None else float("nan")
+        ),
         "segmentation.confidence": conf,
         "segmentation.component_count": len(component_sizes),
         "segmentation.largest_component_ratio": max(component_sizes, default=0) / total_fg,

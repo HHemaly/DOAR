@@ -13,6 +13,7 @@ from .case_output import finalize_case
 from .emotion import predict as predict_emotion
 from .features import objective_feature_row
 from .page_frame import assess_page_frame
+from .page_reference import resolve_page_reference
 from .rule_engine_v2 import apply_page_frame_gating, evaluate_v2_rules
 from .registry_v2_build import build_registry_v2
 
@@ -279,8 +280,16 @@ def _quality(image) -> dict:
 
 
 def analyze_image(
-    image_path: str | Path, output_dir: str | Path, emotion_checkpoint: str | Path | None = None
+    image_path: str | Path, output_dir: str | Path, emotion_checkpoint: str | Path | None = None,
+    user_page_declaration: dict | None = None,
 ) -> Analysis:
+    """`user_page_declaration`: an explicit human decision about the page
+    region -- `{"mode": "user_confirmed_full_frame"}` or
+    `{"mode": "user_defined_page_corners", "corners": [[x, y], ...]}`
+    (4 pixel corners). `None` (the default, and the only value ever
+    passed by the current batch/dataset pipeline) means "no human
+    declaration exists; use the automatic classical-CV assessment only."
+    See `page_reference.py`/`docs/PAGE_REFERENCE_MODEL.md`."""
     image = Image.open(image_path).convert("RGB")
     rgb = np.asarray(image)
     mask, background, seg_conf, candidates, seg_diagnostics = _segment(rgb)
@@ -289,6 +298,12 @@ def analyze_image(
     # already produced) and consumed downstream by structured_report.py
     # to gate page-relative rules -- never invented.
     page_frame = assess_page_frame(rgb, mask, seg_diagnostics.get("background_stability", 0.0)).to_dict()
+    # DOAR-TRACE Phase 2A.1 Section 3: resolves the explicit page
+    # reference (mode/polygon/confidence) that page-relative features
+    # below are computed against -- never silently the whole image frame.
+    page_reference = resolve_page_reference(
+        page_frame, user_page_declaration, image_width=image.width, image_height=image.height,
+    ).to_dict()
     composition = _composition(mask)
     colour = _colour(rgb, mask, background)
     output = Path(output_dir)
@@ -314,6 +329,7 @@ def analyze_image(
         },
         "composition": composition,
         "colour": colour,
+        "page_reference": page_reference,
     }
     # DOAR-TRACE 4B: compute objective features for EVERY run, independent
     # of quality/emotion/checkpoint type -- previously only computed inside
@@ -416,6 +432,7 @@ def analyze_image(
         label_provenance=label_provenance,
         objective_features=objective_features,
         page_frame=page_frame,
+        page_reference=page_reference,
     )
     output.mkdir(parents=True, exist_ok=True)
     portable = result.to_dict()
