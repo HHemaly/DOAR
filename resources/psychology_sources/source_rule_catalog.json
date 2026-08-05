@@ -1,0 +1,1218 @@
+{
+  "schema_version": "source_rule_catalog_v1",
+  "sources": {
+    "التحليل النفسي للصور.pdf": {
+      "language": "ar",
+      "pages": 2,
+      "source_type": "psychologist_supplied_notes",
+      "scientifically_validated": false
+    },
+    "child_drawing_rules_compiled.pdf": {
+      "language": "en",
+      "pages": 3,
+      "source_type": "compiled_heuristics_guide",
+      "scientifically_validated": false,
+      "note": "Self-describes as 'not diagnostic rules; many are speculative or weakly supported' in its own introduction."
+    }
+  },
+  "entry_count": 67,
+  "entry_count_by_document": {
+    "التحليل النفسي للصور.pdf": 19,
+    "child_drawing_rules_compiled.pdf": 48
+  },
+  "candidate_rule_entry_count": 62,
+  "entries": [
+    {
+      "source_entry_id": "SRC_AR_001",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم العيون (Eye drawing)",
+      "original_text": "رسم العيون الواسعة يدل على الشخصية المنفتحة.",
+      "language": "ar",
+      "observable": "wide_eyes",
+      "possible_interpretation": "outgoing personality",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_002",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم العيون",
+      "original_text": "رسم العيون الصارمة يدل على الشعور بالغضب.",
+      "language": "ar",
+      "observable": "stern_eyes",
+      "possible_interpretation": "feeling of anger",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_003",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم العيون",
+      "original_text": "رسم العيون المغمضة يدل على رفض الشخص النظر إلى نفسه من الداخل ورفضه الاعتراف بعيوبه.",
+      "language": "ar",
+      "observable": "closed_eyes",
+      "possible_interpretation": "refusal to look inward / acknowledge one's own faults",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_004",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات (Animal drawing)",
+      "original_text": "رسم النمر أو الذئب يدل على الشعور بالغضب.",
+      "language": "ar",
+      "observable": "tiger_or_wolf",
+      "possible_interpretation": "feeling of anger",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_005",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات",
+      "original_text": "رسم الثعلب يدل على أن الرسام كان يفكر في عمل أمر لئيم أو خبيث.",
+      "language": "ar",
+      "observable": "fox",
+      "possible_interpretation": "thinking of doing something mean/malicious",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_006",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات",
+      "original_text": "رسم السنجاب يشير إلى حاجة الرسام للحماية والاهتمام.",
+      "language": "ar",
+      "observable": "squirrel",
+      "possible_interpretation": "need for protection and attention",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_007",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم الحيوانات",
+      "original_text": "رسم الأسد يشير إلى اعتقاد الشخص بأنه متفوق على الآخرين.",
+      "language": "ar",
+      "observable": "lion",
+      "possible_interpretation": "belief in one's own superiority",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_008",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية (Geometric shapes)",
+      "original_text": "حب رسم الأشكال الهندسية يشير إلى كثرة الأهداف والخطط والعناد والإصرار.",
+      "language": "ar",
+      "observable": "repeated_geometric_shapes",
+      "possible_interpretation": "many goals/plans, stubbornness, persistence",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_009",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية — النجوم",
+      "original_text": "رسم النجوم يشير إلى أن الشخص يريد أن يكون ملفتاً لنظر الجميع.",
+      "language": "ar",
+      "observable": "stars",
+      "possible_interpretation": "wanting to be the center of attention",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_010",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية — الزهور والسحب والشمس",
+      "original_text": "رسم الزهور والسحب والشمس قد يعبر عن تخيل أهداف وأفكار جديدة وشخصية إيجابية ومزاج جيد.",
+      "language": "ar",
+      "observable": "flowers_clouds_sun",
+      "possible_interpretation": "imagining new goals/ideas, positive personality, good mood (only if drawn while distracted/absent-minded)",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_011",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "الأشكال الهندسية — الدوائر",
+      "original_text": "رسم الدوائر يعبر عن الشعور بالوحدة والحاجة إلى شخص قريب يقف بجانبه.",
+      "language": "ar",
+      "observable": "circles",
+      "possible_interpretation": "feeling of loneliness, need for someone close",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_012",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 1,
+      "source_section": "رسم وسائل النقل (Transportation)",
+      "original_text": "رسم وسائل النقل يشير إلى حب السفر والعطلة والاجتماعية والانفتاح والمرح والمغامرة وحب الحياة.",
+      "language": "ar",
+      "observable": "vehicles",
+      "possible_interpretation": "loves travel/vacations, social, outgoing, playful, adventurous",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_013",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "رسم القلوب (Heart drawing)",
+      "original_text": "رسم القلوب يدل على شخصية عاطفية أو عاشقة واجتماعية ورومانسية لطيفة وقادرة على جذب قلوب الآخرين.",
+      "language": "ar",
+      "observable": "hearts",
+      "possible_interpretation": "affectionate/loving personality, social, romantic, able to attract others",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_014",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "حجم الرسم (Drawing size)",
+      "original_text": "إذا غطت الرسمة نحو 50% من الورقة فقد تدل على الانفتاح أحياناً والانطواء أحياناً أخرى.",
+      "language": "ar",
+      "observable": "coverage_about_half",
+      "possible_interpretation": "outgoing at times, introverted at other times",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_015",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "حجم الرسم",
+      "original_text": "إذا غطت الرسمة كل الورقة فهذا يدل على احترام الشخص العالي لنفسه وتقديره لها.",
+      "language": "ar",
+      "observable": "coverage_full",
+      "possible_interpretation": "high self-respect/self-esteem",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_016",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "حجم الرسم",
+      "original_text": "إذا لم تتجاوز الرسمة 20% من الورقة فقد يدل ذلك على عدم الاستقرار أو الخوف.",
+      "language": "ar",
+      "observable": "coverage_small",
+      "possible_interpretation": "instability or fear",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_017",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "موقع الرسم (Drawing location)",
+      "original_text": "الرسم في أعلى الصفحة قد يعبر عن شخصية حالمة أو واقع خيالي وصعوبة في التكيف.",
+      "language": "ar",
+      "observable": "placement_top",
+      "possible_interpretation": "dreamy personality, fantasy world, difficulty adapting",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_018",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "موقع الرسم",
+      "original_text": "الرسم في الجانب الأيسر يدل على شخصية انطوائية.",
+      "language": "ar",
+      "observable": "placement_left",
+      "possible_interpretation": "introverted personality",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_AR_019",
+      "source_document": "التحليل النفسي للصور.pdf",
+      "source_page": 2,
+      "source_section": "موقع الرسم",
+      "original_text": "الرسم في الجانب الأيمن يدل على شخصية منفتحة.",
+      "language": "ar",
+      "observable": "placement_right",
+      "possible_interpretation": "outgoing personality",
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "psychologist_supplied_notes",
+      "transcription_status": "normalized_transcription_reused_from_rules_registry.json"
+    },
+    {
+      "source_entry_id": "SRC_EN_G01",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "How to use the guide",
+      "original_text": "Single drawing: Can suggest a possibility, but cannot diagnose depression, abuse, anxiety, or personality.",
+      "language": "en",
+      "observable": null,
+      "possible_interpretation": null,
+      "evidence_level_as_written": "Strong caution",
+      "notes_as_written": null,
+      "source_type": "general_guidance",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_G02",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "How to use the guide",
+      "original_text": "Patterns across drawings: Repeated themes over time are more informative than one picture.",
+      "language": "en",
+      "observable": null,
+      "possible_interpretation": null,
+      "evidence_level_as_written": "More useful",
+      "notes_as_written": null,
+      "source_type": "general_guidance",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_G03",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "How to use the guide",
+      "original_text": "Child's explanation: Always ask what the drawing means to the child.",
+      "language": "en",
+      "observable": null,
+      "possible_interpretation": null,
+      "evidence_level_as_written": "Very useful",
+      "notes_as_written": null,
+      "source_type": "general_guidance",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_G04",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "How to use the guide",
+      "original_text": "Age and skill: Development, motor skill, and cultural style can change the drawing a lot.",
+      "language": "en",
+      "observable": null,
+      "possible_interpretation": null,
+      "evidence_level_as_written": "Essential context",
+      "notes_as_written": null,
+      "source_type": "general_guidance",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_001",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Eyes and face",
+      "original_text": "Wide eyes: Often interpreted as openness or alertness; in some emotion-drawing work, wide eyes can also fit fear/surprise.",
+      "language": "en",
+      "observable": "wide_eyes",
+      "possible_interpretation": "openness or alertness; sometimes fear/surprise",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Children's facial-expression drawings research; general projective tradition.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_002",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Eyes and face",
+      "original_text": "Strict, narrowed, or intense eyes: May be read as anger, tension, suspicion, or defensiveness.",
+      "language": "en",
+      "observable": "stern_eyes",
+      "possible_interpretation": "anger, tension, suspicion, or defensiveness",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "General emotion-symbol heuristics.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_003",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Eyes and face",
+      "original_text": "Closed eyes: Sometimes interpreted as avoidance, shutting out the world, or refusing to look inward.",
+      "language": "en",
+      "observable": "closed_eyes",
+      "possible_interpretation": "avoidance, shutting out the world, or refusing to look inward",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No strong standard reference found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_004",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Eyes and face",
+      "original_text": "Eyes with little detail or missing eyes: May suggest withdrawal, avoidance, low interest in contact, or simply limited drawing skill.",
+      "language": "en",
+      "observable": "eyes_little_detail_or_missing",
+      "possible_interpretation": "withdrawal, avoidance, low interest in contact, or limited drawing skill",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Projective drawing heuristics; developmental factors important.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_005",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Eyes and face",
+      "original_text": "Face expression: Smiling can suggest positive tone; sad, tense, or frightened faces can suggest distress.",
+      "language": "en",
+      "observable": "face_expression",
+      "possible_interpretation": "positive tone (smiling) or distress (sad/tense/frightened)",
+      "evidence_level_as_written": "Moderate for basic emotion only",
+      "notes_as_written": "Children do encode emotions in faces, but not as a diagnosis test.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_006",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Animals",
+      "original_text": "Tiger or wolf: Often informally linked with anger, threat, or aggression.",
+      "language": "en",
+      "observable": "tiger_or_wolf",
+      "possible_interpretation": "anger, threat, or aggression",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No fixed universal rule found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_007",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Animals",
+      "original_text": "Fox: Sometimes informally linked with sneakiness or cunning.",
+      "language": "en",
+      "observable": "fox",
+      "possible_interpretation": "sneakiness or cunning",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No fixed universal rule found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_008",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Animals",
+      "original_text": "Squirrel: Sometimes linked with need for protection, nervous energy, or seeking care.",
+      "language": "en",
+      "observable": "squirrel",
+      "possible_interpretation": "need for protection, nervous energy, or seeking care",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No fixed universal rule found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_009",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Animals",
+      "original_text": "Lion: Sometimes linked with dominance, pride, strength, or superiority.",
+      "language": "en",
+      "observable": "lion",
+      "possible_interpretation": "dominance, pride, strength, or superiority",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No fixed universal rule found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_010",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Animals",
+      "original_text": "Animal choice in general: Can reflect interests, story play, fear, identification, or a projective theme.",
+      "language": "en",
+      "observable": "animal_choice_general",
+      "possible_interpretation": "interests, story play, fear, identification, or a projective theme",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Animal-drawing tests and apperception traditions.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_011",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Geometric and symbolic shapes",
+      "original_text": "Geometric shapes preferred: Sometimes interpreted as planning, control, persistence, or stubbornness.",
+      "language": "en",
+      "observable": "repeated_geometric_shapes",
+      "possible_interpretation": "planning, control, persistence, or stubbornness",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "Projective tradition, weak support.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_012",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Geometric and symbolic shapes",
+      "original_text": "Stars: Sometimes read as wanting attention, admiration, or visibility.",
+      "language": "en",
+      "observable": "stars",
+      "possible_interpretation": "wanting attention, admiration, or visibility",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No strong standard reference found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_013",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Geometric and symbolic shapes",
+      "original_text": "Circles: Sometimes associated with unity, wholeness, or the need for closeness; in your handout, loneliness and need for support.",
+      "language": "en",
+      "observable": "circles",
+      "possible_interpretation": "unity, wholeness, need for closeness; (per Arabic handout) loneliness and need for support",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "Common heuristic, not standardized.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_014",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 1,
+      "source_section": "Geometric and symbolic shapes",
+      "original_text": "Flowers, sun, clouds: May be read as optimism, imagination, or positive mood when used in a dreamy context.",
+      "language": "en",
+      "observable": "flowers_clouds_sun",
+      "possible_interpretation": "optimism, imagination, or positive mood, when used in a dreamy context",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No fixed rule; depends heavily on context.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_015",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Geometric and symbolic shapes (continued) / Hearts",
+      "original_text": "Hearts: Usually reflect affection, love, romance, or social warmth in a cultural sense.",
+      "language": "en",
+      "observable": "hearts",
+      "possible_interpretation": "affection, love, romance, or social warmth",
+      "evidence_level_as_written": "Weak / common-sense",
+      "notes_as_written": "Symbolic meaning is culturally obvious, not psychometric.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_016",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Animals and objects with stories",
+      "original_text": "Transportation drawings: May suggest travel interest, movement, adventure, or a social/playful orientation.",
+      "language": "en",
+      "observable": "vehicles",
+      "possible_interpretation": "travel interest, movement, adventure, or a social/playful orientation",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No strong literature basis found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_017",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Animals and objects with stories",
+      "original_text": "House: Sometimes discussed as family life, safety, privacy, or emotional openness, but not a reliable standalone test.",
+      "language": "en",
+      "observable": "house",
+      "possible_interpretation": "family life, safety, privacy, or emotional openness",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Projective drawing traditions.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_018",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Animals and objects with stories",
+      "original_text": "Tree: Sometimes used to think about stability, growth, roots, or vulnerability.",
+      "language": "en",
+      "observable": "tree",
+      "possible_interpretation": "stability, growth, roots, or vulnerability",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Projective tree-drawing traditions.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_019",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Animals and objects with stories",
+      "original_text": "Repeated monsters, danger, injury themes: May indicate fear, distress, or preoccupation with threat; needs careful follow-up.",
+      "language": "en",
+      "observable": "repeated_monsters_danger_injury",
+      "possible_interpretation": "fear, distress, or preoccupation with threat",
+      "evidence_level_as_written": "Suggestive only",
+      "notes_as_written": "Trauma-informed assessment principles.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_020",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Size and page use",
+      "original_text": "Very large drawing / fills the page: Sometimes linked with expansiveness, strong energy, or self-assertion; your handout links it to high self-esteem.",
+      "language": "en",
+      "observable": "coverage_full",
+      "possible_interpretation": "expansiveness, strong energy, self-assertion; (per Arabic handout) high self-esteem",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Page occupation is a common projective heuristic.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_021",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Size and page use",
+      "original_text": "Moderate drawing size (~half page): Sometimes read as balance or mixed approach; your handout says open at times and introverted at times.",
+      "language": "en",
+      "observable": "coverage_about_half",
+      "possible_interpretation": "balance or mixed approach; (per Arabic handout) outgoing at times and introverted at times",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No standardized cutoff.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_022",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Size and page use",
+      "original_text": "Very small drawing: May suggest insecurity, withdrawal, fear, or low confidence; could also reflect carefulness or skill limits.",
+      "language": "en",
+      "observable": "very_small_drawing",
+      "possible_interpretation": "insecurity, withdrawal, fear, or low confidence",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Size is a common but nonspecific cue.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_023",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Size and page use",
+      "original_text": "Uses only a small part of the page: May suggest caution, uncertainty, or low confidence.",
+      "language": "en",
+      "observable": "coverage_small",
+      "possible_interpretation": "caution, uncertainty, or low confidence",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Projective interpretation.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_024",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Placement on the page",
+      "original_text": "Top of page: Sometimes read as fantasy, dreaming, ambition, or being less grounded in current reality.",
+      "language": "en",
+      "observable": "placement_top",
+      "possible_interpretation": "fantasy, dreaming, ambition, or being less grounded in current reality",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Projective page-position heuristics.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_025",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Placement on the page",
+      "original_text": "Left side: Sometimes linked to introversion, past orientation, or dependence.",
+      "language": "en",
+      "observable": "placement_left",
+      "possible_interpretation": "introversion, past orientation, or dependence",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No strong standard rule found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_026",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Placement on the page",
+      "original_text": "Right side: Sometimes linked to extroversion, future orientation, or outward movement.",
+      "language": "en",
+      "observable": "placement_right",
+      "possible_interpretation": "extroversion, future orientation, or outward movement",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "No strong standard rule found.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_027",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Placement on the page",
+      "original_text": "Centering: Often read as balance, security, or comfort.",
+      "language": "en",
+      "observable": "placement_center",
+      "possible_interpretation": "balance, security, or comfort",
+      "evidence_level_as_written": "Speculative",
+      "notes_as_written": "Common heuristic.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_028",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Line quality and pressure",
+      "original_text": "Heavy pressure: May suggest tension, force, anger, or high energy.",
+      "language": "en",
+      "observable": "heavy_line_pressure_appearance",
+      "possible_interpretation": "tension, force, anger, or high energy",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Not specific to emotion; can reflect motor style.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_029",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Line quality and pressure",
+      "original_text": "Light pressure: May suggest hesitation, shyness, low energy, or delicacy.",
+      "language": "en",
+      "observable": "light_line_pressure_appearance",
+      "possible_interpretation": "hesitation, shyness, low energy, or delicacy",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Not specific to emotion.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_030",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Line quality and pressure",
+      "original_text": "Shaky or broken lines: May suggest anxiety, uncertainty, distress, or motor difficulty.",
+      "language": "en",
+      "observable": "shaky_or_broken_lines",
+      "possible_interpretation": "anxiety, uncertainty, distress, or motor difficulty",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Needs comparison with age and motor skills.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_031",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Line quality and pressure",
+      "original_text": "Zigzag lines: Sometimes read as agitation, violence, unpredictability, or conflict.",
+      "language": "en",
+      "observable": "zigzag_lines",
+      "possible_interpretation": "agitation, violence, unpredictability, or conflict",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Older projective and graphological traditions.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_032",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 2,
+      "source_section": "Line quality and pressure",
+      "original_text": "Over-erasing / frequent corrections: May suggest perfectionism, anxiety, frustration, or uncertainty.",
+      "language": "en",
+      "observable": "over_erasing_appearance",
+      "possible_interpretation": "perfectionism, anxiety, frustration, or uncertainty",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Also common in normal development.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_033",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Missing or altered details",
+      "original_text": "Missing hands: Sometimes interpreted as difficulty acting, social difficulty, or avoidance.",
+      "language": "en",
+      "observable": "missing_hands",
+      "possible_interpretation": "difficulty acting, social difficulty, or avoidance",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Can be developmental.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_034",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Missing or altered details",
+      "original_text": "Missing mouth: Sometimes linked with difficulty expressing emotion or communication issues.",
+      "language": "en",
+      "observable": "missing_mouth",
+      "possible_interpretation": "difficulty expressing emotion or communication issues",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Not specific.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_035",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Missing or altered details",
+      "original_text": "Missing eyes: May suggest avoidance or emotional withdrawal.",
+      "language": "en",
+      "observable": "missing_eyes",
+      "possible_interpretation": "avoidance or emotional withdrawal",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Not specific.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_036",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Missing or altered details",
+      "original_text": "Exaggerated body parts: Huge hands, teeth, eyes, etc. may suggest aggression, fear, or hypervigilance.",
+      "language": "en",
+      "observable": "exaggerated_body_parts",
+      "possible_interpretation": "aggression, fear, or hypervigilance",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Very tentative.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_037",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Repeated themes",
+      "original_text": "Repeated monsters or danger scenes: May reflect a recurring fear or preoccupation.",
+      "language": "en",
+      "observable": "repeated_monsters_danger_injury",
+      "possible_interpretation": "a recurring fear or preoccupation",
+      "evidence_level_as_written": "Suggestive only",
+      "notes_as_written": "Best used with interview.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_038",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Repeated themes",
+      "original_text": "Repeated family conflict scenes: May indicate tension, perceived conflict, or concern in the home.",
+      "language": "en",
+      "observable": "repeated_family_conflict",
+      "possible_interpretation": "tension, perceived conflict, or concern in the home",
+      "evidence_level_as_written": "Suggestive only",
+      "notes_as_written": "Context is essential.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_039",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Repeated themes",
+      "original_text": "Repeated isolation themes: May point to loneliness or withdrawal.",
+      "language": "en",
+      "observable": "repeated_isolation_themes",
+      "possible_interpretation": "loneliness or withdrawal",
+      "evidence_level_as_written": "Suggestive only",
+      "notes_as_written": "Not diagnostic.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_040",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Mood or concern flags sometimes discussed",
+      "original_text": "Dark colors, sad faces, isolation: Sometimes flagged as possible sadness, low mood, or distress.",
+      "language": "en",
+      "observable": "dark_colors_sad_faces_isolation",
+      "possible_interpretation": "possible sadness, low mood, or distress",
+      "evidence_level_as_written": "Suggestive only",
+      "notes_as_written": "Color evidence is mixed; not diagnostic.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_041",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Mood or concern flags sometimes discussed",
+      "original_text": "Refusal to draw figures: May suggest distress, resistance, perfectionism, or lack of task engagement.",
+      "language": "en",
+      "observable": "refusal_to_draw_figures",
+      "possible_interpretation": "distress, resistance, perfectionism, or lack of task engagement",
+      "evidence_level_as_written": "Suggestive only",
+      "notes_as_written": "Can have many causes.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_042",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Mood or concern flags sometimes discussed",
+      "original_text": "Excessive detail or fixation: May suggest anxiety, obsession with parts of the task, or strong interest.",
+      "language": "en",
+      "observable": "excessive_detail_or_fixation",
+      "possible_interpretation": "anxiety, obsession with parts of the task, or strong interest",
+      "evidence_level_as_written": "Suggestive only",
+      "notes_as_written": "Not specific.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_043",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Mood or concern flags sometimes discussed",
+      "original_text": "Neglect of background: May reflect focus on the main subject, limited time, or developmental style.",
+      "language": "en",
+      "observable": "neglect_of_background",
+      "possible_interpretation": "focus on the main subject, limited time, or developmental style",
+      "evidence_level_as_written": "Weak / mixed",
+      "notes_as_written": "Not a pathology sign by itself.",
+      "source_type": "compiled_heuristics_guide",
+      "transcription_status": "verbatim_pypdf_extraction"
+    },
+    {
+      "source_entry_id": "SRC_EN_C01",
+      "source_document": "child_drawing_rules_compiled.pdf",
+      "source_page": 3,
+      "source_section": "Bottom line",
+      "original_text": "Use these rules only as hypotheses. The most defensible reading comes from combining the drawing with the child's age, the drawing process, repeated patterns over time, and the child's own explanation. No single item here should be treated as proof of depression, abuse, anxiety, or personality type.",
+      "language": "en",
+      "observable": null,
+      "possible_interpretation": null,
+      "evidence_level_as_written": null,
+      "notes_as_written": null,
+      "source_type": "general_guidance",
+      "transcription_status": "verbatim_pypdf_extraction"
+    }
+  ],
+  "relationships": [
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_001",
+        "SRC_EN_001"
+      ],
+      "note": "Same observable (wide eyes). Arabic source states 'outgoing personality' unconditionally; English source hedges with 'openness/alertness, or sometimes fear/surprise' -- broader and less certain."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_002",
+        "SRC_EN_002"
+      ],
+      "note": "Same observable (stern/narrowed eyes -> anger); English source broadens to include tension/suspicion/defensiveness."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_003",
+        "SRC_EN_003"
+      ],
+      "note": "Same observable and near-identical interpretation (closed eyes -> refusing to look inward / shutting out the world)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_004",
+        "SRC_EN_006"
+      ],
+      "note": "Same observable (tiger/wolf -> anger); English source adds threat/aggression."
+    },
+    {
+      "type": "related_but_distinct",
+      "source_entry_ids": [
+        "SRC_AR_005",
+        "SRC_EN_007"
+      ],
+      "note": "Same observable (fox) but different specific interpretation: Arabic = malicious intent, English = sneakiness/cunning. Related valence, not identical claim."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_006",
+        "SRC_EN_008"
+      ],
+      "note": "Same observable and interpretation (squirrel -> need for protection); English adds nervous energy/seeking care."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_007",
+        "SRC_EN_009"
+      ],
+      "note": "Same observable and interpretation (lion -> superiority); English adds dominance/pride/strength."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_008",
+        "SRC_EN_011"
+      ],
+      "note": "Same observable (repeated geometric shapes -> stubbornness/persistence/goals/planning)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_009",
+        "SRC_EN_012"
+      ],
+      "note": "Same observable (stars -> wanting attention/admiration/visibility)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_010",
+        "SRC_EN_014"
+      ],
+      "note": "Same observable (flowers/sun/clouds -> optimism/positive mood). Arabic requires a strict behavioral precondition (drawn while distracted/absent-minded); English softens this to a vaguer 'dreamy context' -- the precondition is weakened, not identical."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_011",
+        "SRC_EN_013"
+      ],
+      "note": "Same observable; English source explicitly cites the Arabic handout's loneliness reading as part of its own broader interpretation (unity/wholeness/closeness)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_012",
+        "SRC_EN_016"
+      ],
+      "note": "Same observable and near-identical interpretation (vehicles -> travel/adventure/sociability)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_013",
+        "SRC_EN_015"
+      ],
+      "note": "Same observable and near-identical interpretation (hearts -> affection/love/social warmth)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_014",
+        "SRC_EN_021"
+      ],
+      "note": "Same observable; English source explicitly cites the Arabic handout's own wording ('open at times and introverted at times')."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_015",
+        "SRC_EN_020"
+      ],
+      "note": "Same observable; English source explicitly cites the Arabic handout's 'high self-esteem' reading."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_016",
+        "SRC_EN_023"
+      ],
+      "note": "Same observable (page-area coverage, not absolute figure size) -- both frame the measure as a fraction of the page used, matching most directly."
+    },
+    {
+      "type": "related_but_distinct",
+      "source_entry_ids": [
+        "SRC_AR_016",
+        "SRC_EN_022"
+      ],
+      "note": "English 'Very small drawing' conflates absolute figure smallness with the same fear/insecurity reading as the page-coverage rule; a genuinely distinct observable (figure size vs. page-area fraction) with an overlapping interpretation."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_EN_022",
+        "SRC_EN_023"
+      ],
+      "note": "Internal to the English PDF: 'Very small drawing' and 'Uses only a small part of the page' describe closely related but not identical observables (figure size vs. page-area fraction) with overlapping interpretations (insecurity/withdrawal/fear/low confidence vs. caution/uncertainty/low confidence)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_017",
+        "SRC_EN_024"
+      ],
+      "note": "Same observable and near-identical interpretation (top placement -> dreaminess/fantasy/difficulty adapting)."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_018",
+        "SRC_EN_025"
+      ],
+      "note": "Same observable (left placement -> introversion); English adds past orientation/dependence."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_AR_019",
+        "SRC_EN_026"
+      ],
+      "note": "Same observable (right placement -> extraversion); English adds future orientation/outward movement."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_EN_019",
+        "SRC_EN_037"
+      ],
+      "note": "Internal to the English PDF: 'Repeated monsters, danger, injury themes' (page 2, Animals and objects with stories) and 'Repeated monsters or danger scenes' (page 3, Repeated themes) describe the same observable with near-identical wording -- the PDF itself restates this row across two sections."
+    },
+    {
+      "type": "near_duplicate",
+      "source_entry_ids": [
+        "SRC_EN_004",
+        "SRC_EN_035"
+      ],
+      "note": "Internal to the English PDF: 'Eyes with little detail or missing eyes' (page 1, Eyes and face) and 'Missing eyes' (page 3, Missing or altered details) describe overlapping observables (absence/low-detail of eyes) with overlapping interpretations (withdrawal/avoidance)."
+    },
+    {
+      "type": "related_but_distinct",
+      "source_entry_ids": [
+        "SRC_AR_011",
+        "SRC_EN_039"
+      ],
+      "note": "Both concern loneliness, but the observable differs entirely: Arabic/EN_013 is a shape-based proxy (drawing circles); EN_039 is a content/scene-based theme (repeated isolation scenes) -- not the same measurable observable, so related, not duplicate."
+    },
+    {
+      "type": "expands",
+      "source_entry_ids": [
+        "SRC_EN_005"
+      ],
+      "note": "New observable (general facial expression / smiling vs. sad/tense/frightened) not present in the Arabic source at all -- expands the 'eyes and face' evidence family."
+    },
+    {
+      "type": "expands",
+      "source_entry_ids": [
+        "SRC_EN_010"
+      ],
+      "note": "New observable (animal choice in general, independent of species) not present in the Arabic source."
+    },
+    {
+      "type": "expands",
+      "source_entry_ids": [
+        "SRC_EN_017",
+        "SRC_EN_018"
+      ],
+      "note": "New observables (house, tree) with no Arabic counterpart."
+    },
+    {
+      "type": "expands",
+      "source_entry_ids": [
+        "SRC_EN_027"
+      ],
+      "note": "New observable (centering) with no Arabic counterpart."
+    },
+    {
+      "type": "expands",
+      "source_entry_ids": [
+        "SRC_EN_028",
+        "SRC_EN_029",
+        "SRC_EN_030",
+        "SRC_EN_031",
+        "SRC_EN_032"
+      ],
+      "note": "An entirely new evidence family (line quality/pressure appearance) with no Arabic counterpart at all."
+    },
+    {
+      "type": "expands",
+      "source_entry_ids": [
+        "SRC_EN_033",
+        "SRC_EN_034",
+        "SRC_EN_036"
+      ],
+      "note": "New observables (missing hands, missing mouth, exaggerated body parts) with no Arabic counterpart."
+    },
+    {
+      "type": "expands",
+      "source_entry_ids": [
+        "SRC_EN_038",
+        "SRC_EN_040",
+        "SRC_EN_041",
+        "SRC_EN_042",
+        "SRC_EN_043"
+      ],
+      "note": "New observables (repeated family conflict, dark-colour/sad-face/isolation combination, refusal to draw figures, excessive detail, background neglect) with no Arabic counterpart -- these are the PDF's own 'mood or concern flags', all self-labeled 'Suggestive only' or weaker."
+    }
+  ]
+}
