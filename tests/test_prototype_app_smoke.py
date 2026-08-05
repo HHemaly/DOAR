@@ -61,6 +61,23 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             at.run(timeout=60)
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
 
+    def test_candidate_themes_and_dependency_grouping_render_doar_trace_4e(self):
+        """DOAR-TRACE 4E: a full-page-coverage drawing reliably triggers the
+        coverage_full rule -> a self_esteem candidate theme -- confirms the
+        new Parent-view theme section and Technical-view dependency/
+        aggregation table both render real content, not just avoid crashing."""
+        with tempfile.TemporaryDirectory() as d:
+            case_dir = self._build_case(d, with_checkpoint=False)
+            at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
+            at.session_state["case_dir"] = str(case_dir.resolve())
+            at.run(timeout=60)
+            self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+            expander_labels = [e.label for e in at.expander]
+            self.assertTrue(
+                any("self_esteem" in label for label in expander_labels),
+                f"expected a self_esteem theme expander, got: {expander_labels}",
+            )
+
     def test_no_case_selected_shows_info_not_a_crash(self):
         at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
         at.run(timeout=60)

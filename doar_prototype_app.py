@@ -112,6 +112,15 @@ detections = json.loads((case_dir / "detections.json").read_text(encoding="utf-8
 timing_path = case_dir / "timing.json"
 timing = json.loads(timing_path.read_text(encoding="utf-8")) if timing_path.exists() else None
 profile = load_profile(case_dir)
+# DOAR-TRACE 4E: structured_analysis.json (4D) is written by every
+# analyze_image run since 4B/4D landed -- older cases from before that
+# change won't have it, so this stays optional rather than a hard error.
+structured_path = case_dir / "structured_analysis.json"
+structured = json.loads(structured_path.read_text(encoding="utf-8")) if structured_path.exists() else None
+objective_features_path = case_dir / "objective_features.json"
+objective_features_doc = (
+    json.loads(objective_features_path.read_text(encoding="utf-8")) if objective_features_path.exists() else None
+)
 
 
 def artifact(name: str) -> str | None:
@@ -175,6 +184,45 @@ with parent_tab:
     )
     st.caption("سمتان (عدد الأشكال المغلقة وتكرارها) غير متاحتين لعدم وجود كاشف أشكال."
                if ar else "Two features (enclosed-shape count, shape repetition) are unavailable -- no shape detector exists yet.")
+
+    st.subheader("فرضيات محتملة على مستوى الرسمة" if ar else "Possible drawing-level themes")
+    st.caption(
+        "لماذا اقتُرحت كل فرضية: القواعد الداعمة والأدلة والمراجع. هذه ليست تشخيصاً."
+        if ar else
+        "Why each theme was suggested: the supporting rules, evidence, and references behind it. This is not a diagnosis."
+    )
+    if structured and structured.get("candidate_drawing_level_themes"):
+        for theme in structured["candidate_drawing_level_themes"]:
+            with st.expander(f"{theme['target_construct']} ({theme['allowed_output_level']})"):
+                st.write(("القواعد الداعمة: " if ar else "Supporting rules: ") + ", ".join(theme["supporting_rule_ids"]))
+                st.write(("الأدلة: " if ar else "Evidence: ") + ", ".join(theme["supporting_evidence_ids"]))
+                st.write(("المراجع: " if ar else "References: ") + (", ".join(theme["references"]) or ("لا يوجد" if ar else "none")))
+                for lim in theme["limitations"]:
+                    st.caption(("قيد: " if ar else "Limitation: ") + lim)
+                for alt in theme["alternative_explanations"]:
+                    st.caption(("تفسير بديل: " if ar else "Alternative explanation: ") + alt)
+                if theme["allowed_output_level"] == "combined_hypothesis_only":
+                    st.warning(
+                        "فرضية مُجمَّعة من عدة أدلة مستقلة — تتطلب مراجعة مختص."
+                        if ar else "A combined hypothesis from multiple independent pieces of evidence -- requires clinician review.")
+        if structured.get("cross_theme_contradictions"):
+            st.warning(("تم رصد فرضيات متعارضة ولم يُختر فائز تلقائياً:" if ar
+                       else "Conflicting themes were detected; no automatic winner was chosen:"))
+            for c in structured["cross_theme_contradictions"]:
+                st.write(f"- {c['construct_a']} ↔ {c['construct_b']}")
+    else:
+        st.info("لا توجد فرضيات مرشحة على مستوى الرسمة لهذه الحالة." if ar
+               else "No candidate drawing-level themes for this case.")
+
+    st.subheader("كل السمات (٥٩ سمة، قابلة للتوسيع)" if ar else "All features (59, expandable)")
+    if objective_features_doc:
+        with st.expander(("عرض كل السمات الموضوعية" if ar else "Show all objective features")
+                         + f" ({objective_features_doc['feature_count']}, "
+                         + f"{objective_features_doc['missing_count']} {'غير متاحة' if ar else 'unavailable'})"):
+            st.dataframe(objective_features_doc["features"], use_container_width=True)
+    else:
+        st.caption("سمات موضوعية غير متاحة لهذه الحالة (تحليل سابق للتحديث)." if ar
+                  else "Objective features not available for this case (analyzed before this update).")
 
     st.subheader("القواعد المُقيَّمة" if ar else "Rules evaluated")
     st.caption("كل قاعدة هي فرضية غير مُتحقق منها علمياً، وليست حقيقة مؤكدة."
@@ -288,6 +336,35 @@ with technical_tab:
 
     st.subheader("Rule coverage table")
     st.dataframe(analysis["rule_evaluations"], use_container_width=True)
+
+    st.subheader("Dependency grouping and aggregation calculation (DOAR-TRACE 4D)")
+    if structured:
+        st.caption(
+            "candidate_drawing_level_themes: rules grouped by target_construct, deduplicated "
+            "by evidence_id, escalated to combined_hypothesis_only only when >=2 distinct "
+            "evidence IDs from >=2 distinct evidence families converge (structured_report.py)."
+        )
+        if structured["candidate_drawing_level_themes"]:
+            st.dataframe([
+                {
+                    "target_construct": t["target_construct"],
+                    "supporting_rule_ids": ", ".join(t["supporting_rule_ids"]),
+                    "supporting_evidence_ids": ", ".join(t["supporting_evidence_ids"]),
+                    "evidence_families": ", ".join(t["evidence_families"]),
+                    "n_evidence_ids": len(t["supporting_evidence_ids"]),
+                    "n_evidence_families": len(t["evidence_families"]),
+                    "allowed_output_level": t["allowed_output_level"],
+                }
+                for t in structured["candidate_drawing_level_themes"]
+            ], use_container_width=True)
+        else:
+            st.caption("No rule triggered on this image -- no theme to aggregate.")
+        if structured["cross_theme_contradictions"]:
+            st.dataframe(structured["cross_theme_contradictions"], use_container_width=True)
+        st.caption(f"structured_analysis schema_version={structured['schema_version']}, "
+                   f"registry_v2 schema_version={structured['registry_v2_schema_version']}")
+    else:
+        st.info("structured_analysis.json not available for this case (analyzed before this update).")
 
     st.subheader("Evidence IDs")
     st.dataframe([
