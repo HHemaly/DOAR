@@ -1,0 +1,3 @@
+baseline,classes_covered,classes_with_sufficient_support,model,pretrained,inference_time_20_images_seconds
+clip_zero_shot,10,2,ViT-B-32,openai,2.05
+classical_cv_circularity,1,0,opencv_contour_circularity,n/a,negligible

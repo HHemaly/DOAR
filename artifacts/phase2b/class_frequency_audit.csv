@@ -1,0 +1,11 @@
+class,n_images,present,absent,uncertain,not_assessable,sufficient_support_for_evaluation
+person,20,9,6,4,1,True
+face,20,15,3,1,1,True
+hand,20,0,13,6,1,False
+animal,20,2,12,5,1,False
+house,20,3,16,0,1,False
+tree,20,1,15,3,1,False
+heart,20,2,16,1,1,False
+star,20,1,16,2,1,False
+circle,20,1,17,1,1,False
+vehicle,20,0,19,0,1,False

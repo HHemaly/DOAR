@@ -50,6 +50,7 @@ from doar.parent_view import (  # noqa: E402
 )
 from doar.profile import ChildProfile, ALLOWED_AGE_RANGES, load_profile, save_profile  # noqa: E402
 from doar.timed_analysis import analyze_image_with_timing  # noqa: E402
+from doar.phase2b.technical_view import render_phase2b_pilot_summary  # noqa: E402
 
 CASES_DIR = ROOT / "outputs" / "prototype_cases"
 KNOWN_CHECKPOINTS = {
@@ -568,6 +569,8 @@ with technical_tab:
         "detection_judge, relation_judge, language_judge: not_implemented (no underlying capability yet)",
     ]:
         st.write("- " + w)
+
+    render_phase2b_pilot_summary(st, ROOT)
 
     st.header("11. Sources and registry")
     st.subheader("Source catalog coverage")

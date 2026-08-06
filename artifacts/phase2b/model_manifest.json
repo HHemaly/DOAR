@@ -1,0 +1,41 @@
+{
+  "phase": "2B_object_evidence_pilot",
+  "generated_at_utc": "2026-08-06T00:33:42.067817+00:00",
+  "baselines": [
+    {
+      "name": "clip_zero_shot",
+      "category": "A_open_vocabulary_bootstrap",
+      "model_name": "ViT-B-32",
+      "pretrained_weights": "openai",
+      "library": "open_clip_torch",
+      "library_version": "2.32.0",
+      "device": "cpu",
+      "detect_threshold": 0.28,
+      "uncertain_margin": 0.03,
+      "prompt_template": "a child's drawing containing a {cls}",
+      "trained_on_doar_data": false,
+      "fine_tuned": false,
+      "seed": "not_applicable_zero_shot_no_training"
+    },
+    {
+      "name": "classical_cv_circularity",
+      "category": "D_classical_shape_baseline",
+      "model_name": "opencv_contour_circularity",
+      "library": "opencv-python-headless",
+      "circularity_threshold": 0.75,
+      "min_contour_area": 30,
+      "trained_on_doar_data": false,
+      "seed": "not_applicable_deterministic_classical_cv"
+    }
+  ],
+  "pilot_sample": {
+    "n_images": 20,
+    "selection_method": "one_image_per_distinct_duplicate_group_from_non_conflicted_pool",
+    "selection_seed": 2026,
+    "source_manifest": "outputs/phase7b/final_partition/partition_manifest.csv (not the approved/locked partition -- see PHASE2B_AUDIT_AND_PLAN.md Section 5)",
+    "blind_to_emotion_label": true,
+    "annotator": "single_annotator_session_2026-08-06"
+  },
+  "preprocessing_version": "clip_default_bicubic_224_normalize",
+  "reproducibility_note": "Zero-shot and classical-CV are both deterministic given the same weights/image; no training/seed variance applies. Re-running scripts/phase2b_run_baseline.py against the same 20 images and the same cached weights reproduces bit-identical similarity scores."
+}
