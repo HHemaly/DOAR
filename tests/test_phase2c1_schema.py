@@ -127,10 +127,14 @@ class BboxConstraintTests(unittest.TestCase):
 
 
 class VocabularyValidationTests(unittest.TestCase):
-    def test_annotator_type_must_be_human(self):
-        self.assertEqual(ANNOTATOR_TYPES, frozenset({"human"}))
+    def test_annotator_type_vocabulary_is_human_and_legacy_provisional_only(self):
+        self.assertEqual(ANNOTATOR_TYPES, frozenset({"human", "legacy_provisional_human"}))
         with self.assertRaises(ValueError):
             _rec(status="absent", instance_count=0, annotator_type="ai")
+
+    def test_legacy_provisional_human_is_a_valid_annotator_type(self):
+        rec = _rec(status="absent", instance_count=0, annotator_type="legacy_provisional_human")
+        self.assertEqual(rec.annotator_type, "legacy_provisional_human")
 
     def test_empty_annotator_id_rejected(self):
         with self.assertRaises(ValueError):

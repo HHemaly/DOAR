@@ -40,6 +40,91 @@ class SingleAnnotatorHonestyTests(unittest.TestCase):
         self.assertNotIn("cohens_kappa_overall", report)
 
 
+class ProvisionalVsHumanDistinctionTests(unittest.TestCase):
+    """The hard requirement: a migrated Phase 2B legacy_provisional_human
+    row must never be countable as a second genuine human annotator for
+    human-human Cohen's kappa / percent agreement."""
+
+    def test_one_human_plus_one_provisional_is_still_insufficient(self):
+        st = {}
+        store_mod.upsert(st, _rec(annotator_id="real_human", annotator_type="human"))
+        store_mod.upsert(st, _rec(class_name="face", status="absent", instance_count=0,
+                                   annotator_id="phase2b_legacy", annotator_type="legacy_provisional_human"))
+        report = quality_mod.compute_agreement_report(st)
+        self.assertFalse(report["sufficient_annotators"])
+        self.assertEqual(report["human_annotators"], ["real_human"])
+        self.assertNotIn("cohens_kappa_overall", report)
+
+    def test_two_humans_plus_provisional_excludes_provisional_from_pairing(self):
+        st = {}
+        for i in range(quality_mod.MIN_PAIRS_FOR_KAPPA):
+            pid = f"p2b_{i:04d}"
+            store_mod.upsert(st, _rec(pilot_id=pid, class_name="person", annotator_id="humanA",
+                                       annotator_type="human", status="present", instance_count=1))
+            store_mod.upsert(st, _rec(pilot_id=pid, class_name="person", annotator_id="humanB",
+                                       annotator_type="human", status="present", instance_count=1))
+            store_mod.upsert(st, _rec(pilot_id=pid, class_name="person", annotator_id="phase2b_legacy",
+                                       annotator_type="legacy_provisional_human", status="absent",
+                                       instance_count=0))
+        report = quality_mod.compute_agreement_report(st)
+        self.assertTrue(report["sufficient_annotators"])
+        self.assertEqual(sorted(report["human_annotators"]), ["humanA", "humanB"])
+        self.assertEqual(set(report["compared_pair"]), {"humanA", "humanB"})
+        self.assertNotIn("phase2b_legacy", report["compared_pair"])
+        # humanA/humanB agree on every judgment in this fixture -> kappa should be 1.0,
+        # NOT diluted or affected by the disagreeing legacy row.
+        self.assertEqual(report["percent_agreement_overall"], 1.0)
+
+    def test_distinct_annotators_still_lists_everyone(self):
+        st = {}
+        store_mod.upsert(st, _rec(annotator_id="real_human", annotator_type="human"))
+        store_mod.upsert(st, _rec(class_name="face", status="absent", instance_count=0,
+                                   annotator_id="phase2b_legacy", annotator_type="legacy_provisional_human"))
+        report = quality_mod.compute_agreement_report(st)
+        self.assertEqual(sorted(report["distinct_annotators"]), ["phase2b_legacy", "real_human"])
+
+
+class ProvisionalReferenceComparisonTests(unittest.TestCase):
+    def test_unavailable_with_no_provisional_annotator(self):
+        st = {}
+        store_mod.upsert(st, _rec(annotator_id="real_human", annotator_type="human"))
+        result = quality_mod.compute_provisional_reference_comparison(st)
+        self.assertFalse(result["available"])
+
+    def test_unavailable_with_no_human_annotator(self):
+        st = {}
+        store_mod.upsert(st, _rec(annotator_id="phase2b_legacy", annotator_type="legacy_provisional_human"))
+        result = quality_mod.compute_provisional_reference_comparison(st)
+        self.assertFalse(result["available"])
+
+    def test_available_and_correct_with_both_present(self):
+        st = {}
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="person", annotator_id="real_human",
+                                   annotator_type="human", status="present", instance_count=1))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="person", annotator_id="phase2b_legacy",
+                                   annotator_type="legacy_provisional_human", status="present", instance_count=1))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0001", class_name="person", annotator_id="real_human",
+                                   annotator_type="human", status="absent", instance_count=0))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0001", class_name="person", annotator_id="phase2b_legacy",
+                                   annotator_type="legacy_provisional_human", status="present", instance_count=1))
+        result = quality_mod.compute_provisional_reference_comparison(st)
+        self.assertTrue(result["available"])
+        pair = result["per_pair"]["real_human_vs_phase2b_legacy"]
+        self.assertEqual(pair["n_matched"], 2)
+        self.assertEqual(pair["percent_agreement"], 0.5)
+
+    def test_never_reports_a_kappa_value(self):
+        """Kappa is deliberately never computed here -- the provisional
+        side is not validated ground truth, so a formal inter-rater
+        reliability statistic would be misleading."""
+        st = {}
+        store_mod.upsert(st, _rec(annotator_id="real_human", annotator_type="human"))
+        store_mod.upsert(st, _rec(annotator_id="phase2b_legacy", annotator_type="legacy_provisional_human"))
+        result = quality_mod.compute_provisional_reference_comparison(st)
+        for pair in result.get("per_pair", {}).values():
+            self.assertNotIn("cohens_kappa", pair)
+
+
 class PercentAgreementTests(unittest.TestCase):
     def test_perfect_agreement(self):
         pairs = [("present", "present"), ("absent", "absent")]

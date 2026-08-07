@@ -109,7 +109,14 @@ with st.sidebar:
     if st.button("Show quality report"):
         st.session_state["show_quality"] = True
     if st.session_state.get("show_quality"):
+        st.caption("Genuine human-human inter-rater agreement (excludes legacy Phase 2B provisional labels):")
         st.json(quality_mod.compute_agreement_report(store))
+        st.caption(
+            "Separate reference comparison against legacy Phase 2B provisional labels "
+            "(NOT inter-rater reliability -- those labels are single-annotator, unreviewed, "
+            "never confirmed ground truth):"
+        )
+        st.json(quality_mod.compute_provisional_reference_comparison(store))
         st.json(quality_mod.review_coverage(store))
 
 if not annotator_id:

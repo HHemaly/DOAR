@@ -75,20 +75,41 @@ def review_coverage(store: dict[str, AnnotationRecord]) -> dict:
 
 
 def _distinct_annotators(store: dict[str, AnnotationRecord]) -> list[str]:
+    """ALL distinct annotator_ids, regardless of type -- includes any
+    migrated Phase 2B legacy_provisional_human rows. Used only for the
+    top-level inventory (`distinct_annotators` in the report); never used
+    directly to select a pair for human-human Cohen's kappa -- see
+    `_distinct_human_annotators`."""
     return sorted({r.annotator_id for r in store.values()})
 
 
-def _best_annotator_pair(store: dict[str, AnnotationRecord]) -> tuple[str, str] | None:
-    """Picks the two annotator_ids with the most overlapping
-    (pilot_id, class_name) judgments -- the pair agreement statistics
-    should actually be computed over. Returns None if fewer than 2
-    annotators exist in the store at all."""
-    annotators = _distinct_annotators(store)
+def _distinct_human_annotators(store: dict[str, AnnotationRecord]) -> list[str]:
+    """Distinct annotator_ids whose rows are annotator_type == 'human' --
+    i.e. a genuine Phase 2C.1 annotation event, never a migrated Phase 2B
+    legacy_provisional_human row. This is the only candidate pool
+    human-human Cohen's kappa / percent agreement may be computed over:
+    a legacy_provisional_human row is a real human judgment, but it is
+    single-annotator, unreviewed, and never confirmed independent ground
+    truth (docs/PHASE2B_ANNOTATION_PROTOCOL.md) -- counting it as a second
+    genuine rater would fabricate an inter-rater reliability claim this
+    pilot's own design explicitly disclaims."""
+    return sorted({r.annotator_id for r in store.values() if r.annotator_type == "human"})
+
+
+def _best_annotator_pair(store: dict[str, AnnotationRecord],
+                          candidate_ids: list[str] | None = None) -> tuple[str, str] | None:
+    """Picks the two annotator_ids (restricted to `candidate_ids` if given)
+    with the most overlapping (pilot_id, class_name) judgments -- the pair
+    agreement statistics should actually be computed over. Returns None if
+    fewer than 2 candidate annotators exist."""
+    annotators = sorted(set(candidate_ids)) if candidate_ids is not None else _distinct_annotators(store)
     if len(annotators) < 2:
         return None
+    candidates = set(annotators)
     by_key: dict[tuple[str, str], set[str]] = defaultdict(set)
     for r in store.values():
-        by_key[(r.pilot_id, r.class_name)].add(r.annotator_id)
+        if r.annotator_id in candidates:
+            by_key[(r.pilot_id, r.class_name)].add(r.annotator_id)
     pair_overlap: Counter = Counter()
     for annos in by_key.values():
         if len(annos) >= 2:
@@ -97,7 +118,7 @@ def _best_annotator_pair(store: dict[str, AnnotationRecord]) -> tuple[str, str] 
                     if a < b:
                         pair_overlap[(a, b)] += 1
     if not pair_overlap:
-        # Two annotators exist but never judged the same (pilot_id, class_name).
+        # Two candidate annotators exist but never judged the same (pilot_id, class_name).
         return (annotators[0], annotators[1])
     return pair_overlap.most_common(1)[0][0]
 
@@ -182,24 +203,36 @@ def unresolved_disagreements(store: dict[str, AnnotationRecord]) -> list[Annotat
 
 
 def compute_agreement_report(store: dict[str, AnnotationRecord]) -> dict:
-    """The top-level Stage E report. Honest about single-annotator state:
-    returns `sufficient_annotators: False` and a plain-language note rather
-    than inventing a kappa or agreement rate from one rater's own data
-    compared against itself."""
+    """The top-level Stage E report for GENUINE human-human inter-rater
+    agreement. Restricted to annotator_type == 'human' rows only -- any
+    migrated Phase 2B legacy_provisional_human row is excluded from the
+    candidate pool, so it can never be silently counted as a second real
+    annotator here (see _distinct_human_annotators). Honest about
+    single-annotator state: returns `sufficient_annotators: False` and a
+    plain-language note rather than inventing a kappa or agreement rate.
+    For a comparison against the legacy provisional labels specifically,
+    see `compute_provisional_reference_comparison` -- a separate,
+    differently-labeled statistic, never conflated with this one."""
     annotators = _distinct_annotators(store)
-    if len(annotators) < 2:
+    human_annotators = _distinct_human_annotators(store)
+    if len(human_annotators) < 2:
         return {
             "distinct_annotators": annotators,
+            "human_annotators": human_annotators,
             "sufficient_annotators": False,
             "note": (
-                "Only one human annotator (or zero) has recorded annotations in this "
-                "store. Inter-annotator agreement, percent agreement, and Cohen's kappa "
-                "are not reported -- there is nothing to compare against. This is not a "
-                "missing feature; it is the honest state of a single-annotator pilot."
+                "Fewer than 2 genuine human annotators (annotator_type=='human') have "
+                "recorded annotations in this store. Inter-annotator agreement, percent "
+                "agreement, and Cohen's kappa are not reported -- there is nothing to "
+                "compare against. Migrated Phase 2B legacy_provisional_human rows, if "
+                "present, are never counted as a second annotator for this statistic -- "
+                "see compute_provisional_reference_comparison for a separate, "
+                "explicitly-labeled comparison against them. This is not a missing "
+                "feature; it is the honest state of a single-annotator pilot."
             ),
         }
 
-    pair = _best_annotator_pair(store)
+    pair = _best_annotator_pair(store, candidate_ids=human_annotators)
     annotator_a, annotator_b = pair
     per_class = {}
     for cls in CLASS_NAMES:
@@ -228,6 +261,7 @@ def compute_agreement_report(store: dict[str, AnnotationRecord]) -> dict:
 
     return {
         "distinct_annotators": annotators,
+        "human_annotators": human_annotators,
         "sufficient_annotators": True,
         "compared_pair": [annotator_a, annotator_b],
         "n_matched_overall": len(overall_matched),
@@ -241,4 +275,59 @@ def compute_agreement_report(store: dict[str, AnnotationRecord]) -> dict:
         "per_class": per_class,
         "count_disagreement": count_disagreement(count_pairs),
         "unresolved_disagreement_count": len(unresolved_disagreements(store)),
+    }
+
+
+def _distinct_provisional_annotators(store: dict[str, AnnotationRecord]) -> list[str]:
+    return sorted({r.annotator_id for r in store.values() if r.annotator_type == "legacy_provisional_human"})
+
+
+def compute_provisional_reference_comparison(store: dict[str, AnnotationRecord]) -> dict:
+    """A SEPARATE statistic from compute_agreement_report: compares each
+    genuine human annotator's judgments against the migrated Phase 2B
+    legacy_provisional_human labels, where both exist for the same
+    (pilot_id, class_name). This is explicitly a reference comparison, NOT
+    an inter-rater reliability statistic in the formal sense -- the
+    provisional side is a single, unreviewed annotator's judgment, never
+    confirmed independent ground truth (docs/PHASE2B_ANNOTATION_PROTOCOL.md).
+    Still useful as a sanity/anchoring check, so it is reported here,
+    clearly labeled, rather than omitted or silently folded into the
+    human-human report."""
+    human_annotators = _distinct_human_annotators(store)
+    provisional_annotators = _distinct_provisional_annotators(store)
+    if not human_annotators or not provisional_annotators:
+        return {
+            "human_annotators": human_annotators,
+            "provisional_annotators": provisional_annotators,
+            "available": False,
+            "note": (
+                "Requires at least one genuine human annotator (annotator_type=='human') "
+                "and at least one legacy_provisional_human annotator in the store."
+            ),
+        }
+
+    per_pair = {}
+    for human_id in human_annotators:
+        for provisional_id in provisional_annotators:
+            matched = _matched_status_pairs(store, human_id, provisional_id)
+            per_pair[f"{human_id}_vs_{provisional_id}"] = {
+                "human_annotator_id": human_id,
+                "provisional_annotator_id": provisional_id,
+                "n_matched": len(matched),
+                "percent_agreement": percent_agreement(matched),
+            }
+
+    return {
+        "human_annotators": human_annotators,
+        "provisional_annotators": provisional_annotators,
+        "available": True,
+        "methodology": (
+            "Percent agreement only, computed per (human, provisional) annotator pair. "
+            "Cohen's kappa is deliberately NOT reported here -- kappa is a measure of "
+            "inter-RATER reliability between two raters assumed to be independently "
+            "credible; the provisional side is a single, unreviewed Phase 2B annotator, "
+            "not validated ground truth, so a kappa value here would misleadingly imply "
+            "a formal reliability claim this comparison cannot support."
+        ),
+        "per_pair": per_pair,
     }

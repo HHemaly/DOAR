@@ -27,7 +27,16 @@ ONTOLOGY_VERSION = "phase2b_ontology_v1_10class"
 
 OBJECT_STATUSES = ANNOTATION_STATUSES  # {"present", "absent", "uncertain", "not_assessable"}
 
-ANNOTATOR_TYPES = frozenset({"human"})
+# "human" = a genuine Phase 2C.1 annotation event, produced through this
+# phase's own app by a real annotator/reviewer this session.
+# "legacy_provisional_human" = migrated from Phase 2B's single-annotator
+# pilot (artifacts/phase2b/annotation_manifest.csv) -- a real human did
+# produce the underlying judgment, but it is single-annotator,
+# review_status="unreviewed", and NEVER confirmed independent ground
+# truth. It must never be treated as a second genuine human annotator for
+# human-human inter-rater statistics (quality.py enforces this by
+# annotator_type, not by annotator_id string matching).
+ANNOTATOR_TYPES = frozenset({"human", "legacy_provisional_human"})
 
 REVIEW_STATUSES = frozenset({"unreviewed", "in_review", "reviewed"})
 
