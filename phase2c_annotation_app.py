@@ -134,8 +134,16 @@ if nav_cols[0].button("Previous", disabled=st.session_state[idx_key] <= 0):
 if nav_cols[1].button("Next", disabled=st.session_state[idx_key] >= len(pilot_ids) - 1):
     st.session_state[idx_key] += 1
     st.rerun()
-jump = nav_cols[2].number_input("Jump to image #", min_value=1, max_value=len(pilot_ids),
-                                 value=st.session_state[idx_key] + 1, key=f"jump_{mode}")
+jump = nav_cols[2].number_input(
+    "Jump to image #", min_value=1, max_value=len(pilot_ids),
+    value=st.session_state[idx_key] + 1,
+    # Keyed on the current index so that any programmatic index change
+    # (Next/Save & Next/Previous/First unannotated) creates a FRESH widget
+    # instance with `value=` correctly applied -- otherwise Streamlit keeps
+    # this widget's stale prior value across reruns and this code would
+    # immediately snap the index back to it, undoing the navigation.
+    key=f"jump_{mode}_{st.session_state[idx_key]}",
+)
 if jump - 1 != st.session_state[idx_key]:
     st.session_state[idx_key] = jump - 1
     st.rerun()
