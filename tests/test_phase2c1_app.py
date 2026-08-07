@@ -128,6 +128,41 @@ class PrimaryAnnotationSaveTests(_IsolatedAppTestCase):
         self.assertEqual(person_row["status"], "present")
         self.assertEqual(person_row["instance_count"], "1")
 
+    def test_bbox_entered_for_present_class_is_saved(self):
+        at = self._app()
+        at = self._set_annotator(at)
+        person_radio = [r for r in at.radio if (r.key or "").endswith("_person_status")][0]
+        person_radio.set_value("present")
+        at.run(timeout=60)
+        bbox_input = [t for t in at.text_input if (t.key or "").endswith("_person_bbox")][0]
+        bbox_input.set_value("0.1,0.2,0.3,0.4")
+        at.run(timeout=60)
+        save_buttons = [b for b in at.button if b.label == "Save"]
+        save_buttons[0].click()
+        at.run(timeout=60)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        rows = list(csv.DictReader(self.store_path.open(encoding="utf-8")))
+        person_row = [r for r in rows if r["class_name"] == "person"][0]
+        self.assertEqual(person_row["bbox"], "0.100000,0.200000,0.300000,0.400000")
+
+    def test_invalid_bbox_is_warned_and_not_saved(self):
+        at = self._app()
+        at = self._set_annotator(at)
+        person_radio = [r for r in at.radio if (r.key or "").endswith("_person_status")][0]
+        person_radio.set_value("present")
+        at.run(timeout=60)
+        bbox_input = [t for t in at.text_input if (t.key or "").endswith("_person_bbox")][0]
+        bbox_input.set_value("not,a,valid,bbox")
+        at.run(timeout=60)
+        self.assertTrue(len(at.warning) > 0)
+        save_buttons = [b for b in at.button if b.label == "Save"]
+        save_buttons[0].click()
+        at.run(timeout=60)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        rows = list(csv.DictReader(self.store_path.open(encoding="utf-8")))
+        person_row = [r for r in rows if r["class_name"] == "person"][0]
+        self.assertEqual(person_row["bbox"], "")
+
     def test_save_and_next_advances_image_index(self):
         at = self._app()
         at = self._set_annotator(at)

@@ -193,12 +193,31 @@ def _class_widgets(cls_name: str, key_prefix: str, existing: AnnotationRecord | 
         "Uncertainty reason", value=(existing.uncertainty_reason if existing else ""),
         key=f"{key_prefix}_reason", disabled=(status not in ("uncertain", "not_assessable")),
     )
+    existing_bbox_str = ",".join(f"{v:.3f}" for v in existing.bbox) if (existing and existing.bbox) else ""
+    bbox_str = st.text_input(
+        "Bounding box (optional): x,y,w,h -- normalized 0-1, e.g. 0.1,0.2,0.3,0.4",
+        value=existing_bbox_str, key=f"{key_prefix}_bbox", disabled=(status != "present"),
+    )
+    bbox_error = None
+    bbox = None
+    bbox_str = bbox_str.strip()
+    if status == "present" and bbox_str:
+        try:
+            parts = tuple(float(v) for v in bbox_str.split(","))
+            if len(parts) != 4 or any(not (0.0 <= v <= 1.0) for v in parts) or parts[2] <= 0 or parts[3] <= 0:
+                raise ValueError
+            bbox = parts
+        except ValueError:
+            bbox_error = "Bounding box must be 4 comma-separated numbers in [0, 1], e.g. 0.1,0.2,0.3,0.4"
+            st.warning(bbox_error)
     notes = st.text_input("Notes", value=(existing.notes if existing else ""), key=f"{key_prefix}_notes")
     return {
         "status": status,
         "instance_count": instance_count if status == "present" else 0,
         "partial_or_occluded": partial,
         "uncertainty_reason": uncertainty_reason,
+        "bbox": bbox,
+        "bbox_error": bbox_error,
         "notes": notes,
     }
 
@@ -208,7 +227,8 @@ def _build_record(pilot_id: str, cls_name: str, annotator_id: str, values: dict)
     return AnnotationRecord(
         pilot_id=pilot_id, image_id=image_id, source_image_group=source_image_group, class_name=cls_name,
         status=values["status"], annotator_id=annotator_id, annotation_timestamp=utc_now_iso(),
-        instance_count=values["instance_count"], partial_or_occluded=values["partial_or_occluded"],
+        instance_count=values["instance_count"], bbox=values.get("bbox"),
+        partial_or_occluded=values["partial_or_occluded"],
         uncertainty_reason=values["uncertainty_reason"], notes=values["notes"],
         source_manifest_version=workspace_mod.PILOT_MANIFEST_VERSION,
     )
