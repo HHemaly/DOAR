@@ -1,0 +1,40 @@
+{
+  "expansion_seed_stage_b": 20260809,
+  "selection_method": "select_expansion_sample (group-disjoint, non-conflicted, excludes Stage A image_ids, no emotion-label filtering)",
+  "stages": [
+    {
+      "stage": "A_current_dev_pilot",
+      "n_min": 80,
+      "n_max": 80,
+      "status": "already_exists",
+      "gate": "none -- reused as-is",
+      "note": "The existing Phase 2C.1 73-image dev-eligible cohort, used this phase to validate the schema/UI/proposal pipeline. Not resampled."
+    },
+    {
+      "stage": "B_first_expansion",
+      "n_min": 300,
+      "n_max": 500,
+      "status": "protocol_designed_not_executed",
+      "gate": "(1) 10-20 image feasibility pilot judged acceptable per target; (2) annotation UI/schema verified against the pilot; (3) this protocol reviewed and approved by the user.",
+      "note": "Drawn via select_expansion_sample() below from train/valid-eligible images only, excluding every image_id already used by Stage A, with a fixed, recorded seed. No proposal run or annotation begins until all three gates above are satisfied."
+    },
+    {
+      "stage": "C_larger_expansion",
+      "n_min": 1000,
+      "n_max": null,
+      "status": "conditional_not_designed_in_detail",
+      "gate": "Stage B's learning-curve (does per-class support keep changing rule-coverage conclusions as n grows?) and annotator-burden numbers justify continuing.",
+      "note": "Sizing/seed to be finalized after Stage B's readiness metrics exist -- not invented ahead of that evidence."
+    },
+    {
+      "stage": "D_remaining_dataset",
+      "n_min": null,
+      "n_max": null,
+      "status": "conditional_not_designed",
+      "gate": "Only if Stage C's results show continued scientific or practical value (e.g. rule-coverage or fine-tuning-readiness still improving with more data).",
+      "note": "Full 3,688-drawing corpus. No plan committed to this stage happening at all."
+    }
+  ],
+  "privacy": "Blinded pilot IDs assigned via phase2b.dataset.blind_copy_sample (frozen, unmodified); original source mapping stored only under outputs/ (gitignored); no drawing, mapping, or emotion-folder path is ever committed.",
+  "executed_this_phase": false
+}

@@ -1,0 +1,11 @@
+target,model,n_proposal_boxes,n_images_with_proposal,qualitative_read,go_no_go
+person,grounding_dino,41,14,"mostly correct, strong on multi-figure scenes",go
+person,owlv2,13,5,"correct where offered, lower recall than grounding_dino",go
+face,grounding_dino,29,13,"consistently reasonable, single and multi-figure",go
+face,owlv2,9,5,"reasonable where offered, lower recall",go
+eye,grounding_dino,16,9,"tight/correct on clear drawn faces, false positives on heart shapes in one image (p2b_0023)",go_with_review
+eye,owlv2,5,2,"tight/correct in every inspected case, including 2 correct boxes on a two-face image (p2b_0010)",go_with_review
+mouth,grounding_dino,5,3,"excellent on 2 clean/simple drawings (p2b_0010, p2b_0049), false positive on a hair ribbon in a third (p2b_0000)",go_with_heavy_review
+mouth,owlv2,5,4,"excellent on one clean drawing (p2b_0049), false positive on a crossed-arms/clothing region in another (p2b_0033)",go_with_heavy_review
+hand,grounding_dino,5,4,"small sample, plausible placements where offered",go_with_review
+hand,owlv2,5,2,4 boxes in one image (p2b_0043) reasonably placed near actual hand/wrist regions,go_with_review

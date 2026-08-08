@@ -1,0 +1,13 @@
+{
+  "note": "No live human annotation round has been run yet this phase -- the app/schema/store were built and tested (synthetic fixtures + a real feasibility pilot's model proposals), but a human annotator has not yet used phase2c5_part_annotation_app.py to produce a trusted-review pass. All counts below are therefore 0 by construction, not a data-quality problem -- this is the honest state at the end of this phase.",
+  "human_reviewed_images": 0,
+  "human_reviewed_target_judgments": 0,
+  "targets_defined": [
+    "eye",
+    "mouth",
+    "hand",
+    "face",
+    "person"
+  ],
+  "single_annotator_caveat": "N/A yet -- no annotator has used the tool. When one does, src/doar/phase2c5/quality.py::SINGLE_ANNOTATOR_CAVEAT applies."
+}
