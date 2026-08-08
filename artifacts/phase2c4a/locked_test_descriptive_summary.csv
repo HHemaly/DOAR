@@ -1,0 +1,5 @@
+model,cohort,n_classes_total,macro_f1,n_classes_included_f1,n_classes_excluded_f1,excluded_f1_classes,macro_balanced_accuracy,n_classes_included_bal_acc,n_classes_excluded_bal_acc,excluded_bal_acc_classes,low_support_classes
+owlv2,locked_test_descriptive_only,10,0.4567901234567901,9,1,circle,0.7523809523809524,7,3,person;face;circle,animal;house;tree;heart;star;circle;vehicle
+grounding_dino,locked_test_descriptive_only,10,0.5405779405779405,9,1,circle,0.6357142857142858,7,3,person;face;circle,animal;house;tree;heart;star;circle;vehicle
+florence2,locked_test_descriptive_only,10,0.5851851851851851,9,1,circle,0.5,7,3,person;face;circle,animal;house;tree;heart;star;circle;vehicle
+yolo_world,locked_test_descriptive_only,10,0.04938271604938272,9,1,circle,0.5,7,3,person;face;circle,animal;house;tree;heart;star;circle;vehicle

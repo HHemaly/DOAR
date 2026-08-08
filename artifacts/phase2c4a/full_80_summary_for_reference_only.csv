@@ -1,0 +1,5 @@
+model,cohort,n_classes_total,macro_f1,n_classes_included_f1,n_classes_excluded_f1,excluded_f1_classes,macro_balanced_accuracy,n_classes_included_bal_acc,n_classes_excluded_bal_acc,excluded_bal_acc_classes,low_support_classes
+owlv2,full_80,10,0.3732683982683983,10,0,,0.6424433849581929,10,0,,circle
+grounding_dino,full_80,10,0.3591005017441139,10,0,,0.6035058939264694,10,0,,circle
+yolo_world,full_80,10,0.0870641180957509,10,0,,0.5181470885906412,10,0,,circle
+florence2,full_80,10,0.3856805058714901,10,0,,0.5006756756756757,10,0,,circle

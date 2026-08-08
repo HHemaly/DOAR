@@ -1,0 +1,21 @@
+model,class_name,original_threshold,decision,frozen_threshold,dev_precision,dev_recall,dev_balanced_accuracy,dev_n_present,low_support,reason
+owlv2,person,0.1,calibrated,0.1,1.0,0.3076923076923077,0.6538461538461539,52,False,
+owlv2,face,0.1,calibrated,0.1,0.9642857142857143,0.421875,0.6553819444444444,64,False,
+owlv2,hand,0.1,calibrated,0.1,0.8,0.21052631578947367,0.5766917293233083,38,False,
+owlv2,animal,0.1,abstain,,,,,10,False,no candidate threshold reached precision >= 0.6
+owlv2,house,0.1,calibrated,0.1,1.0,0.6666666666666666,0.8333333333333333,12,False,
+owlv2,tree,0.1,calibrated,0.1,1.0,0.46153846153846156,0.7307692307692308,13,False,
+owlv2,heart,0.1,calibrated,0.35,1.0,0.25,0.625,4,True,
+owlv2,star,0.1,abstain,,,,,5,False,no candidate threshold reached precision >= 0.6
+owlv2,circle,0.1,abstain,,,,,4,True,no candidate threshold reached precision >= 0.6
+owlv2,vehicle,0.1,abstain,,,,,3,True,no candidate threshold reached precision >= 0.6
+grounding_dino,person,0.25,calibrated,0.25,0.84,0.8076923076923077,0.7133699633699634,52,False,
+grounding_dino,face,0.25,calibrated,0.25,0.9782608695652174,0.703125,0.7960069444444444,64,False,
+grounding_dino,hand,0.25,calibrated,0.25,0.9090909090909091,0.2631578947368421,0.6172932330827068,38,False,
+grounding_dino,animal,0.25,abstain,,,,,10,False,no candidate threshold reached precision >= 0.6
+grounding_dino,house,0.25,calibrated,0.4,0.6923076923076923,0.75,0.8422131147540983,12,False,
+grounding_dino,tree,0.25,calibrated,0.5,0.6363636363636364,0.5384615384615384,0.7353324641460235,13,False,
+grounding_dino,heart,0.25,abstain,,,,,4,True,no candidate threshold reached precision >= 0.6
+grounding_dino,star,0.25,abstain,,,,,5,False,no candidate threshold reached precision >= 0.6
+grounding_dino,circle,0.25,abstain,,,,,4,True,no candidate threshold reached precision >= 0.6
+grounding_dino,vehicle,0.25,abstain,,,,,3,True,no candidate threshold reached precision >= 0.6
