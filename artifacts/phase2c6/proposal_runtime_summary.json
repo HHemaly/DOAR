@@ -1,0 +1,16 @@
+{
+  "n_images_processed": 50,
+  "n_completed": 50,
+  "n_failed": 0,
+  "n_skipped_not_assessable": 0,
+  "mean_s_per_image": 40.1814,
+  "min_s_per_image": 14.96,
+  "max_s_per_image": 78.81,
+  "n_images_used_owlv2_fallback": 10,
+  "fallback_rate": 0.2,
+  "total_proposal_boxes": 369,
+  "mean_proposal_boxes_per_image": 7.38,
+  "projected_total_s_for_300_images": 12054.4,
+  "projected_total_hours_for_300_images": 3.35,
+  "note": "These are PROPOSAL counts, not accuracy -- accuracy requires human-reviewed ground truth, which does not yet exist for this expansion batch (see finetuning_readiness_criteria.json's n_reviewed_images=0)."
+}

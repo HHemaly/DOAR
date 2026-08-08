@@ -13,12 +13,15 @@ proposal only becomes a trusted annotation once you Accept, Edit, or add
 your own box, and Save records exactly which of those happened
 (schema.PartInstance.bbox_source).
 
-Box coordinates are entered as normalized x,y,w,h numbers (0-1), mirroring
-phase2c_annotation_app.py's own existing bbox text-input pattern. A visual
-click-and-drag canvas would be a real usability improvement here (e.g. the
-`streamlit-drawable-canvas` package) -- not added this phase without
-separate approval, since it is a new runtime dependency; see
-PHASE2C5_RULE_CRITICAL_ANNOTATION_REPORT.md's UI-status section.
+Phase 2C.6 upgrade: box editing is now a graphical click/drag/resize
+canvas (`streamlit-drawable-canvas`, MIT, see pyproject.toml's `phase2c6`
+extra for why this package and how coordinates are normalized --
+src/doar/phase2c6/canvas_helpers.py is the single place that converts
+between canvas pixel space and this project's normalized bbox
+convention). NOT interactively verified in a live browser this session
+(no browser access in this environment) -- see
+PHASE2C6_SCALABLE_ANNOTATION_REPORT.md's UI-verification section for what
+WAS verified (coordinate math, reconciliation logic, all unit-tested).
 """
 from __future__ import annotations
 
@@ -27,6 +30,8 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+from PIL import Image
+from streamlit_drawable_canvas import st_canvas
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -40,6 +45,7 @@ from doar.phase2c5.ontology import (  # noqa: E402
     TARGET_ALLOWED_ATTRIBUTE_KEYS, TARGETS_WITH_EXISTING_PRESENCE,
 )
 from doar.phase2c5.schema import PartAnnotationRecord, utc_now_iso  # noqa: E402
+from doar.phase2c6 import canvas_helpers as ch_mod  # noqa: E402
 
 IMAGES_DIR = Path(os.environ.get(
     "DOAR_PHASE2C1_IMAGES_DIR", str(ROOT / "outputs/phase2c1/private_images")))
@@ -79,7 +85,20 @@ proposals_by_key = helpers.load_proposals_csv(PROPOSALS_PATH)
 with st.sidebar:
     st.header("Annotator")
     annotator_id = st.text_input("Your annotator ID", key="annotator_id")
-    target_name = st.selectbox("Target", PART_TARGETS, key="target_name")
+    st.divider()
+    st.header("Target")
+    if "target_idx" not in st.session_state:
+        st.session_state["target_idx"] = 0
+    target_nav = st.columns([1, 1])
+    if target_nav[0].button("< Prev target", disabled=st.session_state["target_idx"] <= 0):
+        st.session_state["target_idx"] -= 1
+        st.rerun()
+    if target_nav[1].button("Next target >",
+                             disabled=st.session_state["target_idx"] >= len(PART_TARGETS) - 1):
+        st.session_state["target_idx"] += 1
+        st.rerun()
+    target_name = PART_TARGETS[st.session_state["target_idx"]]
+    st.write(f"**{target_name}** ({st.session_state['target_idx'] + 1}/{len(PART_TARGETS)})")
     st.divider()
     st.header("Progress")
     if annotator_id:
@@ -156,34 +175,68 @@ default_status = existing.status if existing else ("present" if st.session_state
 status = st.radio("Status", STATUS_ORDER, index=STATUS_ORDER.index(default_status),
                    format_func=lambda s: STATUS_LABELS[s], horizontal=True, key=f"status_{session_key}")
 
-instances = st.session_state[session_key]
+# `seeded_instances`: this session's fixed starting point (existing saved
+# instances, or proposal-seeded if none) -- never mutated, used only as
+# the reconciliation baseline. `working_key` holds the LIVE, editable list
+# the canvas reads from and writes back to every rerun.
+seeded_instances = st.session_state[session_key]
+working_key = f"working_{session_key}"
+if working_key not in st.session_state:
+    st.session_state[working_key] = list(seeded_instances)
+
 if status == "present":
-    st.write(f"**{len(instances)} instance(s)**")
-    for i, inst in enumerate(list(instances)):
-        cols = st.columns([1.2, 1, 1, 1, 1, 1.3, 0.8])
-        cols[0].caption(f"#{i} -- {inst.bbox_source}"
-                         + (f" ({inst.proposal_model})" if inst.proposal_model else ""))
-        x = cols[1].number_input("x", 0.0, 1.0, inst.bbox[0], key=f"{session_key}_{i}_x")
-        y = cols[2].number_input("y", 0.0, 1.0, inst.bbox[1], key=f"{session_key}_{i}_y")
-        w = cols[3].number_input("w", 0.0, 1.0, inst.bbox[2], key=f"{session_key}_{i}_w")
-        h = cols[4].number_input("h", 0.0, 1.0, inst.bbox[3], key=f"{session_key}_{i}_h")
-        new_bbox = (x, y, w, h)
-        if inst.bbox_source == "model_proposed":
-            if cols[5].button("Accept", key=f"{session_key}_{i}_accept"):
-                instances[i] = helpers.accept_proposal_instance(inst)
-                st.rerun()
-            elif new_bbox != inst.bbox:
-                instances[i] = helpers.edit_proposal_instance(inst, new_bbox)
-        elif new_bbox != inst.bbox:
-            instances[i] = helpers.edit_proposal_instance(inst, new_bbox) \
-                if inst.proposal_model else helpers.new_manual_instance(i, new_bbox)
-        if cols[6].button("Delete", key=f"{session_key}_{i}_del"):
-            st.session_state[session_key] = list(helpers.delete_instance(instances, i))
-            st.rerun()
-    if st.button("+ Add manual box", key=f"{session_key}_add"):
-        st.session_state[session_key].append(
-            helpers.new_manual_instance(len(instances), (0.1, 0.1, 0.2, 0.2)))
-        st.rerun()
+    if not (image_path and image_path.exists()):
+        st.error("Cannot open the image for box editing.")
+    else:
+        img = Image.open(image_path).convert("RGB")
+        disp_w, disp_h = ch_mod.compute_display_size(img.width, img.height)
+        img_resized = img.resize((disp_w, disp_h))
+
+        drawing_mode = st.radio(
+            "Canvas mode", ["transform", "rect"], horizontal=True, key=f"{session_key}_mode",
+            format_func=lambda m: "Move / resize / select / delete (canvas toolbar)"
+            if m == "transform" else "Draw new box")
+        st.caption("Dashed boxes are unreviewed model proposals; solid boxes are "
+                    "human-accepted/edited/drawn. The canvas's own toolbar (top-right of the "
+                    "canvas) provides undo/redo/delete/clear for in-progress edits.")
+
+        initial_drawing_key = f"{session_key}_initial_drawing"
+        if initial_drawing_key not in st.session_state:
+            st.session_state[initial_drawing_key] = ch_mod.build_initial_drawing(
+                seeded_instances, disp_w, disp_h)
+
+        canvas_result = st_canvas(
+            fill_color="rgba(0,0,0,0)", stroke_width=2, stroke_color="#3498db",
+            background_image=img_resized, height=disp_h, width=disp_w,
+            drawing_mode=drawing_mode, initial_drawing=st.session_state[initial_drawing_key],
+            update_streamlit=True, display_toolbar=True, key=f"{session_key}_canvas",
+        )
+
+        if canvas_result.json_data is not None:
+            canvas_boxes = [ch_mod.canvas_object_to_normalized_bbox(obj, disp_w, disp_h)
+                             for obj in canvas_result.json_data.get("objects", [])]
+            st.session_state[working_key] = list(
+                ch_mod.reconcile_canvas_session(canvas_boxes, seeded_instances))
+
+        working = st.session_state[working_key]
+        proposals_awaiting_review = [i for i in working if i.bbox_source == "model_proposed"]
+        if proposals_awaiting_review:
+            st.write("**Proposals awaiting review** (not saved until accepted or edited):")
+            for inst in proposals_awaiting_review:
+                cols = st.columns([3, 1, 1])
+                cols[0].caption(f"#{inst.instance_index} -- proposed by {inst.proposal_model}")
+                if cols[1].button("Accept as-is", key=f"{session_key}_{inst.instance_index}_accept"):
+                    idx = working.index(inst)
+                    working[idx] = helpers.accept_proposal_instance(inst)
+                    st.session_state[working_key] = working
+                    st.rerun()
+                if cols[2].button("Reject", key=f"{session_key}_{inst.instance_index}_reject"):
+                    st.session_state[working_key] = [i for i in working if i is not inst]
+                    st.rerun()
+
+        n_savable = len(ch_mod.savable_instances(tuple(working)))
+        st.caption(f"{len(working)} box(es) shown on canvas -- **{n_savable} will be saved** "
+                   "(unreviewed proposals are excluded until accepted/edited).")
 
 attributes = {}
 allowed_attrs = TARGET_ALLOWED_ATTRIBUTE_KEYS.get(target_name, frozenset())
@@ -208,10 +261,14 @@ if save_clicked or save_next_clicked:
     rec = PartAnnotationRecord(
         pilot_id=pilot_id, target_name=target_name, status=status,
         annotator_id=annotator_id, annotation_timestamp=utc_now_iso(),
-        instances=tuple(instances) if status == "present" else (),
+        instances=ch_mod.savable_instances(tuple(st.session_state[working_key]))
+        if status == "present" else (),
         attributes=attributes, uncertainty_reason=uncertainty_reason, notes=notes,
     )
     store_mod.upsert_and_save(STORE_PATH, store, rec)
+    st.session_state.pop(session_key, None)
+    st.session_state.pop(working_key, None)
+    st.session_state.pop(f"{session_key}_initial_drawing", None)
     st.success(f"Saved {target_name!r} for {pilot_id}.")
     if save_next_clicked:
         st.session_state[idx_key] += 1

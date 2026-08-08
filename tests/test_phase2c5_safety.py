@@ -152,11 +152,12 @@ class ProposalNeverGroundTruthTests(unittest.TestCase):
     def test_app_module_never_auto_accepts_proposals(self):
         """The app must require an explicit user action (an Accept button
         click) to move a box out of 'model_proposed' -- the call site must
-        be the line immediately following the button-click condition, not
-        called unconditionally at module scope."""
+        be inside the `if ...button("Accept...")` block (within a few
+        lines after it), not called unconditionally at module scope."""
         lines = (ROOT / "phase2c5_part_annotation_app.py").read_text(encoding="utf-8").splitlines()
         accept_idx = next(i for i, line in enumerate(lines) if "accept_proposal_instance(inst)" in line)
-        self.assertIn('cols[5].button("Accept"', lines[accept_idx - 1])
+        preceding_window = "\n".join(lines[max(0, accept_idx - 5):accept_idx])
+        self.assertIn('.button("Accept', preceding_window)
 
 
 class ProvenancePreservationTests(unittest.TestCase):

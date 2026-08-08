@@ -1,0 +1,64 @@
+{
+  "n_reviewed_images": 0,
+  "meets_image_floor": false,
+  "min_reviewed_images_threshold": 150,
+  "min_positive_instances_per_target_threshold": 40,
+  "min_bbox_coverage_among_present_threshold": 0.95,
+  "max_support_imbalance_ratio_threshold": 8.0,
+  "recommended_validation_split_images": 30,
+  "support_imbalance_ratio": null,
+  "meets_imbalance_ceiling": false,
+  "overall_ready": false,
+  "blocking_reasons": [
+    "only 0 images human-reviewed, need >= 150",
+    "eye: only 0 positive instances, need >= 40",
+    "mouth: only 0 positive instances, need >= 40",
+    "hand: only 0 positive instances, need >= 40",
+    "face: only 0 positive instances, need >= 40",
+    "person: only 0 positive instances, need >= 40",
+    "cannot compute support imbalance -- at least one target has zero positives",
+    "not enough reviewed images to also reserve a held-out validation split of >= 30 disjoint from training"
+  ],
+  "per_target": [
+    {
+      "target_name": "eye",
+      "n_present": 0,
+      "n_positive_instances": 0,
+      "bbox_coverage": null,
+      "meets_instance_floor": false,
+      "meets_bbox_coverage_floor": false
+    },
+    {
+      "target_name": "mouth",
+      "n_present": 0,
+      "n_positive_instances": 0,
+      "bbox_coverage": null,
+      "meets_instance_floor": false,
+      "meets_bbox_coverage_floor": false
+    },
+    {
+      "target_name": "hand",
+      "n_present": 0,
+      "n_positive_instances": 0,
+      "bbox_coverage": null,
+      "meets_instance_floor": false,
+      "meets_bbox_coverage_floor": false
+    },
+    {
+      "target_name": "face",
+      "n_present": 0,
+      "n_positive_instances": 0,
+      "bbox_coverage": null,
+      "meets_instance_floor": false,
+      "meets_bbox_coverage_floor": false
+    },
+    {
+      "target_name": "person",
+      "n_present": 0,
+      "n_positive_instances": 0,
+      "bbox_coverage": null,
+      "meets_instance_floor": false,
+      "meets_bbox_coverage_floor": false
+    }
+  ]
+}

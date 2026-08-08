@@ -19,6 +19,19 @@ embeddings = ["open-clip-torch>=2.26,<3"]
 # dependencies (custom modeling code + device_map loading), not a DOAR
 # choice.
 phase2c4 = ["transformers>=4.40,<5", "accelerate>=0.30,<1", "einops>=0.7,<1", "ultralytics>=8.1,<9"]
+# Phase 2C.6: graphical bounding-box editor for the part-annotation app.
+# streamlit-drawable-canvas (MIT, github.com/andfanilo/streamlit-drawable-
+# canvas) is a thin Streamlit custom component wrapping Fabric.js -- chosen
+# over alternatives (a hand-rolled JS component, or a fuller CV annotation
+# suite like label-studio) because it is the smallest, most widely-used
+# option that does exactly this one job (click/drag/resize/delete boxes on
+# an image) with no server-side component of its own. Its last PyPI release
+# (0.9.3) predates Streamlit 1.36+ and pins only `streamlit>=0.63` (no
+# upper bound) -- installs cleanly against this project's `streamlit>=1.36`
+# pin and imports without error, but has NOT been interactively verified in
+# a live browser this session (no browser access in this environment); see
+# PHASE2C6_SCALABLE_ANNOTATION_REPORT.md's UI-verification section.
+phase2c6 = ["streamlit-drawable-canvas>=0.9,<1"]
 
 [tool.ruff.lint]
 # Explicit, pinned to ruff's classic default selection (pycodestyle errors +

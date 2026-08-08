@@ -1,0 +1,36 @@
+{
+  "canvas_dependency": {
+    "package": "streamlit-drawable-canvas",
+    "version": "0.9.3",
+    "license": "MIT",
+    "verified_interactively_in_browser": false
+  },
+  "display_size": {
+    "min_dim": 400,
+    "max_dim": 800,
+    "aspect_ratio_preserving": true
+  },
+  "bbox_sources": [
+    "model_proposed",
+    "human_accepted",
+    "human_edited",
+    "human_drawn"
+  ],
+  "targets": [
+    "eye",
+    "mouth",
+    "hand",
+    "face",
+    "person"
+  ],
+  "eye_attributes": [
+    "eye_state",
+    "eye_detail"
+  ],
+  "navigation": [
+    "previous/next image",
+    "jump to image #",
+    "previous/next target"
+  ],
+  "undo": "provided by the canvas's own native toolbar (Fabric.js), not a separate app-level stack"
+}

@@ -1,0 +1,6 @@
+target,n_proposal_boxes,n_images_with_proposal,n_images_processed,proposal_rate
+eye,98,39,50,0.78
+mouth,36,24,50,0.48
+hand,40,22,50,0.44
+face,92,43,50,0.86
+person,103,42,50,0.84
