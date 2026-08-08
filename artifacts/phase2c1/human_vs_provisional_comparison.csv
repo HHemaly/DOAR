@@ -1,0 +1,12 @@
+class_name,n_compared,percent_agreement
+person,20,0.7500
+face,20,0.8500
+hand,20,0.4000
+animal,20,0.6000
+house,20,0.8500
+tree,20,0.7500
+heart,20,0.9000
+star,20,0.8000
+circle,20,0.7000
+vehicle,20,0.9500
+OVERALL,200,0.7550

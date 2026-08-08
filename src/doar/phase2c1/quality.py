@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
+from ..phase2b.evaluation import MIN_POSITIVE_SUPPORT
 from ..phase2b.ontology import CLASS_NAMES
 from .schema import AnnotationRecord, OBJECT_STATUSES
 
@@ -331,3 +332,250 @@ def compute_provisional_reference_comparison(store: dict[str, AnnotationRecord])
         ),
         "per_pair": per_pair,
     }
+
+
+def compute_human_vs_provisional_disagreements(store: dict[str, AnnotationRecord]) -> dict:
+    """Row-level companion to compute_provisional_reference_comparison:
+    the full disagreement table (one row per disagreeing (pilot_id,
+    class_name, human_annotator, provisional_annotator) judgment), plus
+    the specific present<->absent transition counts and an
+    uncertain/not_assessable-involvement count. Explicitly labeled
+    'human vs legacy provisional' throughout -- never inter-rater
+    reliability, never Cohen's kappa (see compute_provisional_reference_comparison
+    for why)."""
+    human_annotators = _distinct_human_annotators(store)
+    provisional_annotators = _distinct_provisional_annotators(store)
+
+    by_key: dict[tuple[str, str], dict[str, AnnotationRecord]] = defaultdict(dict)
+    for r in store.values():
+        if r.annotator_id in human_annotators or r.annotator_id in provisional_annotators:
+            by_key[(r.pilot_id, r.class_name)][r.annotator_id] = r
+
+    confusion: Counter = Counter()
+    disagreement_rows = []
+    n_compared = 0
+    n_agree = 0
+    per_class_pairs: dict[str, list[tuple[str, str]]] = defaultdict(list)
+
+    for (pilot_id, class_name), by_annotator in by_key.items():
+        for human_id in human_annotators:
+            for provisional_id in provisional_annotators:
+                h = by_annotator.get(human_id)
+                p = by_annotator.get(provisional_id)
+                if h is None or p is None:
+                    continue
+                n_compared += 1
+                confusion[(p.status, h.status)] += 1
+                per_class_pairs[class_name].append((p.status, h.status))
+                if h.status == p.status:
+                    n_agree += 1
+                else:
+                    disagreement_rows.append({
+                        "pilot_id": pilot_id,
+                        "class_name": class_name,
+                        "human_annotator_id": human_id,
+                        "provisional_annotator_id": provisional_id,
+                        "human_status": h.status,
+                        "provisional_status": p.status,
+                        "human_instance_count": h.instance_count,
+                        "provisional_instance_count": p.instance_count,
+                    })
+
+    present_to_absent = sum(
+        1 for r in disagreement_rows
+        if r["provisional_status"] == "present" and r["human_status"] == "absent"
+    )
+    absent_to_present = sum(
+        1 for r in disagreement_rows
+        if r["provisional_status"] == "absent" and r["human_status"] == "present"
+    )
+    uncertain_involved = sum(
+        1 for r in disagreement_rows
+        if "uncertain" in (r["human_status"], r["provisional_status"])
+        or "not_assessable" in (r["human_status"], r["provisional_status"])
+    )
+
+    per_class_agreement = {
+        cls: percent_agreement(pairs) for cls, pairs in per_class_pairs.items()
+    }
+    per_class_n_compared = {cls: len(pairs) for cls, pairs in per_class_pairs.items()}
+
+    return {
+        "human_annotators": human_annotators,
+        "provisional_annotators": provisional_annotators,
+        "n_compared": n_compared,
+        "n_agree": n_agree,
+        "n_disagree": len(disagreement_rows),
+        "overall_percent_agreement": (n_agree / n_compared) if n_compared else None,
+        "per_class_percent_agreement": per_class_agreement,
+        "per_class_n_compared": per_class_n_compared,
+        "confusion_counts": {f"provisional={p}_human={h}": c for (p, h), c in confusion.items()},
+        "provisional_present_to_human_absent": present_to_absent,
+        "provisional_absent_to_human_present": absent_to_present,
+        "disagreements_involving_uncertain_or_not_assessable": uncertain_involved,
+        "disagreement_rows": sorted(disagreement_rows, key=lambda r: (r["pilot_id"], r["class_name"])),
+        "label": "human vs legacy provisional comparison -- NOT inter-rater reliability",
+    }
+
+
+def build_integrity_report(store: dict[str, AnnotationRecord], *,
+                            expected_human_pilot_ids: list[str] | None = None,
+                            expected_provisional_pilot_ids: list[str] | None = None,
+                            expected_total_rows: int | None = None,
+                            expected_human_rows: int | None = None,
+                            expected_provisional_rows: int | None = None) -> dict:
+    """Structural integrity report for Stage F/post-annotation review.
+    Everything here re-derives from the already-loaded (and therefore
+    already schema-validated -- AnnotationRecord.__post_init__ would have
+    raised on any invalid status/count/bbox combination) store; this
+    function adds the checks that validation alone can't catch: exact
+    row/pilot counts, per-image class completeness, duplicate keys, and
+    unknown annotator types.
+
+    The expected_* counts are optional and unspecified by default -- this
+    function is deliberately reusable for any store size, not hardcoded to
+    one round's numbers (e.g. this round's 1000/800/200). Callers who know
+    what to expect (e.g. a specific annotation round) should pass them
+    explicitly to get the corresponding check."""
+    from .schema import ANNOTATOR_TYPES, validate_image_complete
+
+    human_rows = [r for r in store.values() if r.annotator_type == "human"]
+    provisional_rows = [r for r in store.values() if r.annotator_type == "legacy_provisional_human"]
+    other_type_rows = [r for r in store.values()
+                        if r.annotator_type not in ("human", "legacy_provisional_human")]
+
+    human_pilot_ids = sorted({r.pilot_id for r in human_rows})
+    provisional_pilot_ids = sorted({r.pilot_id for r in provisional_rows})
+
+    incomplete_human = {}
+    for pid in human_pilot_ids:
+        for annotator_id in {r.annotator_id for r in human_rows if r.pilot_id == pid}:
+            missing = validate_image_complete(human_rows, pid, annotator_id)
+            if missing:
+                incomplete_human[f"{pid}__{annotator_id}"] = missing
+    incomplete_provisional = {}
+    for pid in provisional_pilot_ids:
+        for annotator_id in {r.annotator_id for r in provisional_rows if r.pilot_id == pid}:
+            missing = validate_image_complete(provisional_rows, pid, annotator_id)
+            if missing:
+                incomplete_provisional[f"{pid}__{annotator_id}"] = missing
+
+    annotation_ids = [r.annotation_id for r in store.values()]
+    duplicate_ids = sorted({aid for aid in annotation_ids if annotation_ids.count(aid) > 1})
+
+    unknown_types = sorted({r.annotator_type for r in store.values()} - set(ANNOTATOR_TYPES))
+    blank_image_id = [r.annotation_id for r in store.values() if not r.image_id.strip()]
+    blank_group = [r.annotation_id for r in store.values() if not r.source_image_group.strip()]
+
+    checks = {
+        "no_other_annotator_types": len(other_type_rows) == 0,
+        "no_duplicate_annotation_ids": len(duplicate_ids) == 0,
+        "no_unknown_annotator_types": len(unknown_types) == 0,
+        "no_blank_image_id": len(blank_image_id) == 0,
+        "no_blank_source_image_group": len(blank_group) == 0,
+        "every_human_image_has_all_10_classes": len(incomplete_human) == 0,
+        "every_provisional_image_has_all_10_classes": len(incomplete_provisional) == 0,
+    }
+    if expected_total_rows is not None:
+        checks["total_rows_matches_expected"] = len(store) == expected_total_rows
+    if expected_human_rows is not None:
+        checks["human_rows_matches_expected"] = len(human_rows) == expected_human_rows
+    if expected_provisional_rows is not None:
+        checks["provisional_rows_matches_expected"] = len(provisional_rows) == expected_provisional_rows
+    if expected_human_pilot_ids is not None:
+        checks["human_pilot_ids_match_expected"] = human_pilot_ids == sorted(expected_human_pilot_ids)
+    if expected_provisional_pilot_ids is not None:
+        checks["provisional_pilot_ids_match_expected"] = (
+            provisional_pilot_ids == sorted(expected_provisional_pilot_ids)
+        )
+
+    return {
+        "total_rows": len(store),
+        "n_human_rows": len(human_rows),
+        "n_provisional_rows": len(provisional_rows),
+        "n_other_type_rows": len(other_type_rows),
+        "n_unique_human_pilot_ids": len(human_pilot_ids),
+        "n_unique_provisional_pilot_ids": len(provisional_pilot_ids),
+        "human_pilot_ids": human_pilot_ids,
+        "provisional_pilot_ids": provisional_pilot_ids,
+        "duplicate_annotation_ids": duplicate_ids,
+        "unknown_annotator_types": unknown_types,
+        "incomplete_human_images": incomplete_human,
+        "incomplete_provisional_images": incomplete_provisional,
+        "blank_image_id_rows": blank_image_id,
+        "blank_source_image_group_rows": blank_group,
+        "checks": checks,
+        "all_checks_passed": all(checks.values()),
+        "note": (
+            "Status/instance_count/bbox validity is enforced structurally by "
+            "AnnotationRecord.__post_init__ at load time (store.load_store), not "
+            "re-checked here -- an invalid combination would have raised before "
+            "this function could even be called, so 'the store loaded successfully' "
+            "already proves that dimension."
+        ),
+    }
+
+
+# Readiness tiers, applied in this priority order. Defined independently of
+# any detector/model output -- these thresholds are fixed here, in code,
+# before being applied to this round's real counts, not chosen afterward to
+# fit a result. MIN_POSITIVE_SUPPORT (5) reuses Phase 2B's own existing,
+# documented convention (docs/PHASE2B_ANNOTATION_PROTOCOL.md); the other two
+# are new, Phase 2C.1-specific thresholds, stated explicitly rather than
+# implied.
+EVALUATION_SUPPORTED_MIN_POSITIVE = 20  # enough for a reasonably tight 95% CI at n=80 images
+HIGH_UNCERTAINTY_RATE = 0.15  # >15% of images uncertain/not_assessable for this class
+
+
+def classify_detector_readiness(support: dict[str, dict[str, int]], n_images: int) -> dict[str, dict]:
+    """Classifies each class into exactly one readiness tier from real
+    human annotation counts only (never from any detector/model output):
+
+    - 'high_uncertainty': annotator couldn't confidently judge this class
+      in > HIGH_UNCERTAINTY_RATE of images -- any support number for it is
+      suspect regardless of count.
+    - 'insufficient_positive_support': n_present < MIN_POSITIVE_SUPPORT (5).
+    - 'evaluation_supported': n_present >= EVALUATION_SUPPORTED_MIN_POSITIVE (20).
+    - 'exploratory_only': everything else (5 <= n_present < 20).
+
+    Checked in that order, so a class that is both low-support AND
+    high-uncertainty is reported as high_uncertainty (the more fundamental
+    problem -- more annotation wouldn't help until the class definition/
+    ambiguity itself is addressed).
+    """
+    out = {}
+    for cls, counts in support.items():
+        n_present = counts.get("present", 0)
+        n_uncertain_total = counts.get("uncertain", 0) + counts.get("not_assessable", 0)
+        uncertainty_rate = (n_uncertain_total / n_images) if n_images else 0.0
+
+        if uncertainty_rate > HIGH_UNCERTAINTY_RATE:
+            tier = "high_uncertainty"
+            rationale = (
+                f"{n_uncertain_total}/{n_images} images ({uncertainty_rate:.1%}) could not be "
+                f"confidently judged for this class -- above the {HIGH_UNCERTAINTY_RATE:.0%} bar."
+            )
+        elif n_present < MIN_POSITIVE_SUPPORT:
+            tier = "insufficient_positive_support"
+            rationale = f"Only {n_present} positive example(s), below the minimum of {MIN_POSITIVE_SUPPORT}."
+        elif n_present >= EVALUATION_SUPPORTED_MIN_POSITIVE:
+            tier = "evaluation_supported"
+            rationale = (
+                f"{n_present} positive examples -- enough for a descriptive precision/recall/"
+                f"ranking-separation evaluation with a reasonably informative 95% CI at n={n_images}."
+            )
+        else:
+            tier = "exploratory_only"
+            rationale = (
+                f"{n_present} positive examples -- above the minimum-support floor but below "
+                f"the {EVALUATION_SUPPORTED_MIN_POSITIVE}-positive bar for a confident evaluation; "
+                "any metric computed for this class should be treated as directional, not final."
+            )
+        out[cls] = {
+            "readiness_tier": tier,
+            "rationale": rationale,
+            "n_present": n_present,
+            "n_uncertain_total": n_uncertain_total,
+            "uncertainty_rate": uncertainty_rate,
+        }
+    return out

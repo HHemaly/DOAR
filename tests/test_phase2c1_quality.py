@@ -256,5 +256,152 @@ class ClassSupportTests(unittest.TestCase):
         self.assertEqual(support["person"]["absent"], 1)
 
 
+class HumanVsProvisionalDisagreementsTests(unittest.TestCase):
+    def test_agreement_and_disagreement_counted_correctly(self):
+        st = {}
+        # Agree: both present.
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="person", annotator_id="human1",
+                                   annotator_type="human", status="present", instance_count=1))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="person", annotator_id="legacy",
+                                   annotator_type="legacy_provisional_human", status="present", instance_count=1))
+        # Disagree: provisional=present, human=absent.
+        store_mod.upsert(st, _rec(pilot_id="p2b_0001", class_name="face", annotator_id="human1",
+                                   annotator_type="human", status="absent", instance_count=0))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0001", class_name="face", annotator_id="legacy",
+                                   annotator_type="legacy_provisional_human", status="present", instance_count=2))
+        # Disagree: provisional=absent, human=present.
+        store_mod.upsert(st, _rec(pilot_id="p2b_0002", class_name="hand", annotator_id="human1",
+                                   annotator_type="human", status="present", instance_count=1))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0002", class_name="hand", annotator_id="legacy",
+                                   annotator_type="legacy_provisional_human", status="absent", instance_count=0))
+        result = quality_mod.compute_human_vs_provisional_disagreements(st)
+        self.assertEqual(result["n_compared"], 3)
+        self.assertEqual(result["n_agree"], 1)
+        self.assertEqual(result["n_disagree"], 2)
+        self.assertEqual(result["overall_percent_agreement"], 1 / 3)
+        self.assertEqual(result["provisional_present_to_human_absent"], 1)
+        self.assertEqual(result["provisional_absent_to_human_present"], 1)
+        self.assertEqual(result["label"], "human vs legacy provisional comparison -- NOT inter-rater reliability")
+        self.assertEqual(len(result["disagreement_rows"]), 2)
+        self.assertEqual(result["per_class_n_compared"], {"person": 1, "face": 1, "hand": 1})
+
+    def test_uncertain_involvement_counted(self):
+        st = {}
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="star", annotator_id="human1",
+                                   annotator_type="human", status="absent", instance_count=0))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="star", annotator_id="legacy",
+                                   annotator_type="legacy_provisional_human", status="uncertain",
+                                   instance_count=0, uncertainty_reason="ambiguous"))
+        result = quality_mod.compute_human_vs_provisional_disagreements(st)
+        self.assertEqual(result["disagreements_involving_uncertain_or_not_assessable"], 1)
+
+    def test_no_human_or_no_provisional_yields_zero_compared(self):
+        st = {}
+        store_mod.upsert(st, _rec(annotator_id="human1", annotator_type="human"))
+        result = quality_mod.compute_human_vs_provisional_disagreements(st)
+        self.assertEqual(result["n_compared"], 0)
+        self.assertIsNone(result["overall_percent_agreement"])
+
+    def test_disagreement_rows_never_touch_agreeing_pairs(self):
+        st = {}
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="person", annotator_id="human1",
+                                   annotator_type="human", status="present", instance_count=1))
+        store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name="person", annotator_id="legacy",
+                                   annotator_type="legacy_provisional_human", status="present", instance_count=1))
+        result = quality_mod.compute_human_vs_provisional_disagreements(st)
+        self.assertEqual(result["disagreement_rows"], [])
+
+
+class DetectorReadinessClassificationTests(unittest.TestCase):
+    def _support(self, present=0, absent=0, uncertain=0, not_assessable=0):
+        return {"present": present, "absent": absent, "uncertain": uncertain, "not_assessable": not_assessable}
+
+    def test_insufficient_positive_support(self):
+        support = {"circle": self._support(present=4, absent=76)}
+        result = quality_mod.classify_detector_readiness(support, n_images=80)
+        self.assertEqual(result["circle"]["readiness_tier"], "insufficient_positive_support")
+
+    def test_exploratory_only(self):
+        support = {"heart": self._support(present=10, absent=70)}
+        result = quality_mod.classify_detector_readiness(support, n_images=80)
+        self.assertEqual(result["heart"]["readiness_tier"], "exploratory_only")
+
+    def test_evaluation_supported(self):
+        support = {"person": self._support(present=59, absent=21)}
+        result = quality_mod.classify_detector_readiness(support, n_images=80)
+        self.assertEqual(result["person"]["readiness_tier"], "evaluation_supported")
+
+    def test_boundary_exactly_at_min_positive_support_is_not_insufficient(self):
+        support = {"x": self._support(present=quality_mod.MIN_POSITIVE_SUPPORT, absent=75)}
+        result = quality_mod.classify_detector_readiness(support, n_images=80)
+        self.assertNotEqual(result["x"]["readiness_tier"], "insufficient_positive_support")
+
+    def test_boundary_exactly_at_evaluation_supported_threshold(self):
+        support = {"x": self._support(present=quality_mod.EVALUATION_SUPPORTED_MIN_POSITIVE, absent=60)}
+        result = quality_mod.classify_detector_readiness(support, n_images=80)
+        self.assertEqual(result["x"]["readiness_tier"], "evaluation_supported")
+
+    def test_high_uncertainty_overrides_positive_count(self):
+        # High positive count, but also very high uncertainty rate -- should
+        # still be flagged high_uncertainty, not evaluation_supported.
+        support = {"x": self._support(present=30, absent=20, uncertain=30)}
+        result = quality_mod.classify_detector_readiness(support, n_images=80)
+        self.assertEqual(result["x"]["readiness_tier"], "high_uncertainty")
+
+    def test_not_assessable_also_counts_toward_uncertainty_rate(self):
+        support = {"x": self._support(present=5, absent=10, not_assessable=65)}
+        result = quality_mod.classify_detector_readiness(support, n_images=80)
+        self.assertEqual(result["x"]["readiness_tier"], "high_uncertainty")
+
+    def test_uses_min_positive_support_from_phase2b_evaluation_module(self):
+        """Pins that this reuses Phase 2B's existing convention rather than
+        inventing a new number."""
+        from doar.phase2b.evaluation import MIN_POSITIVE_SUPPORT
+        self.assertEqual(quality_mod.MIN_POSITIVE_SUPPORT, MIN_POSITIVE_SUPPORT)
+
+
+class BuildIntegrityReportTests(unittest.TestCase):
+    def _complete_image(self, st, pilot_id, annotator_id, annotator_type):
+        from doar.phase2b.ontology import CLASS_NAMES
+        for cls in CLASS_NAMES:
+            status = "present" if cls == "person" else "absent"
+            store_mod.upsert(st, _rec(pilot_id=pilot_id, class_name=cls, annotator_id=annotator_id,
+                                       annotator_type=annotator_type, status=status,
+                                       instance_count=1 if status == "present" else 0))
+
+    def test_all_checks_pass_on_a_clean_store(self):
+        st = {}
+        self._complete_image(st, "p2b_0000", "human1", "human")
+        self._complete_image(st, "p2b_0000", "legacy", "legacy_provisional_human")
+        report = quality_mod.build_integrity_report(st)
+        self.assertTrue(report["all_checks_passed"])
+        self.assertEqual(report["n_human_rows"], 10)
+        self.assertEqual(report["n_provisional_rows"], 10)
+
+    def test_incomplete_image_detected(self):
+        st = {}
+        # Only 9 of 10 classes.
+        from doar.phase2b.ontology import CLASS_NAMES
+        for cls in CLASS_NAMES[:-1]:
+            store_mod.upsert(st, _rec(pilot_id="p2b_0000", class_name=cls, annotator_id="human1",
+                                       annotator_type="human", status="absent", instance_count=0))
+        report = quality_mod.build_integrity_report(st)
+        self.assertFalse(report["all_checks_passed"])
+        self.assertFalse(report["checks"]["every_human_image_has_all_10_classes"])
+        self.assertIn("p2b_0000__human1", report["incomplete_human_images"])
+
+    def test_expected_pilot_id_mismatch_detected(self):
+        st = {}
+        self._complete_image(st, "p2b_0000", "human1", "human")
+        report = quality_mod.build_integrity_report(st, expected_human_pilot_ids=["p2b_9999"])
+        self.assertFalse(report["checks"]["human_pilot_ids_match_expected"])
+        self.assertFalse(report["all_checks_passed"])
+
+    def test_status_validity_note_present(self):
+        report = quality_mod.build_integrity_report({})
+        self.assertIn("note", report)
+        self.assertIn("__post_init__", report["note"])
+
+
 if __name__ == "__main__":
     unittest.main()

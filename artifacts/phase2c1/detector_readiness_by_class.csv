@@ -1,0 +1,11 @@
+class_name,readiness_tier,n_present,uncertainty_rate,rationale
+person,evaluation_supported,59,0.0000,59 positive examples -- enough for a descriptive precision/recall/ranking-separation evaluation with a reasonably informative 95% CI at n=80.
+face,evaluation_supported,71,0.0000,71 positive examples -- enough for a descriptive precision/recall/ranking-separation evaluation with a reasonably informative 95% CI at n=80.
+hand,evaluation_supported,43,0.0000,43 positive examples -- enough for a descriptive precision/recall/ranking-separation evaluation with a reasonably informative 95% CI at n=80.
+animal,exploratory_only,13,0.0000,"13 positive examples -- above the minimum-support floor but below the 20-positive bar for a confident evaluation; any metric computed for this class should be treated as directional, not final."
+house,exploratory_only,14,0.0000,"14 positive examples -- above the minimum-support floor but below the 20-positive bar for a confident evaluation; any metric computed for this class should be treated as directional, not final."
+tree,exploratory_only,15,0.0125,"15 positive examples -- above the minimum-support floor but below the 20-positive bar for a confident evaluation; any metric computed for this class should be treated as directional, not final."
+heart,exploratory_only,5,0.0000,"5 positive examples -- above the minimum-support floor but below the 20-positive bar for a confident evaluation; any metric computed for this class should be treated as directional, not final."
+star,exploratory_only,6,0.0000,"6 positive examples -- above the minimum-support floor but below the 20-positive bar for a confident evaluation; any metric computed for this class should be treated as directional, not final."
+circle,insufficient_positive_support,4,0.0000,"Only 4 positive example(s), below the minimum of 5."
+vehicle,exploratory_only,5,0.0000,"5 positive examples -- above the minimum-support floor but below the 20-positive bar for a confident evaluation; any metric computed for this class should be treated as directional, not final."

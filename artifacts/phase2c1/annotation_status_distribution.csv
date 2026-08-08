@@ -1,0 +1,12 @@
+metric,key,count,percentage_of_human_rows
+status_total,absent,564,0.7050
+status_total,not_assessable,0,0.0000
+status_total,present,235,0.2938
+status_total,uncertain,1,0.0013
+classes_present_per_image,1,11,0.1375
+classes_present_per_image,2,21,0.2625
+classes_present_per_image,3,26,0.3250
+classes_present_per_image,4,12,0.1500
+classes_present_per_image,5,6,0.0750
+classes_present_per_image,6,3,0.0375
+classes_present_per_image,8,1,0.0125
