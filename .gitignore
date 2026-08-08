@@ -7,3 +7,9 @@ outputs/
 .pytest_cache/
 .ruff_cache/
 *.log
+
+# Phase 2C.4: model checkpoints Ultralytics/transformers download to the
+# repo root by default (YOLO-World weights + its auto-installed CLIP text
+# encoder) -- large binaries, never source, always re-downloadable.
+/weights/
+*.pt

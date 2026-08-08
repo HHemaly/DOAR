@@ -1,0 +1,10 @@
+{
+  "models_evaluated": [
+    "owlv2",
+    "grounding_dino",
+    "florence2",
+    "yolo_world"
+  ],
+  "n_result_rows": 120,
+  "output_dir": "C:\\Users\\ZZ01G7865\\Downloads\\DOAR\\DOAR-work\\artifacts\\phase2c4"
+}

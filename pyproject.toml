@@ -12,6 +12,13 @@ ingest = ["pypdf>=4"]
 ui = ["streamlit>=1.36,<2"]
 deep = ["torch>=2.2,<3", "torchvision>=0.17,<1"]
 embeddings = ["open-clip-torch>=2.26,<3"]
+# Phase 2C.4: open-vocabulary detector benchmark (Grounding DINO, OWLv2,
+# Florence-2 via `transformers`; YOLO-World via `ultralytics`). Heavy,
+# optional, local-only -- never required by CI (ci.yml installs only
+# cv/dev/ml). einops/accelerate are Florence-2's own documented runtime
+# dependencies (custom modeling code + device_map loading), not a DOAR
+# choice.
+phase2c4 = ["transformers>=4.40,<5", "accelerate>=0.30,<1", "einops>=0.7,<1", "ultralytics>=8.1,<9"]
 
 [tool.ruff.lint]
 # Explicit, pinned to ruff's classic default selection (pycodestyle errors +
