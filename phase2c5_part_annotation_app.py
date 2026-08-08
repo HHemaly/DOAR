@@ -18,10 +18,16 @@ canvas (`streamlit-drawable-canvas`, MIT, see pyproject.toml's `phase2c6`
 extra for why this package and how coordinates are normalized --
 src/doar/phase2c6/canvas_helpers.py is the single place that converts
 between canvas pixel space and this project's normalized bbox
-convention). NOT interactively verified in a live browser this session
-(no browser access in this environment) -- see
-PHASE2C6_SCALABLE_ANNOTATION_REPORT.md's UI-verification section for what
-WAS verified (coordinate math, reconciliation logic, all unit-tested).
+convention).
+
+Phase 2C.6 fix: `streamlit-drawable-canvas` 0.9.3 (archived upstream)
+calls a Streamlit internal function, `streamlit.elements.image.
+image_to_url`, that no longer exists at that location in Streamlit
+1.61.1 (relocated + reshaped). `doar.phase2c6.canvas_compat.apply()`
+below installs a small, documented adapter for exactly that one function
+before the canvas is ever rendered -- see canvas_compat.py's own
+docstring for the full root-cause writeup. This IS interactively
+verified in a live browser -- see PHASE2C6_CANVAS_COMPAT_FIX.md.
 """
 from __future__ import annotations
 
@@ -31,7 +37,6 @@ from pathlib import Path
 
 import streamlit as st
 from PIL import Image
-from streamlit_drawable_canvas import st_canvas
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -45,7 +50,11 @@ from doar.phase2c5.ontology import (  # noqa: E402
     TARGET_ALLOWED_ATTRIBUTE_KEYS, TARGETS_WITH_EXISTING_PRESENCE,
 )
 from doar.phase2c5.schema import PartAnnotationRecord, utc_now_iso  # noqa: E402
+from doar.phase2c6 import canvas_compat  # noqa: E402
 from doar.phase2c6 import canvas_helpers as ch_mod  # noqa: E402
+
+canvas_compat.apply()  # must run before streamlit_drawable_canvas's st_canvas is ever called
+from streamlit_drawable_canvas import st_canvas  # noqa: E402
 
 IMAGES_DIR = Path(os.environ.get(
     "DOAR_PHASE2C1_IMAGES_DIR", str(ROOT / "outputs/phase2c1/private_images")))
