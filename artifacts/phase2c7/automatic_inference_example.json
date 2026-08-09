@@ -1,0 +1,597 @@
+[
+  {
+    "pilot_id": "p2b_0000",
+    "records": [
+      {
+        "target": "person",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.41166847944259644,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "face",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.46840453147888184,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "hand",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "tree",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.28599438071250916,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.5,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "house",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.3247189223766327,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.4,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "heart",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "owlv2_object_classes",
+        "checkpoint": "google/owlv2-base-patch16-ensemble",
+        "threshold": 0.35,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "animal",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.3383534252643585,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "star",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.35656777024269104,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "mouth",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_parts",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "eye",
+        "present": true,
+        "bbox": [
+          0.3310522556304932,
+          0.21411726474761963,
+          0.07013764381408691,
+          0.032254576683044434
+        ],
+        "confidence": 0.26962921023368835,
+        "model": "grounding_dino_parts+owlv2_parts_fallback",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny + google/owlv2-base-patch16-ensemble (fallback)",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      }
+    ]
+  },
+  {
+    "pilot_id": "p2b_0016",
+    "records": [
+      {
+        "target": "person",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "face",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.2891726791858673,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "hand",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "tree",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.3294038772583008,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.5,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "house",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.4,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "heart",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "owlv2_object_classes",
+        "checkpoint": "google/owlv2-base-patch16-ensemble",
+        "threshold": 0.35,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "animal",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "star",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "mouth",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_parts",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "eye",
+        "present": true,
+        "bbox": [
+          0.4537665843963623,
+          0.6162961006164551,
+          0.13213109970092773,
+          0.10526084899902344
+        ],
+        "confidence": 0.27696749567985535,
+        "model": "grounding_dino_parts+owlv2_parts_fallback",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny + google/owlv2-base-patch16-ensemble (fallback)",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      }
+    ]
+  },
+  {
+    "pilot_id": "p2b_0030",
+    "records": [
+      {
+        "target": "person",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "face",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "hand",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "tree",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.4853192865848541,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.5,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "house",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.2592279016971588,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.4,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "heart",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "owlv2_object_classes",
+        "checkpoint": "google/owlv2-base-patch16-ensemble",
+        "threshold": 0.35,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "animal",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.3084404468536377,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "star",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.3139115869998932,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "mouth",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_parts",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "eye",
+        "present": true,
+        "bbox": [
+          0.15024688243865966,
+          0.1367784857749939,
+          0.6152323007583618,
+          0.39414345026016234
+        ],
+        "confidence": 0.26542797684669495,
+        "model": "grounding_dino_parts+owlv2_parts_fallback",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny + google/owlv2-base-patch16-ensemble (fallback)",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      }
+    ]
+  },
+  {
+    "pilot_id": "p2b_0044",
+    "records": [
+      {
+        "target": "person",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.46480226516723633,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "face",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "hand",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "tree",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.3937124013900757,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.5,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "house",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.4,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "heart",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "owlv2_object_classes",
+        "checkpoint": "google/owlv2-base-patch16-ensemble",
+        "threshold": 0.35,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "animal",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "star",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "mouth",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_parts",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "eye",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_parts+owlv2_parts_fallback",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny + google/owlv2-base-patch16-ensemble (fallback)",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      }
+    ]
+  },
+  {
+    "pilot_id": "p2b_0060",
+    "records": [
+      {
+        "target": "person",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "face",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.288042277097702,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "hand",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "tree",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.26988717913627625,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.5,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "house",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.4,
+        "validation_status": "VALIDATED_AUTOMATIC",
+        "evidence_status": "validated_evidence"
+      },
+      {
+        "target": "heart",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "owlv2_object_classes",
+        "checkpoint": "google/owlv2-base-patch16-ensemble",
+        "threshold": 0.35,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "animal",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.2514708340167999,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "star",
+        "present": true,
+        "bbox": null,
+        "confidence": 0.254676878452301,
+        "model": "grounding_dino_object_classes",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "mouth",
+        "present": false,
+        "bbox": null,
+        "confidence": 0.0,
+        "model": "grounding_dino_parts",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      },
+      {
+        "target": "eye",
+        "present": true,
+        "bbox": [
+          0.26598900335806386,
+          0.2965717233813372,
+          0.17878484725952148,
+          0.16732211788324838
+        ],
+        "confidence": 0.3976795971393585,
+        "model": "grounding_dino_parts+owlv2_parts_fallback",
+        "checkpoint": "IDEA-Research/grounding-dino-tiny + google/owlv2-base-patch16-ensemble (fallback)",
+        "threshold": 0.25,
+        "validation_status": "EXPERIMENTAL_AUTOMATIC",
+        "evidence_status": "experimental_evidence_technical_view_only"
+      }
+    ]
+  }
+]

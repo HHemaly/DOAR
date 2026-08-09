@@ -1,0 +1,102 @@
+{
+  "frozen_model": "combination",
+  "frozen_status": "EXPERIMENTAL_AUTOMATIC",
+  "dev_split_n": 170,
+  "holdout_split_n": 43,
+  "seed": 20260809,
+  "dev_fraction": 0.8,
+  "dev_result": {
+    "model": "combination",
+    "n_usable_images": 169,
+    "n_present": 128,
+    "n_absent": 22,
+    "n_uncertain": 19,
+    "n_not_assessable": 0,
+    "tp": 93,
+    "fp": 13,
+    "fn": 35,
+    "tn": 9,
+    "precision": 0.8773584905660378,
+    "recall": 0.7265625,
+    "specificity": 0.4090909090909091,
+    "balanced_accuracy": 0.5678267045454546,
+    "localization": {
+      "n_gt_boxes_total": 261,
+      "n_gt_boxes_in_images_with_predictions": 177,
+      "n_iou_values": 177,
+      "mean_iou": 0.1375201259055354,
+      "median_iou": 3.7889234101372235e-05,
+      "min_iou": 0.0,
+      "max_iou": 0.8603500206185575,
+      "success_rate_by_threshold": {
+        "0.3": 0.1638418079096045,
+        "0.5": 0.07909604519774012
+      }
+    },
+    "instance_diagnostics": {
+      "n_present_images": 128,
+      "n_correct_count": 30,
+      "n_under_detected": 59,
+      "n_over_detected": 39,
+      "n_zero_predictions": 35,
+      "correct_count_rate": 0.234375,
+      "under_detection_rate": 0.4609375,
+      "over_detection_rate": 0.3046875
+    }
+  },
+  "holdout_result": {
+    "model": "combination",
+    "n_usable_images": 42,
+    "n_present": 35,
+    "n_absent": 2,
+    "n_uncertain": 5,
+    "n_not_assessable": 0,
+    "tp": 31,
+    "fp": 1,
+    "fn": 4,
+    "tn": 1,
+    "precision": 0.96875,
+    "recall": 0.8857142857142857,
+    "specificity": 0.5,
+    "balanced_accuracy": 0.6928571428571428,
+    "localization": {
+      "n_gt_boxes_total": 69,
+      "n_gt_boxes_in_images_with_predictions": 63,
+      "n_iou_values": 63,
+      "mean_iou": 0.1816292262023459,
+      "median_iou": 0.14529864390539596,
+      "min_iou": 0.0,
+      "max_iou": 0.8566542656854018,
+      "success_rate_by_threshold": {
+        "0.3": 0.20634920634920634,
+        "0.5": 0.09523809523809523
+      }
+    },
+    "instance_diagnostics": {
+      "n_present_images": 35,
+      "n_correct_count": 7,
+      "n_under_detected": 9,
+      "n_over_detected": 19,
+      "n_zero_predictions": 4,
+      "correct_count_rate": 0.2,
+      "under_detection_rate": 0.2571428571428571,
+      "over_detection_rate": 0.5428571428571428
+    }
+  },
+  "owlv2_fallback_recovery_dev": {
+    "caveat": "NOT a system-wide OWLv2 metric -- see module docstring. Restricted to images where Grounding DINO found nothing for eye (the only subset where the fallback's own eye outcome was ever recorded).",
+    "n_grounding_dino_misses_with_real_eye_present": 38,
+    "n_recovered_by_owlv2_fallback": 3,
+    "recovery_rate": 0.07894736842105263,
+    "n_owlv2_fallback_fired": 30,
+    "owlv2_fallback_precision_on_fired_subset": 1.0
+  },
+  "owlv2_fallback_recovery_holdout": {
+    "caveat": "NOT a system-wide OWLv2 metric -- see module docstring. Restricted to images where Grounding DINO found nothing for eye (the only subset where the fallback's own eye outcome was ever recorded).",
+    "n_grounding_dino_misses_with_real_eye_present": 5,
+    "n_recovered_by_owlv2_fallback": 1,
+    "recovery_rate": 0.2,
+    "n_owlv2_fallback_fired": 8,
+    "owlv2_fallback_precision_on_fired_subset": 1.0
+  }
+}
