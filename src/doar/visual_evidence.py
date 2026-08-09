@@ -25,9 +25,10 @@ Nothing in this module ever assigns a `related_rule_ids` match to
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -36,6 +37,7 @@ from .broad_vocabulary import UNVALIDATED_EXTRA_TARGETS
 from .case_output import refresh_module_availability, write_versioned
 from .phase2c7.detector_policy import DISABLED, EXPERIMENTAL_AUTOMATIC, VALIDATED_AUTOMATIC, full_policy
 from .phase2c7.visual_detector import analyze_image
+from .schemas import Evidence
 
 UNKNOWN = "UNKNOWN"
 DISABLED_FOR_RULES = "DISABLED_FOR_RULES"
@@ -59,9 +61,23 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _compute_finding_id(*, label: str, source: str, query: str | None, detector: str,
+                         timestamp: str, bbox, confidence: float) -> str:
+    """Deterministic, stable "source finding ID" -- reused by `from_dict`
+    when loading an OLDER detections.json written before this field
+    existed (so old cases reload without crashing; see
+    `test_visual_evidence.py`'s backward-compatibility test), and used at
+    construction time by `build_finding`. Not a database primary key --
+    just a stable string the canonical Evidence adapter and rule engine
+    can cite as provenance back to the exact detection that produced it."""
+    raw = f"{label}|{source}|{query or ''}|{detector}|{timestamp}|{bbox}|{confidence}"
+    return "vf_" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
 @dataclass(frozen=True)
 class VisualFinding:
     label: str
+    finding_id: str                 # stable provenance id -- see _compute_finding_id
     free_form_label: str | None
     bbox: tuple[float, float, float, float] | None
     confidence: float
@@ -78,7 +94,8 @@ class VisualFinding:
 
     def to_dict(self) -> dict:
         return {
-            "label": self.label, "free_form_label": self.free_form_label, "bbox": self.bbox,
+            "label": self.label, "finding_id": self.finding_id,
+            "free_form_label": self.free_form_label, "bbox": self.bbox,
             "confidence": self.confidence, "detector": self.detector, "checkpoint": self.checkpoint,
             "prompt": self.prompt, "validation_status": self.validation_status,
             "evidence_status": self.evidence_status, "rule_mapping_status": self.rule_mapping_status,
@@ -88,14 +105,19 @@ class VisualFinding:
 
     @staticmethod
     def from_dict(d: dict) -> "VisualFinding":
+        bbox = tuple(d["bbox"]) if d.get("bbox") else None
+        source = d.get("source", "initial_scan")
+        finding_id = d.get("finding_id") or _compute_finding_id(
+            label=d["label"], source=source, query=d.get("query"), detector=d["detector"],
+            timestamp=d.get("timestamp", ""), bbox=bbox, confidence=d["confidence"])
         return VisualFinding(
-            label=d["label"], free_form_label=d.get("free_form_label"),
-            bbox=tuple(d["bbox"]) if d.get("bbox") else None, confidence=d["confidence"],
+            label=d["label"], finding_id=finding_id, free_form_label=d.get("free_form_label"),
+            bbox=bbox, confidence=d["confidence"],
             detector=d["detector"], checkpoint=d["checkpoint"], prompt=d["prompt"],
             validation_status=d["validation_status"], evidence_status=d["evidence_status"],
             rule_mapping_status=d["rule_mapping_status"],
             related_rule_ids=tuple(d.get("related_rule_ids") or ()),
-            source=d.get("source", "initial_scan"), query=d.get("query"),
+            source=source, query=d.get("query"),
             timestamp=d.get("timestamp", ""),
         )
 
@@ -141,12 +163,15 @@ def build_finding(label: str, *, detected: bool, confidence: float, bbox, model:
     else:
         validation_status = UNKNOWN
     rule_status, rule_ids = compute_rule_mapping(label, registry_v2, policy)
+    timestamp = utc_now_iso()
+    finding_id = _compute_finding_id(label=label, source=source, query=query, detector=model,
+                                      timestamp=timestamp, bbox=bbox, confidence=confidence)
     return VisualFinding(
-        label=label, free_form_label=(label if label not in policy else None), bbox=bbox,
-        confidence=confidence, detector=model, checkpoint=checkpoint, prompt=prompt,
+        label=label, finding_id=finding_id, free_form_label=(label if label not in policy else None),
+        bbox=bbox, confidence=confidence, detector=model, checkpoint=checkpoint, prompt=prompt,
         validation_status=validation_status, evidence_status=_EVIDENCE_STATUS_FOR[validation_status],
         rule_mapping_status=rule_status, related_rule_ids=rule_ids, source=source, query=query,
-        timestamp=utc_now_iso(),
+        timestamp=timestamp,
     )
 
 
@@ -199,11 +224,16 @@ def run_and_persist_initial_scan(case_dir: str | Path, image_path: str, *, eye_e
     replace the honest `{"status": "unavailable"}` stub finalize_case
     writes by default with real findings. Never called by
     `case_output.finalize_case` itself (kept untouched, zero risk to its
-    existing tests) -- purely additive, a separate step."""
+    existing tests) -- purely additive, a separate step.
+
+    Also the ONLY caller of `integrate_visual_findings_into_case` -- the
+    real rule-engine connection runs automatically right after every
+    initial scan, never after an on-demand search."""
     findings = run_initial_visual_scan(image_path, eye_entry=eye_entry, registry_v2=registry_v2,
                                         model_predict_fns=model_predict_fns)
     save_detections(case_dir, findings)
     refresh_module_availability(Path(case_dir), detection="available")
+    integrate_visual_findings_into_case(case_dir, findings, registry_v2=registry_v2)
     return findings
 
 
@@ -225,6 +255,100 @@ def build_rule_evidence_trace(findings: list[VisualFinding]) -> list[dict]:
                 "source": f.source, "detector": f.detector,
             })
     return rows
+
+
+def visual_finding_to_evidence(finding: VisualFinding) -> Evidence:
+    """The canonical-evidence adapter: every VisualFinding becomes exactly
+    one `schemas.Evidence` record (the SAME dataclass every other part of
+    DOAR uses -- composition/colour/emotion evidence, no third schema
+    invented here). Full technical traceability regardless of validation
+    status (Technical View/Q&A need to reference ANY finding's evidence
+    record, not just validated ones) -- but `rule_eligible` (baked into
+    `value`, never a separate trust channel a caller could miss) is True
+    ONLY when `evidence_status == "validated_evidence"`. This is the ONE
+    field `rule_engine_v2.evaluate_visual_object_presence_rules` checks
+    before ever using a visual evidence record -- experimental/unknown/
+    disabled findings always get `rule_eligible=False` and can never
+    satisfy a rule, no matter how confident the detection."""
+    rule_eligible = finding.evidence_status == "validated_evidence"
+    limitations = []
+    if finding.validation_status == "EXPERIMENTAL":
+        limitations.append("Experimental visual evidence -- must not activate a psychological rule.")
+    elif finding.validation_status == "UNKNOWN":
+        limitations.append("Unvalidated visual evidence (never individually measured against human "
+                            "ground truth) -- must not activate a psychological rule.")
+    elif finding.validation_status == "DISABLED_FOR_RULES":
+        limitations.append("Detector disabled for this target -- must not enter rule reasoning.")
+    return Evidence(
+        evidence_id=f"ev_visual_{finding.finding_id}",
+        kind="visual_detection",
+        value={
+            "label": finding.label, "free_form_label": finding.free_form_label, "bbox": finding.bbox,
+            "validation_status": finding.validation_status, "rule_mapping_status": finding.rule_mapping_status,
+            "related_rule_ids": list(finding.related_rule_ids), "source": finding.source,
+            "query": finding.query, "prompt": finding.prompt, "source_finding_id": finding.finding_id,
+            "rule_eligible": rule_eligible,
+        },
+        method=f"{finding.detector}:{finding.checkpoint}" if finding.checkpoint else finding.detector,
+        confidence=finding.confidence,
+        limitations=limitations,
+    )
+
+
+def visual_findings_to_evidence(findings: list[VisualFinding]) -> list[Evidence]:
+    return [visual_finding_to_evidence(f) for f in findings]
+
+
+def rule_eligible_visual_evidence(evidence: list[Evidence]) -> list[Evidence]:
+    """The one function a rule evaluator should call before using any
+    canonical evidence for a psychological rule -- filters to only
+    visual-detection records whose source finding was VALIDATED."""
+    return [e for e in evidence if e.kind == "visual_detection" and e.value.get("rule_eligible")]
+
+
+def integrate_visual_findings_into_case(case_dir: str | Path, findings: list[VisualFinding], *,
+                                         registry_v2: dict) -> list[dict]:
+    """The missing connection: converts this scan's findings into canonical
+    Evidence, lets the REAL rule engine (rule_engine_v2.py) see the
+    rule-eligible ones, merges any resulting rule_evaluations into
+    analysis.json, and re-runs the existing synthesis tail (judges,
+    structured_analysis, judges_v2, generated_claims, verification_report)
+    via case_output.resynthesize_case_with_visual_evidence -- so a
+    legitimately triggered visual rule reaches aggregation/Parent
+    View/Technical View exactly like any other rule already does, no
+    special-casing downstream.
+
+    Called ONLY from `run_and_persist_initial_scan` (the initial scan),
+    NEVER from `search_visual` (on-demand search) -- an on-demand finding
+    must not immediately activate a rule, per instruction, even if it
+    happens to match a VALIDATED target.
+
+    Returns the new visual-derived rule_evaluations (usually empty: as of
+    this session every static_detector rule in rules_registry_v2.json has
+    allowed_output_level=disabled, so this correctly produces nothing to
+    merge today -- see rule_engine_v2.evaluate_visual_object_presence_rules's
+    own docstring for the registry-gate reasoning). No-op if analysis.json
+    doesn't exist yet (case not finalized)."""
+    from .case_output import resynthesize_case_with_visual_evidence
+    from .rule_engine_v2 import evaluate_visual_object_presence_rules
+
+    case_dir = Path(case_dir)
+    analysis_path = case_dir / "analysis.json"
+    if not analysis_path.exists():
+        return []
+    analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+
+    visual_evidence_records = visual_findings_to_evidence(findings)
+    rules_v2_by_id = {r["rule_id"]: r for r in registry_v2["rules"]}
+    new_rule_evaluations = evaluate_visual_object_presence_rules(rules_v2_by_id, visual_evidence_records)
+
+    analysis["evidence"] = analysis.get("evidence", []) + [asdict(e) for e in visual_evidence_records]
+    if new_rule_evaluations:
+        analysis["rule_evaluations"] = analysis.get("rule_evaluations", []) + new_rule_evaluations
+
+    write_versioned(analysis_path, analysis)
+    resynthesize_case_with_visual_evidence(analysis, case_dir, registry_v2=registry_v2)
+    return new_rule_evaluations
 
 
 def find_matching(findings: list[VisualFinding], query_target: str) -> list[VisualFinding]:

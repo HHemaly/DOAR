@@ -106,3 +106,48 @@ def finalize_case(analysis: dict, output: Path) -> None:
     if not review.exists():
         _write(review, {"status": "not_submitted", "history": [], "ai_output_preserved": True})
     save_reports(analysis, judges, output / "reports")
+
+
+def resynthesize_case_with_visual_evidence(analysis: dict, output: Path, *, registry_v2: dict) -> None:
+    """The DOAR MVP rule-integration counterpart to `finalize_case`: visual
+    findings only exist AFTER `analyze_image`'s synchronous call already
+    ran (the real automatic visual scan is a separate, later step -- see
+    `visual_evidence.py::run_and_persist_initial_scan`), so any
+    rule_evaluation a validated visual finding legitimately produces can
+    only be reflected in the case's synthesis by RE-RUNNING the same
+    downstream tail `finalize_case` already runs (judges, structured
+    analysis, judges_v2, generated claims/verification) against the
+    UPDATED `analysis` dict (which by the time this is called already has
+    the new visual Evidence + any new rule_evaluations merged in by
+    `visual_evidence.py::integrate_visual_findings_into_case`).
+
+    Deliberately does NOT touch `detections.json` (the real visual scan
+    this function exists to react to -- `finalize_case` would overwrite it
+    back to the honest stub) or unconditionally reset
+    `clinician_review.json` (an expert review may already exist and must
+    never be silently reset -- an existing 'submitted' status is read back
+    and preserved in the refreshed judges.json). Every other artifact is
+    written via the exact same functions `finalize_case` itself uses --
+    no new synthesis logic, only re-orchestration with a later-arriving
+    input."""
+    judges = run_judges(analysis)
+    judges.setdefault("module_availability", {})["detection"] = "available"
+    review_path = output / "clinician_review.json"
+    if review_path.exists():
+        review = json.loads(review_path.read_text(encoding="utf-8"))
+        if review.get("status") == "submitted":
+            judges["module_availability"]["clinician_review"] = "submitted"
+    _write(output / "evidence.json", analysis["evidence"])
+    _write(output / "rules.json", analysis["rule_evaluations"])
+    _write(output / "concerns.json", analysis["concerns"])
+    _write(output / "judges.json", judges)
+    _write(output / "objective_features.json",
+           build_objective_features_document(analysis.get("objective_features", {})))
+    structured_analysis = build_structured_analysis(analysis, registry_v2=registry_v2)
+    _write(output / "structured_analysis.json", structured_analysis)
+    judges_v2 = run_all_judges_v2(analysis, judges, structured_analysis=structured_analysis)
+    _write(output / "judges_v2.json", {jid: v.to_dict() for jid, v in judges_v2.items()})
+    generated_claims, verification_report = build_claims_and_verification(structured_analysis, analysis, registry_v2)
+    _write(output / "generated_claims.json", generated_claims)
+    _write(output / "verification_report.json", verification_report)
+    save_reports(analysis, judges, output / "reports")

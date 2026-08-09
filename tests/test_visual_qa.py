@@ -27,8 +27,9 @@ def _analysis():
 
 def _finding(label, *, validation_status="VALIDATED", confidence=0.8):
     return VisualFinding(
-        label=label, free_form_label=None, bbox=None, confidence=confidence, detector="m",
-        checkpoint="c", prompt="p", validation_status=validation_status,
+        label=label, finding_id=f"vf_test_{label}", free_form_label=None, bbox=None,
+        confidence=confidence, detector="m", checkpoint="c", prompt="p",
+        validation_status=validation_status,
         evidence_status=("validated_evidence" if validation_status == "VALIDATED"
                           else "experimental_evidence_technical_view_only"),
         rule_mapping_status="UNMAPPED", related_rule_ids=(), source="initial_scan", query=None,

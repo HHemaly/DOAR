@@ -135,8 +135,16 @@ def apply_page_frame_gating(
 
 
 def _base_eval(rule: dict[str, Any], status: str, matched: list[str], missing: list[str]) -> dict[str, Any]:
-    ceiling = float(rule["confidence_ceiling"])
-    rule_confidence = round(min(0.5, ceiling), 4) if status == "weak_support" else 0.0
+    # confidence_ceiling is None for every not-yet-curator-reviewed
+    # static_detector rule (rules_registry_v2.json) -- the 4 original
+    # callers (V2_RULE_IDS) always have a real ceiling; this guard only
+    # matters for evaluate_visual_object_presence_rules's broader,
+    # registry-gated static_detector sweep, most of whose rows are the
+    # gate-closed 'missing_detector' status anyway.
+    raw_ceiling = rule.get("confidence_ceiling")
+    ceiling = float(raw_ceiling) if raw_ceiling is not None else None
+    rule_confidence = (round(min(0.5, ceiling), 4) if status == "weak_support" and ceiling is not None
+                        else 0.0)
     return {
         "rule_id": rule["rule_id"],
         "tier": None,  # v2 rules use observability_class instead of the legacy tier vocabulary
@@ -213,6 +221,66 @@ def evaluate_v2_rules(
         evaluations.append(_base_eval(rule, "weak_support" if matched else "not_matched",
                                        ["ev_feature_stroke_fragmentation"] if matched else [], []))
 
+    return evaluations
+
+
+def evaluate_visual_object_presence_rules(
+    rules_v2_by_id: dict[str, dict[str, Any]], visual_evidence: list[Any],
+) -> list[dict[str, Any]]:
+    """DOAR MVP visual-evidence integration: extends this SAME real engine
+    (not a parallel one) to `static_detector` rules whose `observable`
+    exactly names a target this session's frozen visual-detector policy
+    can validate for presence. Output shape/vocabulary is identical to
+    every other v2 rule row (`_base_eval`) -- merges directly into the
+    same `rule_evaluations` list `structured_report.py`/`parent_view.py`
+    already consume, exactly like `evaluate_v2_rules`'s own rows.
+
+    TWO independent safety gates, both required, neither bypassable here:
+      1. `allowed_output_level == "individual_heuristic_only"` in the
+         CURRENT `rules_registry_v2.json` -- this project's own existing
+         governance decision. As of this session every `static_detector`
+         rule is `disabled` there (curated when `DETECTOR_UNAVAILABLE`
+         was still true) -- this function does NOT flip that gate; it
+         only respects it. A rule with a real matching visual finding
+         still reports `missing_detector` (never a fabricated
+         `weak_support`) until the registry itself is curator-updated.
+      2. `evidence.value["rule_eligible"]` on each visual Evidence record
+         (set by `visual_evidence.py`'s adapter -- True ONLY for a
+         finding whose `evidence_status == "validated_evidence"`).
+         Experimental/unknown/disabled visual findings are structurally
+         invisible to this function (filtered out before the loop below).
+
+    "Not detected" is NEVER read as a matched negative/absence claim --
+    this function only ever emits `weak_support` (a real, validated match
+    found) or `missing_detector` (nothing evaluable to say, whether
+    because the registry gate is closed, no match exists, or the only
+    matching finding was experimental/unknown). A genuine absence claim
+    would require established detector RECALL, which this project has not
+    validated for any target (see Phase 2C.7's own explicit hand-detector
+    caveat: low recall means absence-of-detection must never be read as
+    absence-of-object) -- so `not_matched` is deliberately never produced
+    here, unlike the historical engines' composition/placement rules."""
+    evaluations = []
+    by_label: dict[str, list[Any]] = {}
+    for ev in visual_evidence:
+        if ev.kind == "visual_detection" and ev.value.get("rule_eligible"):
+            by_label.setdefault(ev.value["label"], []).append(ev)
+
+    seen_rule_ids: set[str] = set()
+    for label, matches in by_label.items():
+        for rule_id, rule in rules_v2_by_id.items():
+            if rule.get("observability_class") != "static_detector" or rule.get("observable") != label:
+                continue
+            if rule_id in seen_rule_ids:
+                continue
+            seen_rule_ids.add(rule_id)
+            if rule.get("allowed_output_level") != "individual_heuristic_only":
+                row = _base_eval(rule, "missing_detector", [],
+                                  [f"rule_disabled_pending_registry_review:{rule_id}"])
+            else:
+                best = max(matches, key=lambda e: e.confidence)
+                row = _base_eval(rule, "weak_support", [best.evidence_id], [])
+            evaluations.append({**row, "visual_evidence_sourced": True})
     return evaluations
 
 

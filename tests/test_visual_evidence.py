@@ -202,8 +202,8 @@ class PersistenceRoundTripTests(unittest.TestCase):
 class FindMatchingTests(unittest.TestCase):
     def _finding(self, label, free_form_label=None):
         return VisualFinding(
-            label=label, free_form_label=free_form_label, bbox=None, confidence=0.5, detector="m",
-            checkpoint="c", prompt="p", validation_status="UNKNOWN",
+            label=label, finding_id=f"vf_test_{label}", free_form_label=free_form_label, bbox=None,
+            confidence=0.5, detector="m", checkpoint="c", prompt="p", validation_status="UNKNOWN",
             evidence_status="experimental_evidence_technical_view_only", rule_mapping_status="UNMAPPED",
             related_rule_ids=(), source="initial_scan", query=None, timestamp="t")
 
@@ -253,13 +253,13 @@ class SearchVisualTests(unittest.TestCase):
 class BuildRuleEvidenceTraceTests(unittest.TestCase):
     def test_one_row_per_rule_id_finding_pair(self):
         validated = VisualFinding(
-            label="face", free_form_label=None, bbox=None, confidence=0.8, detector="m", checkpoint="c",
-            prompt="p", validation_status="VALIDATED", evidence_status="validated_evidence",
-            rule_mapping_status="MAPPED", related_rule_ids=("RULE_A",), source="initial_scan",
-            query=None, timestamp="t")
+            label="face", finding_id="vf_test_face", free_form_label=None, bbox=None, confidence=0.8,
+            detector="m", checkpoint="c", prompt="p", validation_status="VALIDATED",
+            evidence_status="validated_evidence", rule_mapping_status="MAPPED",
+            related_rule_ids=("RULE_A",), source="initial_scan", query=None, timestamp="t")
         experimental = VisualFinding(
-            label="heart", free_form_label=None, bbox=None, confidence=0.9, detector="m", checkpoint="c",
-            prompt="p", validation_status="EXPERIMENTAL",
+            label="heart", finding_id="vf_test_heart", free_form_label=None, bbox=None, confidence=0.9,
+            detector="m", checkpoint="c", prompt="p", validation_status="EXPERIMENTAL",
             evidence_status="experimental_evidence_technical_view_only", rule_mapping_status="MAPPED",
             related_rule_ids=("RULE_B",), source="initial_scan", query=None, timestamp="t")
         trace = build_rule_evidence_trace([validated, experimental])
@@ -269,10 +269,10 @@ class BuildRuleEvidenceTraceTests(unittest.TestCase):
 
     def test_finding_with_no_related_rules_contributes_no_row(self):
         f = VisualFinding(
-            label="person", free_form_label=None, bbox=None, confidence=0.9, detector="m", checkpoint="c",
-            prompt="p", validation_status="VALIDATED", evidence_status="validated_evidence",
-            rule_mapping_status="UNMAPPED", related_rule_ids=(), source="initial_scan", query=None,
-            timestamp="t")
+            label="person", finding_id="vf_test_person", free_form_label=None, bbox=None, confidence=0.9,
+            detector="m", checkpoint="c", prompt="p", validation_status="VALIDATED",
+            evidence_status="validated_evidence", rule_mapping_status="UNMAPPED", related_rule_ids=(),
+            source="initial_scan", query=None, timestamp="t")
         self.assertEqual(build_rule_evidence_trace([f]), [])
 
 

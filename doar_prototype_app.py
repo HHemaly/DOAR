@@ -618,13 +618,35 @@ with technical_tab:
             "it does NOT mean the rule was triggered; see the rule-evidence trace below.")
         trace = build_rule_evidence_trace([VisualFinding.from_dict(f) for f in findings])
         if trace:
-            st.subheader("Rule-evidence trace")
+            st.subheader("Rule-evidence trace (\"detected\" -- descriptive only)")
             st.dataframe(trace, width="stretch")
             st.caption("can_activate=True only for validated_evidence findings; every rule in this table "
                        "was still gated by its own allowed_output_level (see section 11) -- this is a "
                        "descriptive trace, it does not by itself trigger a rule.")
         else:
             st.caption("No finding currently maps to any registry rule_id.")
+
+        visual_sourced_rules = [r for r in analysis.get("rule_evaluations", [])
+                                 if r.get("visual_evidence_sourced")]
+        st.subheader("Visual evidence actually used in rule reasoning (\"used\" -- real outcome)")
+        if visual_sourced_rules:
+            st.dataframe([
+                {"rule_id": r["rule_id"], "status": r["status"],
+                 "matched_evidence_ids": ", ".join(r.get("matched_evidence_ids") or []),
+                 "missing_evidence": ", ".join(r.get("missing_evidence") or []),
+                 "rule_confidence": r.get("rule_confidence")}
+                for r in visual_sourced_rules
+            ], width="stretch")
+            st.caption("status='weak_support' means a validated visual finding legitimately satisfied "
+                       "this rule and it flowed into aggregation/synthesis below. status='missing_detector' "
+                       "means either no matching validated finding existed, or the rule's own "
+                       "allowed_output_level in rules_registry_v2.json is still 'disabled' (a real "
+                       "registry-curation decision this session does not override) -- see missing_evidence.")
+        else:
+            st.caption("No visual finding was used by the real rule engine for this case -- either "
+                       "nothing detected matched a rule's observable, or (as of this session) every "
+                       "matching rule's allowed_output_level is still 'disabled' in rules_registry_v2.json. "
+                       "This is the honest, expected state today: see DOAR_V1_RULE_INTEGRATION_REPORT.md.")
     else:
         st.json(detections)
         st.caption("detections.json is the honest 'unavailable' stub for this case -- either it was "
