@@ -246,13 +246,19 @@ def overall_interpretation(analysis: dict, language: str = "en") -> str:
 
 def build_overall_result_summary(
     structured: dict | None, page_reference: dict | None, language: str = "en",
+    *, capabilities: dict | None = None,
 ) -> list[str]:
     """Returns an ordered list of plain sentences covering, in order: (1)
     whether any combined pattern exists, (2) the expressive-content model
     result when available, (3) how many individual heuristic suggestions
-    exist, (4) that objects/relationships were not analyzed, (5) whether
-    the complete page was assessable. Every sentence is derived from real
-    data for THIS case -- no case value is ever hard-coded here."""
+    exist, (4) whether objects/visual elements were automatically scanned
+    (derived from `capabilities["visual_detection"]` -- the case's real,
+    live module_availability, e.g. from judges.json -- never a hardcoded
+    claim; `capabilities=None` keeps the pre-visual-detection wording,
+    accurate for a case analyzed before that capability existed), (5)
+    whether the complete page was assessable. Every sentence is derived
+    from real data for THIS case -- no case value is ever hard-coded
+    here."""
     ar = language == "ar"
     structured = structured or {}
     combined = structured.get("combined_drawing_level_hypotheses", [])
@@ -295,10 +301,18 @@ def build_overall_result_summary(
             "No individual heuristic observations were found."
         )
 
-    sentences.append(
-        "لم يتم تحليل الأجسام أو العلاقات بينها في هذا الإصدار." if ar else
-        "Objects and relationships were not analyzed in this version."
-    )
+    if capabilities and capabilities.get("visual_detection") == "available":
+        sentences.append(
+            "تم فحص الرسمة تلقائياً بحثاً عن أجسام وعناصر بصرية معروفة؛ لا يزال تحليل العلاقات المكانية بين "
+            "العناصر غير متوفر في هذا الإصدار." if ar else
+            "The drawing was automatically scanned for known objects and visual elements; spatial "
+            "relationships between them are not yet analyzed in this version."
+        )
+    else:
+        sentences.append(
+            "لم يتم تحليل الأجسام أو العلاقات بينها في هذا الإصدار." if ar else
+            "Objects and relationships were not analyzed in this version."
+        )
 
     if page_assessable:
         sentences.append(
@@ -325,12 +339,16 @@ _CAPABILITY_STATUS: dict[str, dict[str, list[str]]] = {
         "en": [
             "Image quality and segmentation", "Objective feature extraction",
             "Page-reference assessment", "Expressive-content model (when a checkpoint is loaded)",
+            "Automatic visual object detection and on-demand visual search (when real models are available)",
             "10 executable heuristic rules", "Evidence tracking", "Deterministic verification",
+            "Expert review workflow",
         ],
         "ar": [
             "فحص جودة الصورة وتجزئتها", "استخراج السمات الموضوعية",
             "تقييم مرجع الصفحة", "نموذج المحتوى التعبيري (عند تحميل نقطة تفتيش)",
+            "الكشف التلقائي عن الأجسام والبحث البصري عند الطلب (عند توفر النماذج الفعلية)",
             "10 قواعد استدلالية قابلة للتنفيذ", "تتبع الأدلة", "التحقق الحتمي",
+            "سير عمل مراجعة الخبير",
         ],
     },
     "limited": {
@@ -339,26 +357,26 @@ _CAPABILITY_STATUS: dict[str, dict[str, list[str]]] = {
             "Line-appearance proxies (not physical pencil pressure)",
             "Combined drawing-pattern aggregation",
             "Deterministic follow-up answers (no free-form AI chat)",
+            "Visual detections outside the frozen validated policy (experimental/unknown evidence -- "
+            "stored and searchable, never activates a psychological rule)",
         ],
         "ar": [
             "التفسير المتعلق بالصفحة (فقط عند تأكيد ظهور الورقة كاملة)",
             "مؤشرات مظهر الخط (وليست ضغط القلم الفعلي)",
             "تجميع الأنماط على مستوى الرسمة",
             "إجابات المتابعة الحتمية (بدون محادثة ذكاء اصطناعي حرة)",
+            "الكشوفات البصرية خارج السياسة المعتمدة المجمدة (أدلة تجريبية/غير معروفة -- تُحفظ ويمكن "
+            "البحث عنها، لكنها لا تُفعّل أي قاعدة نفسية أبداً)",
         ],
     },
     "not_available": {
         "en": [
-            "General object detection", "Face/body-part detection",
-            "Arbitrary and unknown object extraction", "Spatial relationships",
-            "Searchable region evidence", "Parent-context updating",
-            "LLM explanation", "Visual AI consistency judge",
+            "Spatial relationships between detected objects (e.g. count/position/adjacency reasoning)",
+            "Parent-context updating", "LLM explanation", "Visual AI consistency judge",
         ],
         "ar": [
-            "الكشف العام عن الأجسام", "الكشف عن الوجه/أجزاء الجسم",
-            "استخراج أجسام عشوائية أو غير معروفة", "العلاقات المكانية",
-            "أدلة المناطق القابلة للبحث", "تحديث سياق الوالدين",
-            "الشرح بواسطة نموذج لغوي كبير", "قاضي الاتساق البصري بالذكاء الاصطناعي",
+            "العلاقات المكانية بين الأجسام المكتشفة (مثل العد أو الموضع أو التجاور)",
+            "تحديث سياق الوالدين", "الشرح بواسطة نموذج لغوي كبير", "قاضي الاتساق البصري بالذكاء الاصطناعي",
         ],
     },
 }
@@ -367,7 +385,11 @@ _CAPABILITY_STATUS: dict[str, dict[str, list[str]]] = {
 def capability_status(language: str = "en") -> dict[str, list[str]]:
     """Real capability inventory: {"working": [...], "limited": [...],
     "not_available": [...]}. Static across cases in this release -- every
-    listed item's status is genuinely stable, not case-dependent."""
+    listed item's status is genuinely stable, not case-dependent. (For
+    the actual runtime state of a SPECIFIC, already-analyzed case, read
+    that case's judges.json["module_availability"] instead -- the
+    per-case canonical capability-state source, e.g. via
+    build_overall_result_summary's `capabilities` argument.)"""
     return {tier: items[language if language in ("en", "ar") else "en"] for tier, items in _CAPABILITY_STATUS.items()}
 
 

@@ -86,13 +86,38 @@ def run_judges(analysis: dict) -> dict:
     # ── Module availability — detected from the analysis (Item 12) ───────────
     module_exec = analysis.get("module_execution", {})
     suppressed = set(module_exec.get("suppressed", []))
+    _emotion_module_status = ("suppressed_low_quality" if "emotion_model" in suppressed
+                               else ("available" if emotion_ran else emotion_status))
+    # DOAR V1.1 Stage 5: objective_features/expressive_model/rules are real,
+    # computed from THIS analysis at judge time (never stale). detection/
+    # visual_detection/open_world_search/clinician_review/expert_review start
+    # "unavailable"/"not_submitted" here because the automatic visual scan
+    # and any expert review both happen strictly AFTER this function runs
+    # (analyze_image's synchronous call) -- case_output.refresh_module_
+    # availability patches them in place once those later steps complete
+    # (see visual_evidence.py::run_and_persist_initial_scan,
+    # expert_review.py::submit_review). This dict is the single canonical,
+    # per-case capability-state source the UI reads -- never a second,
+    # redundant schema.
+    objective_features = analysis.get("objective_features") or {}
+    if not objective_features:
+        _objective_features_status = "unavailable"
+    elif any(fv.get("missing") for fv in objective_features.values()):
+        _objective_features_status = "partial"
+    else:
+        _objective_features_status = "available"
     module_availability = {
         "detection": "unavailable",
+        "visual_detection": "unavailable",
+        "open_world_search": "unavailable",
         "ocr": "unavailable",
-        "emotion_model": ("suppressed_low_quality" if "emotion_model" in suppressed
-                          else ("available" if emotion_ran else emotion_status)),
+        "objective_features": _objective_features_status,
+        "emotion_model": _emotion_module_status,
+        "expressive_model": _emotion_module_status,
         "psychologist_rules": "suppressed_low_quality" if "psychologist_rules" in suppressed else "available",
+        "rules": "suppressed_low_quality" if "psychologist_rules" in suppressed else "available",
         "clinician_review": "not_submitted",
+        "expert_review": "not_submitted",
     }
 
     judges = {

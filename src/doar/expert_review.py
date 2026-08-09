@@ -56,5 +56,5 @@ def submit_review(case_dir: str | Path, *, reviewer_name: str, action: str,
         "ai_output_preserved": True,
     }
     write_versioned(case_dir / "clinician_review.json", review)
-    refresh_module_availability(case_dir, clinician_review="submitted")
+    refresh_module_availability(case_dir, clinician_review="submitted", expert_review="submitted")
     return review

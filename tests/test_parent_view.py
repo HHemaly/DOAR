@@ -254,9 +254,17 @@ class CapabilityStatusTests(unittest.TestCase):
         status = capability_status("en")
         self.assertTrue(any("10 executable" in item for item in status["working"]))
 
-    def test_not_available_tier_lists_object_detection(self):
+    def test_working_tier_lists_object_detection(self):
+        # DOAR V1.1 Stage 5: object detection is real now (Phase 2C.7 +
+        # the DOAR MVP visual scan) -- must never be claimed unavailable.
         status = capability_status("en")
-        self.assertTrue(any("object detection" in item.lower() for item in status["not_available"]))
+        self.assertTrue(any("object detection" in item.lower() for item in status["working"]))
+        self.assertFalse(any("object detection" in item.lower() for item in status["not_available"]))
+
+    def test_not_available_tier_lists_spatial_relationships(self):
+        # Still genuinely unbuilt -- explicitly out of scope for this phase.
+        status = capability_status("en")
+        self.assertTrue(any("spatial relationship" in item.lower() for item in status["not_available"]))
 
     def test_summary_text_is_non_empty_both_languages(self):
         self.assertTrue(capability_status_summary_text("en"))

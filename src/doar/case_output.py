@@ -131,12 +131,16 @@ def resynthesize_case_with_visual_evidence(analysis: dict, output: Path, *, regi
     no new synthesis logic, only re-orchestration with a later-arriving
     input."""
     judges = run_judges(analysis)
-    judges.setdefault("module_availability", {})["detection"] = "available"
+    availability = judges.setdefault("module_availability", {})
+    availability["detection"] = "available"
+    availability["visual_detection"] = "available"
+    availability["open_world_search"] = "available"
     review_path = output / "clinician_review.json"
     if review_path.exists():
         review = json.loads(review_path.read_text(encoding="utf-8"))
         if review.get("status") == "submitted":
-            judges["module_availability"]["clinician_review"] = "submitted"
+            availability["clinician_review"] = "submitted"
+            availability["expert_review"] = "submitted"
     _write(output / "evidence.json", analysis["evidence"])
     _write(output / "rules.json", analysis["rule_evaluations"])
     _write(output / "concerns.json", analysis["concerns"])

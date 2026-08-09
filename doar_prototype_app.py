@@ -39,8 +39,11 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from doar.case_artifacts import resolve_analysis_artifacts, resolve_artifact_path  # noqa: E402
+from doar.case_output import write_versioned  # noqa: E402
 from doar.chat import respond_to_chat  # noqa: E402
 from doar.expert_review import REVIEW_ACTIONS, load_review, submit_review  # noqa: E402
+from doar.production_config import resolve_production_config  # noqa: E402
 from doar.page_reference import (  # noqa: E402
     PARENT_PAGE_DECLARATION_CHOICES, PARENT_PAGE_DECLARATION_LABELS,
     describe_declaration_choice, user_page_declaration_from_choice,
@@ -93,15 +96,6 @@ def _load_model_predict_fns() -> dict:
     return fns
 
 CASES_DIR = ROOT / "outputs" / "prototype_cases"
-KNOWN_CHECKPOINTS = {
-    "efficientnet_b0 (Phase 5, seed 42, calibrated) -- recommended": str(
-        ROOT / "outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt"),
-    "resnet18 (Phase 5, seed 42, calibrated)": str(
-        ROOT / "outputs/phase5/seed42_reference/resnet18_seed_42/best.pt"),
-    "mobilenet_v3_small (Phase 5, seed 42, calibrated)": str(
-        ROOT / "outputs/phase5/seed42_reference/mobilenet_v3_small_seed_42/best.pt"),
-    "No emotion model (segmentation/composition/rules only)": None,
-}
 
 st.set_page_config(page_title="DOAR prototype - dual view", layout="wide")
 st.title("DOAR v3 -- Dual-View Prototype")
@@ -125,8 +119,6 @@ with st.sidebar:
     gender = st.text_input("Gender (optional)")
     instruction = st.text_input("Drawing instruction/prompt given to the child (optional)")
     concern = st.text_area("Parent's concern or question (optional)")
-    checkpoint_choice = st.selectbox("Emotion model", list(KNOWN_CHECKPOINTS.keys()))
-    custom_checkpoint = st.text_input("...or a custom checkpoint path (overrides the choice above)")
 
     st.caption("Does this image show the complete sheet of paper?")
     page_choice = st.radio(
@@ -146,10 +138,19 @@ with st.sidebar:
         image_path = case_dir / uploaded.name
         image_path.write_bytes(uploaded.getvalue())
 
-        checkpoint = custom_checkpoint.strip() or KNOWN_CHECKPOINTS[checkpoint_choice]
+        # DOAR V1.1 Stage 3: the user makes NO model/checkpoint choice --
+        # the frozen production configuration is resolved automatically,
+        # once, and reused for every case. If the expressive-model
+        # checkpoint is not present on this machine, the SAME code path
+        # that already handles "no emotion model" runs (emotion.py's own
+        # correct unavailable() branch) -- never a fabricated fallback,
+        # never a different checkpoint silently substituted.
+        production_config = resolve_production_config()
         declaration = user_page_declaration_from_choice(page_choice)
         with st.spinner("Running the real analysis pipeline..."):
-            analyze_image_with_timing(str(image_path), str(case_dir), checkpoint, user_page_declaration=declaration)
+            analyze_image_with_timing(str(image_path), str(case_dir), production_config.expressive_model_checkpoint,
+                                       user_page_declaration=declaration)
+            write_versioned(case_dir / "production_config.json", production_config.to_dict())
             profile = ChildProfile(
                 age_range=age_range, gender=gender or None,
                 drawing_instruction=instruction or None,
@@ -220,7 +221,7 @@ def artifact(name: str) -> str | None:
     value = analysis.get("artifacts", {}).get(name)
     if not value:
         return None
-    p = case_dir / value if not Path(value).is_absolute() else Path(value)
+    p = resolve_artifact_path(case_dir, value)
     return str(p) if p.exists() else None
 
 
@@ -253,7 +254,8 @@ with parent_tab:
 
     # 1. Overall result -------------------------------------------------------
     st.subheader("١. النتيجة الإجمالية" if ar else "1. Overall result")
-    for sentence in build_overall_result_summary(structured, page_reference, language):
+    for sentence in build_overall_result_summary(
+            structured, page_reference, language, capabilities=judges.get("module_availability", {})):
         st.write(sentence)
     st.caption(disclaimer(language))
 
@@ -459,7 +461,14 @@ with technical_tab:
     try:
         from doar.features import objective_feature_row, serialize_feature_row
         original_image = case_dir / Path(analysis["image_path"]).name
-        feature_row = objective_feature_row(str(original_image), analysis)
+        # analysis.json stores artifact paths case-relative (e.g.
+        # "artifacts/foreground_mask.png") -- resolve against case_dir
+        # before Image.open() ever sees them; the app's cwd is the repo
+        # root (wherever `streamlit run` was launched from), not the case
+        # directory, so an unresolved relative path fails here even
+        # though the file genuinely exists on disk (DOAR V1.1 Problem A).
+        resolved_analysis = resolve_analysis_artifacts(analysis, case_dir)
+        feature_row = objective_feature_row(str(original_image), resolved_analysis)
         serialized = serialize_feature_row(feature_row)
         st.caption(
             "Measured relative to the uploaded image frame; not interpreted as physical-page usage."
@@ -501,7 +510,21 @@ with technical_tab:
             "raw_probability": list(analysis["emotion"].get("raw_probabilities", {}).values() or [None] * 4),
         })
     else:
-        st.info(f"No probabilities -- emotion status: {analysis['emotion']['status']}")
+        reason = analysis["emotion"].get("reason") or "no reason recorded"
+        st.info(f"No probabilities -- emotion status: {analysis['emotion']['status']}. Reason: {reason}")
+        st.caption(
+            "No probability values are fabricated when this branch is unavailable -- see "
+            "production_config.json below for the checkpoint identifier this pipeline always tries first.")
+
+    production_config_path = case_dir / "production_config.json"
+    if production_config_path.exists():
+        st.subheader("Production configuration / provenance")
+        st.caption(
+            "The single, automatically-resolved configuration this case was analyzed with -- never a "
+            "per-case user choice. See src/doar/production_config.py.")
+        st.json(json.loads(production_config_path.read_text(encoding="utf-8")))
+    else:
+        st.caption("production_config.json not available for this case (analyzed before DOAR V1.1).")
 
     st.header("6. Rule evaluations")
     st.dataframe(analysis["rule_evaluations"], width="stretch")
@@ -676,9 +699,44 @@ with technical_tab:
     ]:
         st.write("- " + w)
 
-    render_phase2b_pilot_summary(st, ROOT)
+    st.header("11. Research / Validation")
+    st.caption(
+        "Cross-case research and measurement-validation metrics -- NOT specific to this case, and "
+        "never mixed into the case-level evidence/rule sections above. Collapsed by default so it is "
+        "never confused with current-case analysis.")
+    with st.expander("Phase 2B object-evidence pilot + measurement-validation status", expanded=False):
+        render_phase2b_pilot_summary(st, ROOT)
+        st.subheader("Measurement validation status")
+        st.caption(
+            "Validates measurement implementation only, not psychological validity. Synthetic-ground-truth "
+            "and transformation-invariance results are cross-case (computed once on a fixed sample), not "
+            "per-case."
+        )
+        phase2a_dir = ROOT / "artifacts" / "phase2a"
+        ground_truth_summary_path = phase2a_dir / "feature_ground_truth_summary.json"
+        invariance_summary_path = phase2a_dir / "feature_invariance_summary.json"
+        threshold_csv_path = phase2a_dir / "threshold_sensitivity.csv"
+        mv_cols = st.columns(3)
+        if ground_truth_summary_path.exists():
+            gt = json.loads(ground_truth_summary_path.read_text(encoding="utf-8"))
+            gt_counts = gt.get("status_counts", {})
+            mv_cols[0].metric("Ground-truth checks", f"{gt_counts.get('pass', 0)}/{gt.get('n_cases', '?')} pass")
+        else:
+            mv_cols[0].caption("feature_ground_truth_summary.json not found -- run phase2a_feature_ground_truth.py.")
+        if invariance_summary_path.exists():
+            inv = json.loads(invariance_summary_path.read_text(encoding="utf-8"))
+            counts = inv.get("status_counts", {})
+            mv_cols[1].metric("Invariance rows", f"{counts.get('pass', 0)} pass / {counts.get('fail', 0)} fail")
+        else:
+            mv_cols[1].caption("feature_invariance_summary.json not found -- run phase2a_feature_invariance.py.")
+        if threshold_csv_path.exists():
+            mv_cols[2].metric("Threshold sensitivity rows", sum(1 for _ in threshold_csv_path.open(encoding="utf-8")) - 1)
+        else:
+            mv_cols[2].caption("threshold_sensitivity.csv not found -- run phase2a_threshold_sensitivity.py.")
+        st.caption("Full results: docs/FEATURE_MEASUREMENT_VALIDATION.md, docs/FEATURE_ROBUSTNESS_RESULTS.md, "
+                   "docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md.")
 
-    st.header("11. Sources and registry")
+    st.header("12. Sources and registry")
     st.subheader("Source catalog coverage")
     catalog_path = ROOT / "resources" / "psychology_sources" / "source_rule_catalog.json"
     if catalog_path.exists():
@@ -719,36 +777,7 @@ with technical_tab:
     else:
         st.info("rules_registry_v2.json not found.")
 
-    st.subheader("Measurement validation status")
-    st.caption(
-        "Validates measurement implementation only, not psychological validity. Synthetic-ground-truth and "
-        "transformation-invariance results are cross-case (computed once on a fixed sample), not per-case."
-    )
-    phase2a_dir = ROOT / "artifacts" / "phase2a"
-    ground_truth_summary_path = phase2a_dir / "feature_ground_truth_summary.json"
-    invariance_summary_path = phase2a_dir / "feature_invariance_summary.json"
-    threshold_csv_path = phase2a_dir / "threshold_sensitivity.csv"
-    mv_cols = st.columns(3)
-    if ground_truth_summary_path.exists():
-        gt = json.loads(ground_truth_summary_path.read_text(encoding="utf-8"))
-        gt_counts = gt.get("status_counts", {})
-        mv_cols[0].metric("Ground-truth checks", f"{gt_counts.get('pass', 0)}/{gt.get('n_cases', '?')} pass")
-    else:
-        mv_cols[0].caption("feature_ground_truth_summary.json not found -- run phase2a_feature_ground_truth.py.")
-    if invariance_summary_path.exists():
-        inv = json.loads(invariance_summary_path.read_text(encoding="utf-8"))
-        counts = inv.get("status_counts", {})
-        mv_cols[1].metric("Invariance rows", f"{counts.get('pass', 0)} pass / {counts.get('fail', 0)} fail")
-    else:
-        mv_cols[1].caption("feature_invariance_summary.json not found -- run phase2a_feature_invariance.py.")
-    if threshold_csv_path.exists():
-        mv_cols[2].metric("Threshold sensitivity rows", sum(1 for _ in threshold_csv_path.open(encoding="utf-8")) - 1)
-    else:
-        mv_cols[2].caption("threshold_sensitivity.csv not found -- run phase2a_threshold_sensitivity.py.")
-    st.caption("Full results: docs/FEATURE_MEASUREMENT_VALIDATION.md, docs/FEATURE_ROBUSTNESS_RESULTS.md, "
-               "docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md.")
-
-    st.header("12. Expert review")
+    st.header("13. Expert review")
     st.caption(
         "Kept strictly separate from the AI's own output -- submitting a review never edits detections.json, "
         "analysis.json, or any other AI-produced artifact (ai_output_preserved stays True always). Also kept "

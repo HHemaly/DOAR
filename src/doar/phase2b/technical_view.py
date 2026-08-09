@@ -24,7 +24,7 @@ def render_phase2b_pilot_summary(st, root: Path) -> None:
     object-evidence pilot. `st` is the streamlit module (passed in, not
     imported here, so this module has no hard streamlit dependency and can
     be unit-tested without a running app)."""
-    st.header("10b. Phase 2B object-evidence pilot (experimental, not a working capability)")
+    st.subheader("Phase 2B object-evidence pilot (experimental, not a working capability)")
     st.caption(
         "Zero-shot / classical-CV feasibility pilot only -- evaluated on a "
         "20-image sample, not wired into analyze_image for any real case, "

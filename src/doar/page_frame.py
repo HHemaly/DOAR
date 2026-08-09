@@ -32,6 +32,24 @@ ASSESSABLE_STATUSES = frozenset({"full_page_detected", "likely_full_page"})
 
 _BORDER_BAND_PX_FRACTION = 0.03  # outermost ~3% of each dimension, used to sample border strips
 
+# DOAR V1.1 Stage 6: this heuristic's own `limitations` text (below) admits
+# it "cannot distinguish a genuinely full page with a very thin margin from
+# a tightly cropped photo" -- yet the raw formulas below could reach 1.0
+# exactly (a uniform white background is common and drives uniformity to
+# ~1.0), representing false certainty for a method that structurally cannot
+# resolve that ambiguity. This is a principled ceiling, not a cosmetic
+# markdown: no AUTOMATIC classical-CV estimate from this module may ever be
+# represented as more certain than this value. Genuine certainty (1.0) is
+# reserved exclusively for a real human decision -- page_reference.py's
+# `user_confirmed_full_frame`/`user_defined_page_corners` paths, which
+# record an explicit user assertion, not a machine estimate, and are
+# correctly untouched by this cap.
+MAX_AUTOMATIC_CONFIDENCE = 0.90
+
+
+def _cap(value: float) -> float:
+    return round(min(value, MAX_AUTOMATIC_CONFIDENCE), 4)
+
 
 @dataclass(frozen=True)
 class PageFrameAssessment:
@@ -124,7 +142,7 @@ def assess_page_frame(rgb: np.ndarray, mask: np.ndarray, background_stability: f
     if n_edges_touched >= 3 and max_touch_ratio > 0.15:
         return PageFrameAssessment(
             page_frame_status="cropped_or_content_only",
-            confidence=round(min(1.0, 0.55 + 0.15 * n_edges_touched), 4),
+            confidence=_cap(0.55 + 0.15 * n_edges_touched),
             method="border_uniformity_and_content_edge_touch_v1",
             detected_page_boundary=None,
             border_evidence=border_evidence, cropping_evidence=cropping_evidence,
@@ -136,7 +154,7 @@ def assess_page_frame(rgb: np.ndarray, mask: np.ndarray, background_stability: f
     if n_edges_touched == 0 and uniformity >= 0.85 and background_stability >= 0.8:
         return PageFrameAssessment(
             page_frame_status="full_page_detected",
-            confidence=round(min(1.0, 0.6 + 0.4 * uniformity), 4),
+            confidence=_cap(0.6 + 0.4 * uniformity),
             method="border_uniformity_and_content_edge_touch_v1",
             detected_page_boundary=[0.0, 0.0, 1.0, 1.0],
             border_evidence=border_evidence, cropping_evidence=cropping_evidence,
@@ -148,7 +166,7 @@ def assess_page_frame(rgb: np.ndarray, mask: np.ndarray, background_stability: f
     if n_edges_touched <= 1 and uniformity >= 0.6 and max_touch_ratio < 0.10:
         return PageFrameAssessment(
             page_frame_status="likely_full_page",
-            confidence=round(min(1.0, 0.4 + 0.3 * uniformity), 4),
+            confidence=_cap(0.4 + 0.3 * uniformity),
             method="border_uniformity_and_content_edge_touch_v1",
             detected_page_boundary=[0.0, 0.0, 1.0, 1.0],
             border_evidence=border_evidence, cropping_evidence=cropping_evidence,
@@ -158,7 +176,7 @@ def assess_page_frame(rgb: np.ndarray, mask: np.ndarray, background_stability: f
     if n_edges_touched >= 2:
         return PageFrameAssessment(
             page_frame_status="cropped_or_content_only",
-            confidence=round(min(1.0, 0.4 + 0.1 * n_edges_touched), 4),
+            confidence=_cap(0.4 + 0.1 * n_edges_touched),
             method="border_uniformity_and_content_edge_touch_v1",
             detected_page_boundary=None,
             border_evidence=border_evidence, cropping_evidence=cropping_evidence,

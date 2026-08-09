@@ -23,6 +23,9 @@ class _FakeStreamlit:
     def header(self, text):
         self.calls.append(("header", text))
 
+    def subheader(self, text):
+        self.calls.append(("header", text))
+
     def caption(self, text):
         self.calls.append(("caption", text))
 

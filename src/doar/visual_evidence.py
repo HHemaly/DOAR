@@ -232,7 +232,8 @@ def run_and_persist_initial_scan(case_dir: str | Path, image_path: str, *, eye_e
     findings = run_initial_visual_scan(image_path, eye_entry=eye_entry, registry_v2=registry_v2,
                                         model_predict_fns=model_predict_fns)
     save_detections(case_dir, findings)
-    refresh_module_availability(Path(case_dir), detection="available")
+    refresh_module_availability(Path(case_dir), detection="available", visual_detection="available",
+                                 open_world_search="available")
     integrate_visual_findings_into_case(case_dir, findings, registry_v2=registry_v2)
     return findings
 
