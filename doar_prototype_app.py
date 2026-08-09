@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from doar.chat import respond_to_chat  # noqa: E402
+from doar.expert_review import REVIEW_ACTIONS, load_review, submit_review  # noqa: E402
 from doar.page_reference import (  # noqa: E402
     PARENT_PAGE_DECLARATION_CHOICES, PARENT_PAGE_DECLARATION_LABELS,
     describe_declaration_choice, user_page_declaration_from_choice,
@@ -48,9 +49,48 @@ from doar.parent_view import (  # noqa: E402
     build_overall_result_summary, capability_status, capability_status_summary_text,
     disclaimer, friendly_family_name, friendly_source_name, plain_language_observations,
 )
+from doar.phase2c7 import detector_policy as _pol  # noqa: E402
+from doar.phase2c7 import runtime as _detector_runtime  # noqa: E402
 from doar.profile import ChildProfile, ALLOWED_AGE_RANGES, load_profile, save_profile  # noqa: E402
+from doar.registry_v2_build import build_registry_v2  # noqa: E402
 from doar.timed_analysis import analyze_image_with_timing  # noqa: E402
+from doar.visual_evidence import VisualFinding, build_rule_evidence_trace, run_and_persist_initial_scan  # noqa: E402
 from doar.phase2b.technical_view import render_phase2b_pilot_summary  # noqa: E402
+
+VISUAL_POLICY_PATH = ROOT / "artifacts" / "phase2c7" / "visual_detector_policy.json"
+
+
+@st.cache_resource(show_spinner=False)
+def _load_registry_v2() -> dict:
+    return build_registry_v2()
+
+
+@st.cache_resource(show_spinner=False)
+def _load_eye_entry():
+    """Frozen Phase 2C.7 eye policy entry, read from the committed artifact
+    -- never re-evaluated or re-thresholded here."""
+    rows = json.loads(VISUAL_POLICY_PATH.read_text(encoding="utf-8"))
+    eye_row = next(r for r in rows if r["target"] == "eye")
+    return _pol.build_eye_policy_entry(
+        status=eye_row["status"], best_model=eye_row["best_model"],
+        best_model_checkpoint=eye_row["best_model_checkpoint"], prompt=eye_row["prompt"],
+        threshold=eye_row["threshold"], precision=eye_row["precision"], recall=eye_row["recall"],
+        balanced_accuracy=eye_row["balanced_accuracy"],
+        n_ground_truth_present=eye_row["n_ground_truth_present"],
+        localization_validated=eye_row["localization_validated"], rationale=eye_row["rationale"])
+
+
+@st.cache_resource(show_spinner=False)
+def _load_model_predict_fns() -> dict:
+    """Loads every real model the frozen visual detector policy needs, ONCE
+    per server process (Streamlit's cache_resource) -- real weights, never
+    called by the automated test suite. Also loads the dynamic open-vocab
+    query model under the "open_vocab_query" key for the broad-scan extras
+    and on-demand Q&A search."""
+    eye_entry = _load_eye_entry()
+    fns = _detector_runtime.build_real_model_predict_fns(eye_entry.best_model)
+    fns["open_vocab_query"] = _detector_runtime.load_open_vocab_query_fn()
+    return fns
 
 CASES_DIR = ROOT / "outputs" / "prototype_cases"
 KNOWN_CHECKPOINTS = {
@@ -116,6 +156,15 @@ with st.sidebar:
                 date=date.today().isoformat(), parent_concern=concern or None,
             )
             save_profile(case_dir, profile)
+        with st.spinner("Running the automatic visual object scan (first run loads real "
+                         "models and can take a few minutes; cached after that)..."):
+            try:
+                run_and_persist_initial_scan(
+                    case_dir, str(image_path), eye_entry=_load_eye_entry(),
+                    registry_v2=_load_registry_v2(), model_predict_fns=_load_model_predict_fns())
+            except Exception as exc:  # noqa: BLE001 -- surfaced to the user, analysis itself already succeeded
+                st.warning(f"Visual object scan failed ({exc}); the rest of the analysis is unaffected. "
+                           "detections.json remains the honest 'unavailable' stub for this case.")
         st.session_state["case_dir"] = str(case_dir.resolve())
         st.rerun()
 
@@ -309,7 +358,9 @@ with parent_tab:
     st.session_state.setdefault(f"chat_{case_dir}", [])
     question = st.text_input("سؤال عن هذه الحالة" if ar else "Ask a question about this case", key="parent_chat_q")
     if st.button("إرسال" if ar else "Send", key="parent_chat_send") and question:
-        response = respond_to_chat(case_dir, question, language)
+        response = respond_to_chat(
+            case_dir, question, language, registry_v2=_load_registry_v2(),
+            open_vocab_predict_fn=_load_model_predict_fns().get("open_vocab_query"))
         st.session_state[f"chat_{case_dir}"].append((question, response))
     for q, r in reversed(st.session_state[f"chat_{case_dir}"]):
         st.markdown(f"**{'أنت' if ar else 'You'}:** {q}")
@@ -542,11 +593,44 @@ with technical_tab:
     else:
         st.caption("No chat turns yet this session.")
 
-    st.header("10. Missing capabilities")
+    st.header("10. Visual object detections")
     st.subheader("Object detections")
-    st.json(detections)
-    st.caption("detections.json is a hardcoded, unconditional stub for every case -- "
-               "see CURRENT_CAPABILITY_AUDIT.md Section 7. \"Detector not implemented\", not \"no objects found\".")
+    if detections.get("status") == "available":
+        findings = detections.get("findings", [])
+        st.write(f"{detections.get('n_findings', len(findings))} finding(s), generated "
+                 f"{detections.get('generated_at', '?')}.")
+        status_order = {"VALIDATED": 0, "EXPERIMENTAL": 1, "UNKNOWN": 2, "DISABLED_FOR_RULES": 3}
+        rows = sorted(findings, key=lambda f: (status_order.get(f["validation_status"], 9), -f["confidence"]))
+        st.dataframe([
+            {"label": f["label"], "free_form_label": f.get("free_form_label"),
+             "confidence": round(f["confidence"], 3), "validation_status": f["validation_status"],
+             "evidence_status": f["evidence_status"], "rule_mapping_status": f["rule_mapping_status"],
+             "related_rule_ids": ", ".join(f.get("related_rule_ids") or []),
+             "detector": f["detector"], "bbox": f.get("bbox"), "source": f["source"],
+             "query": f.get("query"), "timestamp": f["timestamp"]}
+            for f in rows
+        ], width="stretch")
+        st.caption(
+            "VALIDATED = eligible for the validated evidence pipeline. EXPERIMENTAL = shown here and "
+            "searchable, but never activates a psychological conclusion. UNKNOWN = detected but never "
+            "individually measured against human ground truth (broad-scan extras / on-demand search "
+            "results). rule_mapping_status=MAPPED means at least one registry rule mentions this label -- "
+            "it does NOT mean the rule was triggered; see the rule-evidence trace below.")
+        trace = build_rule_evidence_trace([VisualFinding.from_dict(f) for f in findings])
+        if trace:
+            st.subheader("Rule-evidence trace")
+            st.dataframe(trace, width="stretch")
+            st.caption("can_activate=True only for validated_evidence findings; every rule in this table "
+                       "was still gated by its own allowed_output_level (see section 11) -- this is a "
+                       "descriptive trace, it does not by itself trigger a rule.")
+        else:
+            st.caption("No finding currently maps to any registry rule_id.")
+    else:
+        st.json(detections)
+        st.caption("detections.json is the honest 'unavailable' stub for this case -- either it was "
+                   "analyzed before the visual scan was wired in, or the scan failed for this case "
+                   "(see the warning shown at analysis time). \"Detector not implemented / scan failed\", "
+                   "not \"no objects found\".")
     cap = capability_status("en")
     cap_cols = st.columns(3)
     with cap_cols[0]:
@@ -641,3 +725,31 @@ with technical_tab:
         mv_cols[2].caption("threshold_sensitivity.csv not found -- run phase2a_threshold_sensitivity.py.")
     st.caption("Full results: docs/FEATURE_MEASUREMENT_VALIDATION.md, docs/FEATURE_ROBUSTNESS_RESULTS.md, "
                "docs/THRESHOLD_PROVENANCE_AND_SENSITIVITY.md.")
+
+    st.header("12. Expert review")
+    st.caption(
+        "Kept strictly separate from the AI's own output -- submitting a review never edits detections.json, "
+        "analysis.json, or any other AI-produced artifact (ai_output_preserved stays True always). Also kept "
+        "separate from formal ground truth: nothing submitted here feeds any Phase 2C annotation/training pipeline.")
+    review = load_review(case_dir)
+    st.write(f"Status: **{review['status']}** -- {len(review['history'])} review action(s) so far.")
+    if review["history"]:
+        st.dataframe(review["history"], width="stretch")
+    with st.form("expert_review_form"):
+        reviewer_name = st.text_input("Reviewer name")
+        action = st.selectbox("Action", REVIEW_ACTIONS)
+        target_label = st.text_input(
+            "Target finding label (for confirm/reject/rename/mark_missing_evidence -- "
+            "e.g. a label shown in section 10's detections table)")
+        new_label = st.text_input("New label (only used for the 'rename' action)")
+        note = st.text_area("Note")
+        submitted = st.form_submit_button("Submit review")
+        if submitted:
+            if not reviewer_name.strip():
+                st.error("Reviewer name is required.")
+            else:
+                submit_review(case_dir, reviewer_name=reviewer_name.strip(), action=action,
+                               target_label=target_label.strip() or None,
+                               new_label=new_label.strip() or None, note=note.strip() or None)
+                st.success("Review recorded.")
+                st.rerun()

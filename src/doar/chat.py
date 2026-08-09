@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .judges import DIAGNOSTIC_PATTERNS, _ARABIC_DIAGNOSTIC
-from .qa import answer as qa_answer
+from .visual_qa import answer_with_visual_grounding
 
 # ---------------------------------------------------------------------------
 # Safeguarding escalation -- fixed, human-authored text. Never generated.
@@ -209,10 +209,16 @@ class ChatResponse:
     non_diagnostic_warning: str | None
 
 
-def respond_to_chat(case_dir: str | Path, message: str, language: str = "en") -> ChatResponse:
+def respond_to_chat(case_dir: str | Path, message: str, language: str = "en", *,
+                     registry_v2: dict | None = None, open_vocab_predict_fn=None) -> ChatResponse:
     """The real, working, no-API-key chat pipeline. Always uses
-    DeterministicChatProvider (via qa.py) -- there is no code path in this
-    function that calls an LLM."""
+    DeterministicChatProvider (via qa.py, wrapped by visual_qa.py for
+    visual-object questions) -- there is no code path in this function that
+    calls an LLM. `registry_v2`/`open_vocab_predict_fn` are optional
+    injections (real models loaded once and cached by the caller, e.g. the
+    Streamlit app) enabling on-demand visual search; omitted, visual
+    questions with no saved evidence degrade to an honest "unavailable"
+    answer rather than silently skipping the search."""
     checker = SafetyChecker()
     incoming = checker.check_incoming(message, language)
     if incoming.escalate:
@@ -223,7 +229,9 @@ def respond_to_chat(case_dir: str | Path, message: str, language: str = "en") ->
         )
 
     bundle = EvidenceRetriever(case_dir).retrieve(message)
-    envelope = qa_answer(message, bundle.analysis, bundle.judges, language)
+    envelope = answer_with_visual_grounding(case_dir, message, bundle.analysis, bundle.judges, language,
+                                             registry_v2=registry_v2,
+                                             open_vocab_predict_fn=open_vocab_predict_fn)
 
     outgoing = checker.check_outgoing(envelope["answer"])
     if outgoing.diagnostic_language_found:

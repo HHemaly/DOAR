@@ -57,6 +57,23 @@ def _write(path: Path, value) -> None:
     write_versioned(path, value)
 
 
+def refresh_module_availability(output: Path, **updates) -> None:
+    """Patches specific `judges.json["module_availability"][key]` fields in
+    place, e.g. after a real detection run or an expert-review submission --
+    both happen strictly AFTER `finalize_case`'s own `run_judges(analysis)`
+    snapshot, so without this patch `judges.json` would report stale values
+    ("detection": "unavailable", "clinician_review": "not_submitted")
+    forever, even once real detections/a real review exist. Narrowly scoped
+    to the given keys only -- never rewrites judges.py's own logic. No-op if
+    judges.json does not exist yet (case not finalized)."""
+    judges_path = output / "judges.json"
+    if not judges_path.exists():
+        return
+    judges = json.loads(judges_path.read_text(encoding="utf-8"))
+    judges.setdefault("module_availability", {}).update(updates)
+    write_versioned(judges_path, judges)
+
+
 def finalize_case(analysis: dict, output: Path) -> None:
     judges = run_judges(analysis)
     _write(output / "evidence.json", analysis["evidence"])
