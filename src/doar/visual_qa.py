@@ -122,6 +122,22 @@ def _describe_matches(matches: list[VisualFinding], target: str, *, arabic: bool
             f"status: {status_word}, confidence {best.confidence:.2f}).")
 
 
+def _find_matching_via_entity_aliases(case_dir, existing_findings: list[VisualFinding],
+                                       target: str) -> list[VisualFinding]:
+    """Widens `find_matching` using VisualEntity's real alias vocabulary
+    (visual_entity.py) -- entity_id == finding_id by construction, so a
+    matched entity is mapped straight back to its own VisualFinding;
+    never a second, independent evidence source."""
+    from .visual_evidence import load_entities
+    entities = load_entities(case_dir)
+    if not entities:
+        return []
+    matched_ids = {e.entity_id for e in entities if e.matches_search_term(target)}
+    if not matched_ids:
+        return []
+    return [f for f in existing_findings if f.finding_id in matched_ids]
+
+
 def answer_with_visual_grounding(case_dir, question: str, analysis: dict, judges: dict | None = None,
                                   language: str = "en", *, registry_v2: dict | None = None,
                                   open_vocab_predict_fn=None) -> dict:
@@ -136,6 +152,14 @@ def answer_with_visual_grounding(case_dir, question: str, analysis: dict, judges
 
     existing = load_detections(case_dir)
     matches = find_matching(existing, target)
+    if not matches:
+        # Visual Knowledge V2: widen the search using each entity's real
+        # alias/synonym vocabulary (English + Arabic) -- e.g. a question
+        # about "kids"/"أطفال" now finds a "person" finding even though
+        # neither string is the raw label. Falls back to the exact
+        # findings already loaded (entity_id == finding_id by
+        # construction) -- never a separate, second evidence source.
+        matches = _find_matching_via_entity_aliases(case_dir, existing, target)
     if matches:
         return _env(
             _describe_matches(matches, target, arabic=False),

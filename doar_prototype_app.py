@@ -639,6 +639,39 @@ with technical_tab:
             "individually measured against human ground truth (broad-scan extras / on-demand search "
             "results). rule_mapping_status=MAPPED means at least one registry rule mentions this label -- "
             "it does NOT mean the rule was triggered; see the rule-evidence trace below.")
+
+        entities = detections.get("entities", [])
+        if entities:
+            st.subheader("Rich visual entities (Visual Knowledge V2)")
+            st.caption(
+                "Superset of the table above: entity_type, aliases, broader categories, geometry, and "
+                "colour, plus case_verification_status (from expert review) kept strictly separate from "
+                "model_validation_status (a detector-level property). candidate_labels is what the "
+                "detector considered -- never auto-promoted into canonical_label.")
+            st.dataframe([
+                {"entity_id": e["entity_id"], "entity_type": e["entity_type"],
+                 "canonical_label": e["canonical_label"],
+                 "candidate_labels": ", ".join(f"{lbl}:{conf:.2f}" for lbl, conf in e.get("candidate_labels") or []),
+                 "aliases_en": ", ".join(e.get("aliases_en") or []),
+                 "broader_categories": ", ".join(e.get("broader_categories") or []),
+                 "possible_subtypes": ", ".join(e.get("possible_subtypes") or []),
+                 "visual_similarities": ", ".join(e.get("visual_similarities") or []),
+                 "dominant_colors": ", ".join(e.get("dominant_colors") or []) if e.get("dominant_colors") else None,
+                 "relative_size": e.get("relative_size"), "page_position": e.get("page_position"),
+                 "model_validation_status": e["model_validation_status"],
+                 "case_verification_status": e["case_verification_status"],
+                 "memory_status": e.get("memory_status")}
+                for e in entities
+            ], width="stretch")
+            st.caption(
+                "possible_subtypes/visual_similarities are structurally present but intentionally empty "
+                "in this phase -- no subtype/similarity computation exists yet; populating them now would "
+                "mean fabricating data. memory_status is always 'not_indexed' -- Visual Memory does not "
+                "exist yet.")
+        else:
+            st.caption("entities not available for this case (analyzed before Visual Knowledge V2, or "
+                       "the scan produced no findings).")
+
         trace = build_rule_evidence_trace([VisualFinding.from_dict(f) for f in findings])
         if trace:
             st.subheader("Rule-evidence trace (\"detected\" -- descriptive only)")

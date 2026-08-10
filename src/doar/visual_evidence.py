@@ -212,9 +212,32 @@ def load_detections(case_dir: str | Path) -> list[VisualFinding]:
     return [VisualFinding.from_dict(d) for d in doc.get("findings", [])]
 
 
-def save_detections(case_dir: str | Path, findings: list[VisualFinding], *, status: str = "available") -> None:
+def load_entities(case_dir: str | Path) -> list:
+    """The Visual Knowledge V2 counterpart to `load_detections` -- reads
+    the `"entities"` key `save_detections` adds when given `entities=...`.
+    An older case (or one whose scan predates this phase) simply has no
+    `"entities"` key -- returns `[]`, never an error; `load_detections`
+    (unchanged) remains the source of truth for any older case."""
+    from .visual_entity import VisualEntity
+    path = Path(case_dir) / "detections.json"
+    if not path.exists():
+        return []
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    return [VisualEntity.from_dict(d) for d in doc.get("entities", [])]
+
+
+def save_detections(case_dir: str | Path, findings: list[VisualFinding], *, status: str = "available",
+                     entities: list | None = None) -> None:
+    """`entities` is optional and purely additive: omitted (the default),
+    the written document is byte-for-byte identical to before this phase
+    -- every existing caller (`search_visual`, and any test written before
+    Visual Knowledge V2) is unaffected. When provided, adds `"entities"`/
+    `"n_entities"` alongside the unchanged `"findings"`/`"n_findings"`."""
     doc = {"status": status, "findings": [f.to_dict() for f in findings],
            "n_findings": len(findings), "generated_at": utc_now_iso()}
+    if entities is not None:
+        doc["entities"] = [e.to_dict() for e in entities]
+        doc["n_entities"] = len(entities)
     write_versioned(Path(case_dir) / "detections.json", doc)
 
 
@@ -228,10 +251,24 @@ def run_and_persist_initial_scan(case_dir: str | Path, image_path: str, *, eye_e
 
     Also the ONLY caller of `integrate_visual_findings_into_case` -- the
     real rule-engine connection runs automatically right after every
-    initial scan, never after an on-demand search."""
+    initial scan, never after an on-demand search.
+
+    Also builds and persists the richer `VisualEntity` records (Visual
+    Knowledge V2) alongside the unchanged `VisualFinding` list -- the
+    rule engine/Q&A/`find_matching` all keep reading `findings` exactly
+    as before; `entities` is additive, read by Technical View and the
+    new alias-aware search only."""
     findings = run_initial_visual_scan(image_path, eye_entry=eye_entry, registry_v2=registry_v2,
                                         model_predict_fns=model_predict_fns)
-    save_detections(case_dir, findings)
+
+    from .expert_review import load_review
+    from .visual_entity import apply_expert_review_to_entities, build_entities_from_findings
+    entities = build_entities_from_findings(findings, image_path=image_path)
+    review_history = load_review(case_dir).get("history", [])
+    if review_history:
+        entities = apply_expert_review_to_entities(entities, review_history)
+
+    save_detections(case_dir, findings, entities=entities)
     refresh_module_availability(Path(case_dir), detection="available", visual_detection="available",
                                  open_world_search="available")
     integrate_visual_findings_into_case(case_dir, findings, registry_v2=registry_v2)
