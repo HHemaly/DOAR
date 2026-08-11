@@ -5,10 +5,13 @@ rule-safety with observer-sourced entities, and search.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -26,7 +29,8 @@ from doar.visual_evidence import (  # noqa: E402
     VisualFinding, load_entities, run_and_persist_initial_scan, update_entities,
 )
 from doar.visual_observer import (  # noqa: E402
-    CallableVisualObserver, CallableVisualVerifier, VerificationResult, VisualObserverCandidate,
+    CallableVisualObserver, CallableVisualVerifier, OpenAIVisualObserver, VerificationResult,
+    VisualObserverCandidate, VisualObserverConfigurationError,
 )
 from doar.visual_qa import answer_with_visual_grounding  # noqa: E402
 
@@ -305,6 +309,94 @@ class TechnicalViewRendersCropsTests(unittest.TestCase):
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
             subheaders = [s.value for s in at.subheader]
             self.assertIn("Rich visual entities (Visual Knowledge V2)", subheaders)
+
+
+class RealObserverShadowModeIntegrationTests(unittest.TestCase):
+    """Same guarantees as RuleSafetyWithObserverEntitiesTests, but wired
+    through the REAL `OpenAIVisualObserver` class (with an injected
+    `request_fn` test seam -- never a real network call) instead of
+    `CallableVisualObserver`, to close the loop for the actual provider
+    class this phase adds."""
+
+    _KEY_VAR = "DOAR_TEST_OPENAI_API_KEY_UNUSED_INTEGRATION"
+
+    def _fake_response(self, candidates):
+        body = {"id": "resp_it_1", "choices": [{"message": {"content": json.dumps({"candidates": candidates})}}]}
+        return json.dumps(body).encode("utf-8")
+
+    def test_real_observer_candidate_never_reaches_the_rule_engine(self):
+        candidates_payload = [{"label": "kite", "alternative_labels": [], "entity_type": "object",
+                                "bbox": [0.2, 0.2, 0.1, 0.1], "count": 1, "confidence": 0.9}]
+        observer = OpenAIVisualObserver(api_key_env_var=self._KEY_VAR,
+                                         request_fn=lambda *a: self._fake_response(candidates_payload))
+        verifier = CallableVisualVerifier(fn=lambda p, ent: VerificationResult(status="verified"))
+        with tempfile.TemporaryDirectory() as tmp:
+            case_dir = _real_case(tmp)
+            image_path = case_dir / "drawing.png"
+            Image.new("RGB", (200, 200), "white").save(image_path)
+            with mock.patch.dict(os.environ, {self._KEY_VAR: "sk-fake"}):
+                run_and_persist_initial_scan(
+                    case_dir, str(image_path), eye_entry=_eye_entry(), registry_v2=FAKE_REGISTRY_V2,
+                    model_predict_fns=_predict_fns(), observer=observer, verifier=verifier)
+            analysis = json.loads((case_dir / "analysis.json").read_text(encoding="utf-8"))
+            triggered = [r for r in analysis["rule_evaluations"]
+                         if r.get("visual_evidence_sourced") and r["status"] == "weak_support"]
+            self.assertEqual(triggered, [])
+            entities = load_entities(case_dir)
+            kite = next(e for e in entities if e.canonical_label == "kite")
+            # Even verified by the (fake, permissive) verifier, the entity
+            # has no backing VisualFinding, so it stays structurally out
+            # of the rule engine -- "verified" only ever changes
+            # case_verification_status, never model_validation_status.
+            self.assertEqual(kite.case_verification_status, "verified")
+            self.assertEqual(kite.model_validation_status, "UNKNOWN")
+            self.assertIn("openai", kite.detector)
+
+    def test_ai_candidate_stays_candidate_unless_explicitly_verified(self):
+        candidates_payload = [{"label": "kite", "alternative_labels": [], "entity_type": "object",
+                                "bbox": [0.2, 0.2, 0.1, 0.1], "count": 1, "confidence": 0.9}]
+        observer = OpenAIVisualObserver(api_key_env_var=self._KEY_VAR,
+                                         request_fn=lambda *a: self._fake_response(candidates_payload))
+        with tempfile.TemporaryDirectory() as tmp:
+            case_dir = _real_case(tmp)
+            image_path = case_dir / "drawing.png"
+            Image.new("RGB", (200, 200), "white").save(image_path)
+            with mock.patch.dict(os.environ, {self._KEY_VAR: "sk-fake"}):
+                # No verifier supplied -- the candidate must stay "unreviewed", never auto-verified.
+                run_and_persist_initial_scan(
+                    case_dir, str(image_path), eye_entry=_eye_entry(), registry_v2=FAKE_REGISTRY_V2,
+                    model_predict_fns=_predict_fns(), observer=observer)
+            entities = load_entities(case_dir)
+            kite = next(e for e in entities if e.canonical_label == "kite")
+            self.assertEqual(kite.case_verification_status, "unreviewed")
+
+    def test_observer_failure_does_not_break_base_doar_analysis(self):
+        # No API key configured -- the observer raises VisualObserverConfigurationError.
+        # The base analysis (local detector findings, analysis.json, entities) must still
+        # be produced -- a real observer's unavailability is never a reason to lose the
+        # rest of the scan.
+        observer = OpenAIVisualObserver(api_key_env_var=self._KEY_VAR, request_fn=lambda *a: b"unreachable")
+        with tempfile.TemporaryDirectory() as tmp:
+            case_dir = _real_case(tmp)
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop(self._KEY_VAR, None)
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    findings = run_and_persist_initial_scan(
+                        case_dir, "fake.png", eye_entry=_eye_entry(), registry_v2=FAKE_REGISTRY_V2,
+                        model_predict_fns=_predict_fns(), observer=observer)
+            self.assertTrue(any("Visual observer failed" in str(w.message) for w in caught))
+            self.assertTrue((case_dir / "analysis.json").exists())
+            self.assertGreater(len(findings), 0)
+            entities = load_entities(case_dir)
+            self.assertTrue(all(e.source == "initial_scan" for e in entities))  # no observer candidates merged
+
+    def test_observer_configuration_error_is_the_exact_raised_type(self):
+        observer = OpenAIVisualObserver(api_key_env_var=self._KEY_VAR, request_fn=lambda *a: b"{}")
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(self._KEY_VAR, None)
+            with self.assertRaises(VisualObserverConfigurationError):
+                observer.analyze("fake.png")
 
 
 if __name__ == "__main__":

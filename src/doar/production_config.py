@@ -21,6 +21,7 @@ instruction: no fabricated fallback, no hidden re-routing).
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +36,23 @@ EXPRESSIVE_MODEL_CHECKPOINT_PATH = (
     ROOT / "outputs" / "phase5" / "seed42_reference" / "efficientnet_b0_seed_42" / "best.pt")
 
 VISUAL_DETECTOR_POLICY_PATH = ROOT / "artifacts" / "phase2c7" / "visual_detector_policy.json"
+
+# DOAR Visual Observer (shadow mode): which OpenAI model the real
+# multimodal observer uses. A research/production config surface, not a
+# normal Streamlit UI choice -- set DOAR_VISUAL_OBSERVER_MODEL in the
+# environment to override for A/B model comparisons; otherwise the
+# repository's current default applies uniformly.
+VISUAL_OBSERVER_MODEL_ENV_VAR = "DOAR_VISUAL_OBSERVER_MODEL"
+DEFAULT_VISUAL_OBSERVER_MODEL = "gpt-4o"
+
+
+def resolve_visual_observer_model() -> str:
+    """The OpenAI vision model `OpenAIVisualObserver` uses when the
+    caller doesn't inject a different one explicitly. Only configurable
+    via `DOAR_VISUAL_OBSERVER_MODEL` -- never exposed as a normal-user UI
+    choice, matching this module's own "zero model choices for normal
+    users" principle."""
+    return os.environ.get(VISUAL_OBSERVER_MODEL_ENV_VAR, DEFAULT_VISUAL_OBSERVER_MODEL)
 
 
 @dataclass(frozen=True)

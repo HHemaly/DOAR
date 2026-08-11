@@ -8,17 +8,20 @@ than a raw exception or a fabricated result.
 """
 from __future__ import annotations
 
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from doar import emotion  # noqa: E402
 from doar.production_config import (  # noqa: E402
-    EXPRESSIVE_MODEL_CHECKPOINT_PATH, EXPRESSIVE_MODEL_IDENTIFIER, ProductionAnalysisConfig,
-    resolve_production_config,
+    DEFAULT_VISUAL_OBSERVER_MODEL, EXPRESSIVE_MODEL_CHECKPOINT_PATH, EXPRESSIVE_MODEL_IDENTIFIER,
+    ProductionAnalysisConfig, VISUAL_OBSERVER_MODEL_ENV_VAR, resolve_production_config,
+    resolve_visual_observer_model,
 )
 
 
@@ -55,6 +58,21 @@ class ResolveProductionConfigTests(unittest.TestCase):
         config = resolve_production_config()
         with self.assertRaises(Exception):
             config.expressive_model_identifier = "something_else"
+
+
+class ResolveVisualObserverModelTests(unittest.TestCase):
+    def test_defaults_to_the_frozen_default_model_without_override(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(VISUAL_OBSERVER_MODEL_ENV_VAR, None)
+            self.assertEqual(resolve_visual_observer_model(), DEFAULT_VISUAL_OBSERVER_MODEL)
+
+    def test_environment_override_takes_effect(self):
+        with mock.patch.dict(os.environ, {VISUAL_OBSERVER_MODEL_ENV_VAR: "gpt-research-variant"}):
+            self.assertEqual(resolve_visual_observer_model(), "gpt-research-variant")
+
+    def test_not_exposed_as_a_normal_streamlit_ui_choice(self):
+        app_source = (ROOT / "doar_prototype_app.py").read_text(encoding="utf-8")
+        self.assertNotIn(VISUAL_OBSERVER_MODEL_ENV_VAR, app_source)
 
 
 class EmotionUnavailableBranchTests(unittest.TestCase):

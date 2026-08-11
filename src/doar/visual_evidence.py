@@ -28,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import warnings
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -301,7 +302,18 @@ def run_and_persist_initial_scan(case_dir: str | Path, image_path: str, *, eye_e
     entities = build_entities_from_findings(findings, image_path=image_path)
 
     if observer is not None:
-        candidates = observer.analyze(image_path)
+        try:
+            candidates = observer.analyze(image_path)
+        except Exception as exc:
+            # A real observer's failure (no API key, network error, malformed response, ...)
+            # must never break base DOAR analysis -- the local detector findings above are
+            # already computed and must still be saved and reach the rule engine. Reported via
+            # a visible warning, not swallowed silently.
+            warnings.warn(
+                f"Visual observer failed ({type(exc).__name__}: {exc}) -- continuing with local "
+                "detector findings only, no observer candidates merged this scan.",
+                RuntimeWarning, stacklevel=2)
+            candidates = []
         entities = merge_observer_candidates_into_entities(entities, candidates, registry_v2=registry_v2)
 
     entities = populate_crop_refs(entities, image_path, case_dir)
