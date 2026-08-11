@@ -70,7 +70,7 @@ class ConversionTests(unittest.TestCase):
 
     def test_default_new_entity_is_unverified_and_not_indexed(self):
         e = visual_finding_to_entity(_finding("house"))
-        self.assertEqual(e.case_verification_status, "unverified")
+        self.assertEqual(e.case_verification_status, "unreviewed")
         self.assertEqual(e.memory_status, "not_indexed")
 
     def test_build_entities_from_findings_preserves_count_and_order(self):
@@ -122,7 +122,7 @@ class SerializationRoundTripTests(unittest.TestCase):
             "evidence_status": "experimental_evidence_technical_view_only", "rule_mapping_status": "UNMAPPED",
         }
         e = VisualEntity.from_dict(minimal)
-        self.assertEqual(e.case_verification_status, "unverified")
+        self.assertEqual(e.case_verification_status, "unreviewed")
         self.assertEqual(e.memory_status, "not_indexed")
         self.assertEqual(e.candidate_labels, ())
         self.assertEqual(e.entity_type, "unknown")
@@ -206,13 +206,13 @@ class ExpertReviewProjectionTests(unittest.TestCase):
     def test_no_matching_review_stays_unverified(self):
         e = visual_finding_to_entity(_finding("dog"))
         updated = apply_expert_review_to_entities([e], [{"target_label": "cat", "action": "confirm"}])
-        self.assertEqual(updated[0].case_verification_status, "unverified")
+        self.assertEqual(updated[0].case_verification_status, "unreviewed")
 
     def test_note_and_rename_actions_never_change_verification_status(self):
         e = visual_finding_to_entity(_finding("dog"))
         updated = apply_expert_review_to_entities(
             [e], [{"target_label": "dog", "action": "note", "note": "looks fine"}])
-        self.assertEqual(updated[0].case_verification_status, "unverified")
+        self.assertEqual(updated[0].case_verification_status, "unreviewed")
 
     def test_latest_action_wins(self):
         e = visual_finding_to_entity(_finding("dog"))

@@ -660,6 +660,7 @@ with technical_tab:
                  "relative_size": e.get("relative_size"), "page_position": e.get("page_position"),
                  "model_validation_status": e["model_validation_status"],
                  "case_verification_status": e["case_verification_status"],
+                 "source": e.get("source"), "has_crop": bool(e.get("crop_ref")),
                  "memory_status": e.get("memory_status")}
                 for e in entities
             ], width="stretch")
@@ -667,7 +668,20 @@ with technical_tab:
                 "possible_subtypes/visual_similarities are structurally present but intentionally empty "
                 "in this phase -- no subtype/similarity computation exists yet; populating them now would "
                 "mean fabricating data. memory_status is always 'not_indexed' -- Visual Memory does not "
-                "exist yet.")
+                "exist yet. case_verification_status is one of unreviewed/verified/uncertain/rejected -- "
+                "always separate from model_validation_status. source='visual_observer' entities have NO "
+                "backing detector finding and are structurally invisible to the rule engine regardless of "
+                "verification status.")
+            crop_entities = [e for e in entities if e.get("crop_ref")]
+            if crop_entities:
+                st.caption(f"{len(crop_entities)} entity crop(s) available:")
+                crop_cols = st.columns(6)
+                for i, e in enumerate(crop_entities):
+                    crop_path = resolve_artifact_path(case_dir, e["crop_ref"])
+                    if crop_path.exists():
+                        crop_cols[i % 6].image(
+                            str(crop_path),
+                            caption=f"{e['canonical_label']} ({e['case_verification_status']})")
         else:
             st.caption("entities not available for this case (analyzed before Visual Knowledge V2, or "
                        "the scan produced no findings).")

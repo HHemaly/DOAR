@@ -34,10 +34,15 @@ Scientific safety, unchanged from `visual_evidence.py`:
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from .visual_evidence import VisualFinding
+from .visual_evidence import VisualFinding, compute_rule_mapping, utc_now_iso
+
+if TYPE_CHECKING:
+    from .visual_observer import VisualObserverCandidate, VisualVerifier
 
 # ---------------------------------------------------------------------------
 # Vocabulary: canonical_label -> aliases/broader categories/possible
@@ -87,7 +92,7 @@ ENTITY_TYPES = frozenset({
     "scribble", "unknown",
 })
 
-CASE_VERIFICATION_STATUSES = frozenset({"unverified", "verified", "rejected"})
+CASE_VERIFICATION_STATUSES = frozenset({"unreviewed", "verified", "uncertain", "rejected"})
 
 # Same thirds-bucket convention analysis.py::_composition already uses
 # for the whole-drawing centroid -- reused here per-entity so
@@ -135,30 +140,46 @@ def compute_page_position(bbox: tuple[float, float, float, float] | None) -> str
     return f"{vertical}_{horizontal}"
 
 
+def _crop_region(image_path: str, bbox: tuple[float, float, float, float] | None):
+    """Opens `image_path`, crops to `bbox` (normalized xywh), returns a
+    real PIL Image or None if the image/bbox is unusable -- the ONE place
+    this crop-math exists, shared by `compute_dominant_colors` and
+    `save_entity_crop` so both agree exactly on what an entity's "crop"
+    is."""
+    if bbox is None:
+        return None
+    try:
+        from PIL import Image
+    except ImportError:  # pragma: no cover -- Pillow is a hard project dependency
+        return None
+    if not image_path or not Path(image_path).exists():
+        return None
+    x, y, w, h = bbox
+    img = Image.open(image_path).convert("RGB")
+    iw, ih = img.size
+    left, top = max(0, int(x * iw)), max(0, int(y * ih))
+    right, bottom = min(iw, int((x + w) * iw)), min(ih, int((y + h) * ih))
+    if right <= left or bottom <= top:
+        img.close()
+        return None
+    crop = img.crop((left, top, right, bottom))
+    img.close()
+    return crop
+
+
 # Same 5-bin colour vocabulary as analysis.py::_colour (red/green/blue/
 # yellow/dark) -- applied to an entity's own cropped pixels instead of
 # the whole foreground mask, since within a tight bbox crop there is no
 # separate foreground/background distinction to make.
 def compute_dominant_colors(image_path: str, bbox: tuple[float, float, float, float] | None
                              ) -> tuple[str, ...] | None:
-    if bbox is None:
-        return None
     try:
-        from PIL import Image
         import numpy as np
-    except ImportError:  # pragma: no cover -- Pillow/numpy are hard project dependencies
+    except ImportError:  # pragma: no cover -- numpy is a hard project dependency
         return None
-    if not Path(image_path).exists():
+    crop = _crop_region(image_path, bbox)
+    if crop is None:
         return None
-    x, y, w, h = bbox
-    with Image.open(image_path) as img:
-        img = img.convert("RGB")
-        iw, ih = img.size
-        left, top = max(0, int(x * iw)), max(0, int(y * ih))
-        right, bottom = min(iw, int((x + w) * iw)), min(ih, int((y + h) * ih))
-        if right <= left or bottom <= top:
-            return None
-        crop = img.crop((left, top, right, bottom))
     pixels = np.asarray(crop, dtype=np.float32).reshape(-1, 3)
     if pixels.size == 0:
         return None
@@ -172,6 +193,44 @@ def compute_dominant_colors(image_path: str, bbox: tuple[float, float, float, fl
     ratios = {name: float(values.mean()) for name, values in bins.items()}
     meaningful = tuple(sorted(name for name, value in ratios.items() if value >= 0.15))
     return meaningful or None
+
+
+def save_entity_crop(image_path: str, bbox: tuple[float, float, float, float] | None, *,
+                      case_dir: str | Path, entity_id: str) -> str | None:
+    """Saves the entity's own bbox crop under `case_dir/artifacts/crops/
+    <entity_id>.png` -- the verifier (and Technical View) need a real
+    crop image, not just bbox coordinates. Returns a CASE-RELATIVE path
+    string (e.g. "artifacts/crops/vf_abc123.png"), matching every other
+    artifact path convention in this project (`case_artifacts.py`
+    resolves these against `case_dir`, never the process cwd). Returns
+    None -- never a fabricated path -- when there is no bbox or the
+    source image is unavailable."""
+    crop = _crop_region(image_path, bbox)
+    if crop is None:
+        return None
+    crops_dir = Path(case_dir) / "artifacts" / "crops"
+    crops_dir.mkdir(parents=True, exist_ok=True)
+    crop_path = crops_dir / f"{entity_id}.png"
+    crop.save(crop_path)
+    return str(Path("artifacts") / "crops" / f"{entity_id}.png")
+
+
+def populate_crop_refs(entities: list[VisualEntity], image_path: str, case_dir: str | Path
+                        ) -> list[VisualEntity]:
+    """Fills `crop_ref` for every entity that has a real bbox and doesn't
+    already have one -- cheap, deterministic, run unconditionally as part
+    of the scan (not gated behind an observer/verifier being configured),
+    since the verifier will need these crops the moment one exists."""
+    updated = []
+    for entity in entities:
+        if entity.bbox is not None and entity.crop_ref is None:
+            crop_ref = save_entity_crop(image_path, entity.bbox, case_dir=case_dir, entity_id=entity.entity_id)
+            if crop_ref is not None:
+                d = entity.to_dict()
+                d["crop_ref"] = crop_ref
+                entity = VisualEntity.from_dict(d)
+        updated.append(entity)
+    return updated
 
 
 @dataclass(frozen=True)
@@ -243,7 +302,7 @@ class VisualEntity:
             shape_features=d.get("shape_features"), line_features=d.get("line_features"),
             detector=d["detector"], checkpoint=d["checkpoint"], prompt=d["prompt"],
             confidence=d["confidence"], model_validation_status=d["model_validation_status"],
-            case_verification_status=d.get("case_verification_status", "unverified"),
+            case_verification_status=d.get("case_verification_status", "unreviewed"),
             evidence_status=d["evidence_status"], rule_mapping_status=d["rule_mapping_status"],
             related_rule_ids=tuple(d.get("related_rule_ids") or ()), source=d.get("source", "initial_scan"),
             query=d.get("query"), timestamp=d.get("timestamp", ""),
@@ -287,7 +346,7 @@ def visual_finding_to_entity(finding: VisualFinding, *, image_path: str | None =
         shape_features=None, line_features=None,
         detector=finding.detector, checkpoint=finding.checkpoint, prompt=finding.prompt,
         confidence=finding.confidence, model_validation_status=finding.validation_status,
-        case_verification_status="unverified", evidence_status=finding.evidence_status,
+        case_verification_status="unreviewed", evidence_status=finding.evidence_status,
         rule_mapping_status=finding.rule_mapping_status, related_rule_ids=finding.related_rule_ids,
         source=finding.source, query=finding.query, timestamp=finding.timestamp,
     )
@@ -307,7 +366,7 @@ def apply_expert_review_to_entities(entities: list[VisualEntity], review_history
     its aliases) sets that entity's status; `rename` and `note` actions
     do not change verification status (they are recorded in the review
     history itself, already preserved there). Entities with no matching
-    review action stay "unverified". Never mutates formal ground
+    review action stay "unreviewed". Never mutates formal ground
     truth -- this is a per-case, display-only projection."""
     latest_action_by_label: dict[str, str] = {}
     for entry in review_history:
@@ -321,7 +380,7 @@ def apply_expert_review_to_entities(entities: list[VisualEntity], review_history
     for entity in entities:
         candidates = {entity.canonical_label.lower(), *[a.lower() for a in entity.aliases_en]}
         action = next((latest_action_by_label[c] for c in candidates if c in latest_action_by_label), None)
-        new_status = status_for_action.get(action, "unverified") if action else "unverified"
+        new_status = status_for_action.get(action, "unreviewed") if action else "unreviewed"
         if new_status != entity.case_verification_status:
             entity = _with_verification_status(entity, new_status)
         updated.append(entity)
@@ -332,3 +391,106 @@ def _with_verification_status(entity: VisualEntity, status: str) -> VisualEntity
     d = entity.to_dict()
     d["case_verification_status"] = status
     return VisualEntity.from_dict(d)
+
+
+def _compute_observer_entity_id(label: str, bbox, timestamp: str) -> str:
+    """Same style/format as visual_evidence.py's `_compute_finding_id` --
+    a stable, deterministic id for an entity that has NO backing
+    VisualFinding (an observer-only candidate). Deliberately reimplemented
+    here rather than imported: that function is private to
+    visual_evidence.py's own construction path, and this id space only
+    ever needs to be unique, not cross-referenced against it."""
+    raw = f"observer|{label}|{bbox}|{timestamp}"
+    return "ve_" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def merge_observer_candidates_into_entities(
+        entities: list[VisualEntity], candidates: list["VisualObserverCandidate"], *,
+        registry_v2: dict | None = None) -> list[VisualEntity]:
+    """The merge step: an observer candidate is NEVER trusted directly.
+
+    - If its label (or any alternative label) matches an EXISTING entity
+      (by `matches_search_term`, i.e. canonical label or alias), the
+      candidate only ENRICHES that entity's `candidate_labels` -- its
+      `canonical_label`, `model_validation_status`, `evidence_status`,
+      and `rule_mapping_status` are untouched. A detector-backed entity's
+      identity is never overridden by an observer opinion.
+    - Otherwise, a NEW entity is created from the candidate alone, with
+      `model_validation_status="UNKNOWN"` (never individually measured
+      against ground truth -- the same status broad-scan extras and
+      on-demand search results already get) and `source="visual_observer"`.
+      This new entity has NO backing `VisualFinding`, so it is
+      STRUCTURALLY invisible to `integrate_visual_findings_into_case`/the
+      rule engine (which only ever consumes `VisualFinding`-derived
+      canonical Evidence) -- not just status-gated, but absent from that
+      pipeline entirely.
+    - `entity_type` is clamped to `ENTITY_TYPES` (falls back to
+      "unknown") -- never trusts an out-of-vocabulary value verbatim.
+    """
+    from .visual_observer import clamp_entity_type
+
+    registry_v2 = registry_v2 or {}
+    policy: dict = {}
+    updated_entities = list(entities)
+    timestamp = utc_now_iso()
+
+    for candidate in candidates:
+        labels_to_check = (candidate.label, *candidate.alternative_labels)
+        match_index = next(
+            (i for i, e in enumerate(updated_entities)
+             if any(e.matches_search_term(lbl) for lbl in labels_to_check)), None)
+        if match_index is not None:
+            existing = updated_entities[match_index]
+            new_candidate_labels = existing.candidate_labels
+            for lbl in labels_to_check:
+                pair = (lbl, candidate.confidence if candidate.confidence is not None else 0.0)
+                if pair not in new_candidate_labels and lbl.lower() != existing.canonical_label.lower():
+                    new_candidate_labels = (*new_candidate_labels, pair)
+            if new_candidate_labels != existing.candidate_labels:
+                d = existing.to_dict()
+                d["candidate_labels"] = [list(c) for c in new_candidate_labels]
+                updated_entities[match_index] = VisualEntity.from_dict(d)
+            continue
+
+        entity_type = clamp_entity_type(candidate.entity_type)
+        aliases_en, aliases_ar = _aliases_for(candidate.label)
+        rule_status, rule_ids = compute_rule_mapping(candidate.label, registry_v2, policy)
+        entity_id = _compute_observer_entity_id(candidate.label, candidate.bbox, timestamp)
+        confidence = candidate.confidence if candidate.confidence is not None else 0.0
+        new_entity = VisualEntity(
+            entity_id=entity_id, entity_type=entity_type, canonical_label=candidate.label,
+            candidate_labels=((candidate.label, confidence),
+                               *((lbl, confidence) for lbl in candidate.alternative_labels)),
+            aliases_en=aliases_en, aliases_ar=aliases_ar,
+            broader_categories=_BROADER_CATEGORIES.get(candidate.label, ()),
+            possible_subtypes=(), visual_similarities=(),
+            bbox=candidate.bbox, crop_ref=None, dominant_colors=None,
+            relative_size=compute_relative_size(candidate.bbox),
+            page_position=compute_page_position(candidate.bbox),
+            shape_features=None, line_features=None,
+            detector=f"visual_observer:{candidate.source_note or 'unspecified'}", checkpoint="",
+            prompt="", confidence=confidence, model_validation_status="UNKNOWN",
+            case_verification_status="unreviewed",
+            evidence_status="experimental_evidence_technical_view_only",
+            rule_mapping_status=rule_status, related_rule_ids=rule_ids, source="visual_observer",
+            query=None, timestamp=timestamp,
+        )
+        updated_entities.append(new_entity)
+
+    return updated_entities
+
+
+def apply_verifier_to_entities(entities: list[VisualEntity], image_path: str,
+                                verifier: "VisualVerifier") -> list[VisualEntity]:
+    """Runs `verifier.verify(image_path, entity)` for every entity and
+    updates `case_verification_status` from the result -- never touches
+    `model_validation_status`. An out-of-vocabulary status from a verifier
+    (a careless/future real provider) falls back to "uncertain", the
+    conservative choice -- never silently treated as "verified"."""
+    updated = []
+    for entity in entities:
+        result = verifier.verify(image_path, entity)
+        status = result.status if result.status in CASE_VERIFICATION_STATUSES else "uncertain"
+        updated.append(_with_verification_status(entity, status) if status != entity.case_verification_status
+                        else entity)
+    return updated

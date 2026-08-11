@@ -241,8 +241,24 @@ def save_detections(case_dir: str | Path, findings: list[VisualFinding], *, stat
     write_versioned(Path(case_dir) / "detections.json", doc)
 
 
+def update_entities(case_dir: str | Path, entities: list) -> None:
+    """Re-persists just the `"entities"`/`"n_entities"` keys of an
+    already-written `detections.json`, leaving `"findings"`/`"status"`/
+    `"generated_at"` untouched -- for a later re-verification pass (e.g.
+    a new `VisualVerifier` run) that doesn't need to redo the scan
+    itself. No-op if `detections.json` doesn't exist yet."""
+    path = Path(case_dir) / "detections.json"
+    if not path.exists():
+        return
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["entities"] = [e.to_dict() for e in entities]
+    doc["n_entities"] = len(entities)
+    write_versioned(path, doc)
+
+
 def run_and_persist_initial_scan(case_dir: str | Path, image_path: str, *, eye_entry, registry_v2: dict,
-                                  model_predict_fns: dict[str, Callable]) -> list[VisualFinding]:
+                                  model_predict_fns: dict[str, Callable], observer=None,
+                                  verifier=None) -> list[VisualFinding]:
     """The one function the app calls after `analyze_image_with_timing` to
     replace the honest `{"status": "unavailable"}` stub finalize_case
     writes by default with real findings. Never called by
@@ -257,13 +273,42 @@ def run_and_persist_initial_scan(case_dir: str | Path, image_path: str, *, eye_e
     Knowledge V2) alongside the unchanged `VisualFinding` list -- the
     rule engine/Q&A/`find_matching` all keep reading `findings` exactly
     as before; `entities` is additive, read by Technical View and the
-    new alias-aware search only."""
+    new alias-aware search only.
+
+    `observer`/`verifier` (Visual Resolver phase) are OPTIONAL and default
+    to `None` -- omitted, behavior is identical to before this phase.
+    When supplied (a `visual_observer.VisualObserver`/`VisualVerifier`,
+    e.g. `CallableVisualObserver`/`CallableVisualVerifier` in tests, or a
+    real provider once one exists), the pipeline additionally: (1) merges
+    the observer's structured candidates into `entities` -- new,
+    observer-only entities get `model_validation_status="UNKNOWN"` and
+    `source="visual_observer"`, and have NO backing `VisualFinding`, so
+    they are structurally invisible to `integrate_visual_findings_into_
+    case`/the rule engine, exactly like every other UNKNOWN-status
+    entity; (2) saves a real crop image for every entity with a bbox
+    (`crop_ref`); (3) runs the verifier per entity, updating ONLY
+    `case_verification_status`. Expert review (read from
+    `clinician_review.json`, if any) is applied LAST, so a human
+    correction always overrides an automatic verifier's verdict."""
     findings = run_initial_visual_scan(image_path, eye_entry=eye_entry, registry_v2=registry_v2,
                                         model_predict_fns=model_predict_fns)
 
     from .expert_review import load_review
-    from .visual_entity import apply_expert_review_to_entities, build_entities_from_findings
+    from .visual_entity import (
+        apply_expert_review_to_entities, apply_verifier_to_entities, build_entities_from_findings,
+        merge_observer_candidates_into_entities, populate_crop_refs,
+    )
     entities = build_entities_from_findings(findings, image_path=image_path)
+
+    if observer is not None:
+        candidates = observer.analyze(image_path)
+        entities = merge_observer_candidates_into_entities(entities, candidates, registry_v2=registry_v2)
+
+    entities = populate_crop_refs(entities, image_path, case_dir)
+
+    if verifier is not None:
+        entities = apply_verifier_to_entities(entities, image_path, verifier)
+
     review_history = load_review(case_dir).get("history", [])
     if review_history:
         entities = apply_expert_review_to_entities(entities, review_history)
