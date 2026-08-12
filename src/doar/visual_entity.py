@@ -35,6 +35,7 @@ Scientific safety, unchanged from `visual_evidence.py`:
 from __future__ import annotations
 
 import hashlib
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -486,10 +487,22 @@ def apply_verifier_to_entities(entities: list[VisualEntity], image_path: str,
     updates `case_verification_status` from the result -- never touches
     `model_validation_status`. An out-of-vocabulary status from a verifier
     (a careless/future real provider) falls back to "uncertain", the
-    conservative choice -- never silently treated as "verified"."""
+    conservative choice -- never silently treated as "verified". A real
+    verifier's failure on one entity (e.g. a transient request error --
+    a missing API key/config is a `VisualObserverConfigurationError`,
+    still raised and caught here the same way) never breaks verification
+    of the rest, and never breaks the base scan -- mirrors
+    `run_and_persist_initial_scan`'s own observer-failure handling."""
     updated = []
     for entity in entities:
-        result = verifier.verify(image_path, entity)
+        try:
+            result = verifier.verify(image_path, entity)
+        except Exception as exc:
+            warnings.warn(
+                f"Visual verifier failed for entity {entity.entity_id!r} ({type(exc).__name__}: {exc}) -- "
+                "leaving its case_verification_status unchanged.", RuntimeWarning, stacklevel=2)
+            updated.append(entity)
+            continue
         status = result.status if result.status in CASE_VERIFICATION_STATUSES else "uncertain"
         updated.append(_with_verification_status(entity, status) if status != entity.case_verification_status
                         else entity)

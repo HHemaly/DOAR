@@ -19,9 +19,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from doar import emotion  # noqa: E402
 from doar.production_config import (  # noqa: E402
-    DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL, DEFAULT_VISUAL_OBSERVER_MODEL, EXPRESSIVE_MODEL_CHECKPOINT_PATH,
-    EXPRESSIVE_MODEL_IDENTIFIER, GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR, ProductionAnalysisConfig,
-    VISUAL_OBSERVER_MODEL_ENV_VAR, resolve_gemini_visual_observer_model, resolve_production_config,
+    DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL, DEFAULT_GEMINI_VISUAL_VERIFIER_MODEL, DEFAULT_VISUAL_OBSERVER_MODEL,
+    EXPRESSIVE_MODEL_CHECKPOINT_PATH, EXPRESSIVE_MODEL_IDENTIFIER, GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR,
+    GEMINI_VISUAL_VERIFIER_MODEL_ENV_VAR, ProductionAnalysisConfig, VISUAL_OBSERVER_MODEL_ENV_VAR,
+    resolve_gemini_visual_observer_model, resolve_gemini_visual_verifier_model, resolve_production_config,
     resolve_visual_observer_model,
 )
 
@@ -90,6 +91,26 @@ class ResolveGeminiVisualObserverModelTests(unittest.TestCase):
     def test_not_exposed_as_a_normal_streamlit_ui_choice(self):
         app_source = (ROOT / "doar_prototype_app.py").read_text(encoding="utf-8")
         self.assertNotIn(GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR, app_source)
+
+
+class ResolveGeminiVisualVerifierModelTests(unittest.TestCase):
+    def test_defaults_to_the_verified_current_model_without_override(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(GEMINI_VISUAL_VERIFIER_MODEL_ENV_VAR, None)
+            self.assertEqual(resolve_gemini_visual_verifier_model(), DEFAULT_GEMINI_VISUAL_VERIFIER_MODEL)
+            self.assertEqual(DEFAULT_GEMINI_VISUAL_VERIFIER_MODEL, "gemini-3.5-flash-lite")
+
+    def test_verifier_default_model_differs_from_observer_default_model(self):
+        # Independent model, not just an independent prompt.
+        self.assertNotEqual(DEFAULT_GEMINI_VISUAL_VERIFIER_MODEL, DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL)
+
+    def test_environment_override_takes_effect(self):
+        with mock.patch.dict(os.environ, {GEMINI_VISUAL_VERIFIER_MODEL_ENV_VAR: "gemini-verifier-research-variant"}):
+            self.assertEqual(resolve_gemini_visual_verifier_model(), "gemini-verifier-research-variant")
+
+    def test_not_exposed_as_a_normal_streamlit_ui_choice(self):
+        app_source = (ROOT / "doar_prototype_app.py").read_text(encoding="utf-8")
+        self.assertNotIn(GEMINI_VISUAL_VERIFIER_MODEL_ENV_VAR, app_source)
 
 
 class EmotionUnavailableBranchTests(unittest.TestCase):

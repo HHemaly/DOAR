@@ -64,14 +64,22 @@ exact same defensive, never-fabricate discipline as
 tuning, so any difference in what the two providers find reflects the
 model, not a differently-worded ask.
 
-Both `*VisualVerifier` classes remain unimplemented stubs -- the
-observer -> verifier -> evidence-gate -> rules architecture is frozen,
-but the verifier itself (a separate, label-blind, crop/context-
-conditioned pass) is a later phase's work, not this one's.
+**Real verifier connected: `GeminiVisualVerifier`** (shadow mode, same
+contract). Independent from the observer in TWO ways, not just prompt
+wording: a DIFFERENT model (`gemini-3.5-flash-lite`, vs. the observer's
+`gemini-3.6-flash`) and a label-blind prompt that never contains the
+observer's candidate label -- only the entity's own bbox crop (+ a small
+padded context crop) and "what do you see here?". The independent label
+it returns is compared to the entity's own labels/aliases in PLAIN CODE
+(`_compare_verifier_to_entity`) -- never by asking a second LLM to judge
+agreement -- producing verified/uncertain/rejected (or "unreviewed",
+untouched, for an entity with no usable bbox to crop). `OpenAIVisualVerifier`
+remains an unimplemented stub -- out of this phase's scope.
 """
 from __future__ import annotations
 
 import base64
+import io
 import json
 import os
 import urllib.error
@@ -80,7 +88,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Protocol
 
-from .production_config import resolve_gemini_visual_observer_model, resolve_visual_observer_model
+from .production_config import (
+    resolve_gemini_visual_observer_model, resolve_gemini_visual_verifier_model, resolve_visual_observer_model,
+)
 from .visual_entity import ENTITY_TYPES
 
 # ---------------------------------------------------------------------------
@@ -111,9 +121,21 @@ class VisualObserverCandidate:
 
 @dataclass(frozen=True)
 class VerificationResult:
-    status: str  # "verified" | "uncertain" | "rejected" -- see visual_entity.CASE_VERIFICATION_STATUSES
+    """`status` is the only field `apply_verifier_to_entities` reads --
+    everything below is additive, optional context a real verifier can
+    fill in without breaking any existing caller (`StaticVisualVerifier`,
+    `CallableVisualVerifier` test doubles, and every existing test all
+    construct this with only `status`[, `confidence`[, `notes`]])."""
+    status: str  # "verified" | "uncertain" | "rejected" | "unreviewed" -- see visual_entity.CASE_VERIFICATION_STATUSES
     confidence: float | None = None
     notes: str = ""
+    # The verifier's OWN independent observation of the region -- what
+    # `status` was deterministically computed FROM (see
+    # `_compare_verifier_to_entity`), never the observer's label fed back.
+    # Empty for verifiers that don't produce one.
+    independent_label: str | None = None
+    independent_alternative_labels: tuple[str, ...] = ()
+    source_note: str = ""  # provider/model/provenance, same convention as VisualObserverCandidate.source_note
 
 
 # ---------------------------------------------------------------------------
@@ -621,17 +643,273 @@ class OpenAIVisualVerifier:
         )
 
 
+# ---------------------------------------------------------------------------
+# Real GeminiVisualVerifier -- independent, label-blind, crop/context-
+# conditioned case-level verification. NEVER open-world: this is a
+# single-region check, not another whole-image scan, and the prompt below
+# never contains the observer's label -- only "what do you see here?".
+# ---------------------------------------------------------------------------
+
+_VERIFIER_SYSTEM_PROMPT = (
+    "You are independently inspecting ONE small cropped region taken from a "
+    "larger hand-drawn sketch. You have NOT been told what this region is "
+    "supposed to be -- look only at what is actually visible in it and "
+    "describe it narrowly and literally. The first image is the exact region "
+    "in question. A second image, if provided, shows that same region with a "
+    "small amount of surrounding context, included only to help you "
+    "understand what you're looking at -- describe the first region, not the "
+    "surrounding context. If the region is too small, too abstract, too "
+    "ambiguous, or otherwise not reliably identifiable on its own, report "
+    "your label as 'unknown' rather than guessing. Report one short primary "
+    "label, any reasonable alternative labels, and how confident you are."
+)
+
+_VERIFIER_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "label": {"type": "STRING"},
+        "alternative_labels": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "confidence": {"type": "NUMBER", "nullable": True},
+    },
+    "required": ["label", "alternative_labels"],
+}
+_VERIFIER_SCHEMA_VERSION = "gemini_verifier_schema_v1"
+
+# How far the "context" crop expands beyond the candidate's own bbox, as a
+# fraction of the bbox's own width/height -- enough to see immediate
+# surroundings without turning this back into whole-image analysis.
+_VERIFIER_CONTEXT_PADDING_FRACTION = 0.5
+
+# A verifier label this ambiguous/absent is never treated as a claim to
+# compare against anything -- always "uncertain", never forced into a
+# verified/rejected decision either way.
+_UNKNOWN_LABEL_MARKERS = frozenset({
+    "", "unknown", "unclear", "unsure", "uncertain", "ambiguous", "not identifiable",
+    "cannot identify", "can't tell", "not sure", "n/a", "none",
+})
+
+# Below this verifier-reported confidence, a LABEL MISMATCH is treated as
+# "uncertain" rather than "rejected" -- a low-confidence guess that happens
+# to differ from the observer's label isn't a confident, actionable
+# contradiction. A confident mismatch (or no confidence reported at all --
+# a plain, unhedged claim) still rejects.
+_VERIFIER_LOW_CONFIDENCE_THRESHOLD = 0.5
+
+
+def _expand_bbox_for_context(
+        bbox: tuple[float, float, float, float],
+        padding_fraction: float = _VERIFIER_CONTEXT_PADDING_FRACTION) -> tuple[float, float, float, float]:
+    """Expands a normalized xywh bbox by `padding_fraction` of its own
+    width/height on each side, clamped to the [0, 1] image bounds -- same
+    normalized-coordinate contract every bbox in this codebase already
+    uses (see `visual_entity.compute_relative_size`/`compute_page_position`)."""
+    x, y, w, h = bbox
+    pad_x, pad_y = w * padding_fraction, h * padding_fraction
+    left, top = max(0.0, x - pad_x), max(0.0, y - pad_y)
+    right, bottom = min(1.0, x + w + pad_x), min(1.0, y + h + pad_y)
+    return (left, top, max(0.0, right - left), max(0.0, bottom - top))
+
+
+def build_verifier_crops(image_path: str, bbox: tuple[float, float, float, float] | None):
+    """Returns `(crop, context_crop)` as real PIL Images, or `(None, None)`
+    if the bbox/image is unusable -- never invents a crop. Reuses
+    `visual_entity._crop_region`, the ONE place this project's crop math
+    exists, for both the tight candidate crop and the padded context crop,
+    so a verifier's idea of "this region" always agrees with the same
+    crop Technical View/`save_entity_crop` would produce. Public (no
+    leading underscore) so the development-check script can reuse it to
+    persist context crops alongside the tight ones."""
+    from .visual_entity import _crop_region
+    if bbox is None:
+        return None, None
+    crop = _crop_region(image_path, bbox)
+    if crop is None:
+        return None, None
+    context_crop = _crop_region(image_path, _expand_bbox_for_context(bbox)) or crop
+    return crop, context_crop
+
+
+def _pil_image_to_png_b64(image) -> str:
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _build_gemini_verifier_payload(crop_b64: str, context_b64: str | None) -> dict:
+    parts = [
+        {"text": "Region to identify (exact crop):"},
+        {"inlineData": {"mimeType": "image/png", "data": crop_b64}},
+    ]
+    if context_b64 is not None and context_b64 != crop_b64:
+        parts.append({"text": "Same region with a small amount of surrounding context, for reference only:"})
+        parts.append({"inlineData": {"mimeType": "image/png", "data": context_b64}})
+    return {
+        "systemInstruction": {"parts": [{"text": _VERIFIER_SYSTEM_PROMPT}]},
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": _VERIFIER_RESPONSE_SCHEMA,
+            "thinkingConfig": {"thinkingLevel": "minimal"},
+        },
+    }
+
+
+def _parse_gemini_verifier_response(raw: bytes, *, model: str) -> dict:
+    """Parses one Gemini generateContent response from the VERIFIER
+    request into the independent (label, alternatives, confidence,
+    provenance) observation -- mirrors `_parse_gemini_candidates`'
+    defensive discipline, just for a single object instead of a list.
+    Never compares against an entity here -- that's a separate,
+    deterministic step (`_compare_verifier_to_entity`), never done by
+    asking a second LLM call to judge agreement."""
+    try:
+        response = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise VisualObserverRequestError(f"Gemini verifier response was not valid JSON: {exc}") from exc
+    if not isinstance(response, dict):
+        raise VisualObserverRequestError("Gemini verifier response was not a JSON object.")
+    if "error" in response:
+        raise VisualObserverRequestError(f"Gemini verifier API returned an error: {response['error']!r}")
+    response_id = response.get("responseId", "unknown")
+    model_version = response.get("modelVersion", model)
+    try:
+        content_text = response["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = json.loads(content_text)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise VisualObserverRequestError(
+            f"Gemini verifier response (id={response_id}) could not be parsed: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise VisualObserverRequestError(f"Gemini verifier response (id={response_id}) content was not an object.")
+
+    label = parsed.get("label")
+    label = label.strip() if isinstance(label, str) and label.strip() else "unknown"
+    alt_labels = parsed.get("alternative_labels")
+    alt_tuple = tuple(str(a) for a in alt_labels) if isinstance(alt_labels, (list, tuple)) else ()
+    confidence = parsed.get("confidence")
+    confidence_float = (
+        float(confidence) if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) else None
+    )
+    source_note = (f"gemini:{model}:model_version={model_version}:schema={_VERIFIER_SCHEMA_VERSION}"
+                    f":response={response_id}")
+    return {"label": label, "alternative_labels": alt_tuple, "confidence": confidence_float,
+            "source_note": source_note}
+
+
+def _normalize_label_for_comparison(label: str) -> str:
+    """Lowercases, strips, and drops a simple trailing-'s' plural -- the
+    smallest normalization that handles case/plural differences without
+    building a semantic-matching system this phase deliberately avoids."""
+    normalized = label.strip().lower()
+    if len(normalized) > 3 and normalized.endswith("s") and not normalized.endswith("ss"):
+        normalized = normalized[:-1]
+    return normalized
+
+
+def _labels_plausibly_match(a: str, b: str) -> bool:
+    na, nb = _normalize_label_for_comparison(a), _normalize_label_for_comparison(b)
+    if not na or not nb:
+        return False
+    return na == nb or na in nb or nb in na
+
+
+def _compare_verifier_to_entity(label: str, alternative_labels: tuple[str, ...], confidence: float | None,
+                                 entity) -> str:
+    """The ONE place observer and verifier labels are compared -- in
+    plain code, never by asking another LLM whether they "agree". An
+    honest 'unknown' from the verifier is always "uncertain", never
+    forced toward verified or rejected. A match against the entity's
+    canonical label, any candidate label, or any alias is "verified". A
+    confident (or unhedged) mismatch is "rejected"; a LOW-confidence
+    mismatch is "uncertain" -- a hedged wrong guess isn't a confident
+    contradiction."""
+    if _normalize_label_for_comparison(label) in _UNKNOWN_LABEL_MARKERS:
+        return "uncertain"
+    accepted_labels = {entity.canonical_label, *(lbl for lbl, _conf in entity.candidate_labels),
+                        *entity.aliases_en, *entity.aliases_ar}
+    verifier_labels = (label, *alternative_labels)
+    for accepted in accepted_labels:
+        for observed in verifier_labels:
+            if _labels_plausibly_match(accepted, observed):
+                return "verified"
+    if confidence is not None and confidence < _VERIFIER_LOW_CONFIDENCE_THRESHOLD:
+        return "uncertain"
+    return "rejected"
+
+
 @dataclass(frozen=True)
 class GeminiVisualVerifier:
-    """NOT IMPLEMENTED -- see OpenAIVisualObserver's docstring; identical caveat."""
+    """Real, independent Gemini case-level verifier -- shadow mode only
+    (see module docstring; identical safety contract to the observers).
+    Deliberately narrow and LABEL-BLIND: given one `VisualEntity`'s own
+    bbox, crops the region (`build_verifier_crops`, reusing this
+    project's one shared crop function), sends ONLY the crop (+ a padded
+    context crop) to Gemini with a prompt that never mentions the
+    observer's label, and independently asks "what is visibly shown
+    here?". The resulting independent label is compared to the entity's
+    own canonical/candidate labels/aliases IN CODE
+    (`_compare_verifier_to_entity`) -- never by asking another LLM to
+    judge agreement -- to produce verified/uncertain/rejected. Uses a
+    DIFFERENT model than the observer (`gemini-3.5-flash-lite`, verified
+    GA/stable and smaller than the observer's `gemini-3.6-flash`) -- an
+    independently-chosen model, not just an independent prompt. An entity
+    with no usable bbox is never guessed at -- returns "unreviewed"
+    (the same safe status new entities already start in) without ever
+    making a network call."""
     api_key_env_var: str = "GEMINI_API_KEY"
-    model: str = "gemini-1.5-pro"
+    model: str = field(default_factory=resolve_gemini_visual_verifier_model)
+    timeout_seconds: float = 30.0
+    max_retries: int = 2
+    request_fn: Callable[[str, str, dict, float], bytes] | None = None
 
     def verify(self, image_path: str, entity) -> VerificationResult:
-        raise NotImplementedError(
-            "Gemini visual verification is not implemented in this release -- "
-            "see visual_observer.py's module docstring for the integration shape needed."
+        if entity.bbox is None:
+            return VerificationResult(
+                status="unreviewed",
+                notes="No bbox available for this entity -- nothing to crop and verify; not guessed.")
+
+        api_key = os.environ.get(self.api_key_env_var)
+        if not api_key:
+            raise VisualObserverConfigurationError(
+                f"No Gemini API key found in the '{self.api_key_env_var}' environment variable -- "
+                "set it before using GeminiVisualVerifier. Refusing to fabricate a result."
+            )
+        if not image_path or not Path(image_path).exists():
+            raise VisualObserverConfigurationError(f"Image not found: {image_path!r}")
+
+        crop, context_crop = build_verifier_crops(image_path, entity.bbox)
+        if crop is None:
+            return VerificationResult(
+                status="unreviewed",
+                notes="Bbox present but a crop could not be produced from this image -- not guessed.")
+
+        crop_b64 = _pil_image_to_png_b64(crop)
+        context_b64 = _pil_image_to_png_b64(context_crop) if context_crop is not None else None
+        payload = _build_gemini_verifier_payload(crop_b64, context_b64)
+        raw = self._send_with_retries(api_key, payload)
+        observed = _parse_gemini_verifier_response(raw, model=self.model)
+        status = _compare_verifier_to_entity(
+            observed["label"], observed["alternative_labels"], observed["confidence"], entity)
+        return VerificationResult(
+            status=status, confidence=observed["confidence"],
+            notes=f"Independent verifier observation: {observed['label']!r} "
+                  f"(alternatives: {list(observed['alternative_labels'])})",
+            independent_label=observed["label"],
+            independent_alternative_labels=observed["alternative_labels"],
+            source_note=observed["source_note"],
         )
+
+    def _send_with_retries(self, api_key: str, payload: dict) -> bytes:
+        transport = self.request_fn or _post_gemini_generate_content
+        last_error: Exception | None = None
+        for _attempt in range(self.max_retries + 1):
+            try:
+                return transport(api_key, self.model, payload, self.timeout_seconds)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_error = exc
+                continue
+        raise VisualObserverRequestError(
+            f"Gemini verifier request failed after {self.max_retries + 1} attempt(s): {last_error}"
+        ) from last_error
 
 
 def clamp_entity_type(entity_type: str | None) -> str:

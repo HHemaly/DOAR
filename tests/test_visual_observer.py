@@ -1,15 +1,19 @@
 """DOAR Visual Resolver: visual_observer.py -- the provider-independent
-observation/verification interface, PLUS the real `OpenAIVisualObserver`
-and `GeminiVisualObserver` integrations (shadow mode). Proves: structured
-(never prose) observer output, candidate labels stay candidates through
-the merge, verifier verdicts map correctly to case_verification_status,
-the still-stubbed *VisualVerifier classes fix their integration shape
-without ever touching a network call, and both real observer paths --
-exercised ONLY via an injected `request_fn` test seam, NEVER a real
-network call -- fail cleanly without a configured API key, parse a
-structured response into candidates with provenance preserved, fail
-safely (not silently) on a malformed response, and retry only
-transport-level failures.
+observation/verification interface, PLUS the real `OpenAIVisualObserver`,
+`GeminiVisualObserver`, and `GeminiVisualVerifier` integrations (shadow
+mode). Proves: structured (never prose) observer output, candidate
+labels stay candidates through the merge, verifier verdicts map
+correctly to case_verification_status, the still-stubbed
+`OpenAIVisualVerifier` fixes its integration shape without ever touching
+a network call, and every real path -- exercised ONLY via an injected
+`request_fn` test seam, NEVER a real network call -- fails cleanly
+without a configured API key, parses a structured response with
+provenance preserved, fails safely (not silently) on a malformed
+response, and retries only transport-level failures. The verifier
+section additionally proves it is LABEL-BLIND (the observer's candidate
+label never appears in the verifier's request payload) and that its
+verified/uncertain/rejected decision is a deterministic, in-code
+comparison -- never a second LLM call asked to judge agreement.
 """
 from __future__ import annotations
 
@@ -24,11 +28,12 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from doar.visual_entity import VisualEntity  # noqa: E402
 from doar.visual_observer import (  # noqa: E402
     CallableVisualObserver, CallableVisualVerifier, GeminiVisualObserver, GeminiVisualVerifier,
     OpenAIVisualObserver, OpenAIVisualVerifier, StaticVisualVerifier, VerificationResult,
     VisualObserverCandidate, VisualObserverConfigurationError, VisualObserverRequestError,
-    _BROAD_OPEN_WORLD_SYSTEM_PROMPT, clamp_entity_type,
+    _BROAD_OPEN_WORLD_SYSTEM_PROMPT, build_verifier_crops, clamp_entity_type,
 )
 
 
@@ -80,20 +85,15 @@ class CallableAdapterTests(unittest.TestCase):
 
 
 class StillStubbedProvidersNeverTouchNetworkTests(unittest.TestCase):
-    """Both *VisualVerifier classes are explicitly out of this phase's
-    scope (the observer -> verifier -> evidence-gate -> rules
-    architecture is frozen, but the verifier itself is later work) --
-    mirrors chat.py's OpenAIChatProvider/GeminiChatProvider pattern:
-    typed stubs that fix the shape but always raise, never silently
-    return a fabricated result."""
+    """`OpenAIVisualVerifier` is explicitly out of this phase's scope
+    (only the Gemini verifier was built) -- mirrors chat.py's
+    OpenAIChatProvider/GeminiChatProvider pattern: a typed stub that
+    fixes the shape but always raises, never silently returns a
+    fabricated result."""
 
     def test_openai_verifier_raises_not_implemented(self):
         with self.assertRaises(NotImplementedError):
             OpenAIVisualVerifier().verify("fake.png", object())
-
-    def test_gemini_verifier_raises_not_implemented(self):
-        with self.assertRaises(NotImplementedError):
-            GeminiVisualVerifier().verify("fake.png", object())
 
     def test_stub_construction_never_requires_a_real_api_key(self):
         # Construction alone (no .analyze()/.verify() call) must never
@@ -616,6 +616,322 @@ class SecretsNeverPersistedTests(unittest.TestCase):
             os.unlink(image_path)
         for c in candidates:
             self.assertNotIn(secret, c.source_note)
+
+
+# ---------------------------------------------------------------------------
+# Real GeminiVisualVerifier -- mirrors the observer sections exactly:
+# every test injects `request_fn` and never touches the network.
+# `_post_gemini_generate_content` (the real transport) is never called
+# from a verifier context in this file. Unlike the observer, the
+# verifier needs a REAL, decodable image (crops go through PIL), so
+# `_tmp_real_image_path` below writes actual pixel data.
+# ---------------------------------------------------------------------------
+
+_VERIFIER_TEST_KEY_VAR = "DOAR_TEST_GEMINI_VERIFIER_API_KEY_UNUSED"
+
+
+def _tmp_real_image_path(size=(100, 100), color=(255, 220, 0)):
+    from PIL import Image
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    Image.new("RGB", size, color).save(path)
+    return path
+
+
+def _fake_gemini_verifier_response(label, alternative_labels=(), confidence=None,
+                                    *, response_id="gemini_verifier_resp_1", model_version="gemini-3.5-flash-lite"):
+    inner = {"label": label, "alternative_labels": list(alternative_labels), "confidence": confidence}
+    body = {
+        "candidates": [{"content": {"parts": [{"text": json.dumps(inner)}], "role": "model"},
+                         "finishReason": "STOP", "index": 0}],
+        "modelVersion": model_version, "responseId": response_id,
+    }
+    return json.dumps(body).encode("utf-8")
+
+
+def _make_entity(*, canonical_label="kite", candidate_labels=(), aliases_en=(), bbox=(0.1, 0.1, 0.3, 0.3)):
+    return VisualEntity(
+        entity_id="ve_test", entity_type="object", canonical_label=canonical_label,
+        candidate_labels=candidate_labels or ((canonical_label, 0.9),),
+        aliases_en=aliases_en, aliases_ar=(),
+        broader_categories=(), possible_subtypes=(), visual_similarities=(),
+        bbox=bbox, crop_ref=None, dominant_colors=None, relative_size=None, page_position=None,
+        shape_features=None, line_features=None, detector="visual_observer:test", checkpoint="", prompt="",
+        confidence=0.9, model_validation_status="UNKNOWN", case_verification_status="unreviewed",
+        evidence_status="experimental_evidence_technical_view_only", rule_mapping_status="UNMAPPED",
+        related_rule_ids=(), source="visual_observer", query=None, timestamp="2026-08-13T00:00:00+00:00",
+    )
+
+
+class GeminiVerifierMissingKeyTests(unittest.TestCase):
+    def test_missing_api_key_raises_configuration_error_before_any_transport_call(self):
+        def must_not_be_called(*_args):
+            raise AssertionError("transport must never be called when no API key is configured")
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=must_not_be_called)
+        entity = _make_entity()
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop(_VERIFIER_TEST_KEY_VAR, None)
+                with self.assertRaises(VisualObserverConfigurationError):
+                    verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+
+    def test_missing_image_raises_configuration_error(self):
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: b"{}")
+        with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+            with self.assertRaises(VisualObserverConfigurationError):
+                verifier.verify("does_not_exist.png", _make_entity())
+
+
+class GeminiVerifierInvalidBboxTests(unittest.TestCase):
+    def test_no_bbox_returns_unreviewed_without_any_transport_call(self):
+        def must_not_be_called(*_args):
+            raise AssertionError("transport must never be called when there is no bbox to crop")
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=must_not_be_called)
+        entity = _make_entity(bbox=None)
+        result = verifier.verify("fake.png", entity)
+        self.assertEqual(result.status, "unreviewed")
+
+    def test_unusable_bbox_returns_unreviewed_without_crashing(self):
+        # bbox entirely outside [0, 1] normalized bounds -- _crop_region
+        # (visual_entity's one shared crop function) safely returns None
+        # for this rather than an empty/garbage crop; the verifier must
+        # never invent a crop or a guessed status in that case.
+        def must_not_be_called(*_args):
+            raise AssertionError("transport must never be called when no usable crop exists")
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=must_not_be_called)
+        entity = _make_entity(bbox=(5.0, 5.0, 0.1, 0.1))
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                result = verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(result.status, "unreviewed")
+
+    def test_build_verifier_crops_returns_none_for_missing_bbox(self):
+        crop, context_crop = build_verifier_crops("fake.png", None)
+        self.assertIsNone(crop)
+        self.assertIsNone(context_crop)
+
+    def test_build_verifier_crops_produces_real_images_for_a_valid_bbox(self):
+        image_path = _tmp_real_image_path()
+        try:
+            crop, context_crop = build_verifier_crops(image_path, (0.1, 0.1, 0.3, 0.3))
+        finally:
+            os.unlink(image_path)
+        self.assertIsNotNone(crop)
+        self.assertIsNotNone(context_crop)
+        # Context crop expands beyond the tight crop -- never smaller.
+        self.assertGreaterEqual(context_crop.size[0], crop.size[0])
+        self.assertGreaterEqual(context_crop.size[1], crop.size[1])
+
+
+class GeminiVerifierLabelBlindTests(unittest.TestCase):
+    """CRITICAL: the observer's candidate label must never appear in the
+    verifier's request payload -- only the crop images and a generic
+    "what do you see?" prompt."""
+
+    def test_observer_label_never_appears_in_verifier_request_payload(self):
+        captured = {}
+
+        def capturing_transport(key, model, body, timeout):
+            captured["body"] = body
+            return _fake_gemini_verifier_response("unknown")
+
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=capturing_transport)
+        entity = _make_entity(canonical_label="a_very_distinctive_unlikely_label_xyz123",
+                               aliases_en=("another_distinctive_alias_qwe789",))
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+
+        payload_text = json.dumps(captured["body"])
+        self.assertNotIn("a_very_distinctive_unlikely_label_xyz123", payload_text)
+        self.assertNotIn("another_distinctive_alias_qwe789", payload_text)
+
+    def test_request_uses_narrow_crop_prompt_not_the_broad_observer_prompt(self):
+        captured = {}
+
+        def capturing_transport(key, model, body, timeout):
+            captured["body"] = body
+            return _fake_gemini_verifier_response("unknown")
+
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=capturing_transport)
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                verifier.verify(image_path, _make_entity())
+        finally:
+            os.unlink(image_path)
+
+        system_text = captured["body"]["systemInstruction"]["parts"][0]["text"]
+        self.assertNotEqual(system_text, _BROAD_OPEN_WORLD_SYSTEM_PROMPT)
+        self.assertNotIn("Look broadly across the ENTIRE image", system_text)
+
+
+class GeminiVerifierStructuredParsingAndComparisonTests(unittest.TestCase):
+    def test_clear_independent_match_is_verified(self):
+        raw = _fake_gemini_verifier_response("kite", ["flag"], confidence=0.9)
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        entity = _make_entity(canonical_label="kite")
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                result = verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(result.status, "verified")
+        self.assertEqual(result.independent_label, "kite")
+        self.assertEqual(result.independent_alternative_labels, ("flag",))
+        self.assertEqual(result.confidence, 0.9)
+        self.assertIn("gemini", result.source_note)
+        self.assertIn("gemini-3.5-flash-lite", result.source_note)
+
+    def test_match_via_alias_is_verified(self):
+        raw = _fake_gemini_verifier_response("drawing of a girl")
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        entity = _make_entity(canonical_label="person inside car", aliases_en=("girl", "passenger"))
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                result = verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(result.status, "verified")
+
+    def test_plural_case_difference_still_matches(self):
+        raw = _fake_gemini_verifier_response("Kites")
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        entity = _make_entity(canonical_label="kite")
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                result = verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(result.status, "verified")
+
+    def test_confident_mismatch_is_rejected(self):
+        raw = _fake_gemini_verifier_response("elephant", confidence=0.95)
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        entity = _make_entity(canonical_label="kite")
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                result = verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(result.independent_label, "elephant")
+
+    def test_low_confidence_mismatch_is_uncertain_not_rejected(self):
+        raw = _fake_gemini_verifier_response("elephant", confidence=0.2)
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        entity = _make_entity(canonical_label="kite")
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                result = verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(result.status, "uncertain")
+
+    def test_unknown_label_is_uncertain_never_forced(self):
+        raw = _fake_gemini_verifier_response("unknown", confidence=None)
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        entity = _make_entity(canonical_label="kite")
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                result = verifier.verify(image_path, entity)
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(result.status, "uncertain")
+
+    def test_comparison_never_calls_another_llm(self):
+        # The transport is only ever called ONCE per verify() -- proves
+        # the verified/uncertain/rejected decision is made in plain code
+        # from the single independent observation, never by a second
+        # request asking a model whether the two labels "agree".
+        calls = {"n": 0}
+
+        def counting_transport(key, model, body, timeout):
+            calls["n"] += 1
+            return _fake_gemini_verifier_response("kite")
+
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=counting_transport)
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                verifier.verify(image_path, _make_entity(canonical_label="kite"))
+        finally:
+            os.unlink(image_path)
+        self.assertEqual(calls["n"], 1)
+
+
+class GeminiVerifierMalformedResponseTests(unittest.TestCase):
+    def test_non_json_response_raises_request_error_not_silent_fallback(self):
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR,
+                                         request_fn=lambda *a: b"not json at all")
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                with self.assertRaises(VisualObserverRequestError):
+                    verifier.verify(image_path, _make_entity())
+        finally:
+            os.unlink(image_path)
+
+    def test_api_error_body_raises_request_error(self):
+        raw = json.dumps({"error": {"code": 400, "message": "bad request", "status": "INVALID_ARGUMENT"}}).encode()
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                with self.assertRaises(VisualObserverRequestError):
+                    verifier.verify(image_path, _make_entity())
+        finally:
+            os.unlink(image_path)
+
+    def test_missing_content_raises_request_error(self):
+        raw = json.dumps({"candidates": [{"content": {"parts": []}}], "responseId": "r1"}).encode()
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: "fake-key"}):
+                with self.assertRaises(VisualObserverRequestError):
+                    verifier.verify(image_path, _make_entity())
+        finally:
+            os.unlink(image_path)
+
+
+class GeminiVerifierModelIndependenceTests(unittest.TestCase):
+    def test_verifier_default_model_differs_from_observer_default_model(self):
+        self.assertNotEqual(GeminiVisualVerifier().model, GeminiVisualObserver().model)
+
+    def test_verifier_model_configurable_via_its_own_env_var(self):
+        with mock.patch.dict(os.environ, {"DOAR_GEMINI_VISUAL_VERIFIER_MODEL": "gemini-verifier-override"}):
+            self.assertEqual(GeminiVisualVerifier().model, "gemini-verifier-override")
+
+
+class GeminiVerifierSecretsNeverPersistedTests(unittest.TestCase):
+    def test_source_note_never_contains_the_api_key(self):
+        raw = _fake_gemini_verifier_response("kite")
+        verifier = GeminiVisualVerifier(api_key_env_var=_VERIFIER_TEST_KEY_VAR, request_fn=lambda *a: raw)
+        secret = "sk-super-secret-verifier-value-should-never-leak"
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {_VERIFIER_TEST_KEY_VAR: secret}):
+                result = verifier.verify(image_path, _make_entity(canonical_label="kite"))
+        finally:
+            os.unlink(image_path)
+        self.assertNotIn(secret, result.source_note)
+        self.assertNotIn(secret, result.notes)
 
 
 if __name__ == "__main__":

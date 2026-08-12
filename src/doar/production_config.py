@@ -74,6 +74,27 @@ def resolve_gemini_visual_observer_model() -> str:
     return os.environ.get(GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR, DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL)
 
 
+# DOAR Visual Verifier: which Gemini model the independent, label-blind
+# case-level verifier uses. Deliberately a DIFFERENT model than the
+# observer (`gemini-3.6-flash`) -- an independent model, not just an
+# independent prompt, for a narrower single-region task. `gemini-3.5-
+# flash-lite` was VERIFIED (not assumed) against ai.google.dev on
+# 2026-08-13: current stable/GA, a smaller Flash-Lite model (vs. the
+# observer's full Flash model), accepts image input, supports structured
+# JSON output. Same "research/production config surface, never a UI
+# choice" contract as the observer model env vars above.
+GEMINI_VISUAL_VERIFIER_MODEL_ENV_VAR = "DOAR_GEMINI_VISUAL_VERIFIER_MODEL"
+DEFAULT_GEMINI_VISUAL_VERIFIER_MODEL = "gemini-3.5-flash-lite"
+
+
+def resolve_gemini_visual_verifier_model() -> str:
+    """The Gemini vision model `GeminiVisualVerifier` uses when the
+    caller doesn't inject a different one explicitly. Only configurable
+    via `DOAR_GEMINI_VISUAL_VERIFIER_MODEL` -- never exposed as a
+    normal-user UI choice."""
+    return os.environ.get(GEMINI_VISUAL_VERIFIER_MODEL_ENV_VAR, DEFAULT_GEMINI_VISUAL_VERIFIER_MODEL)
+
+
 @dataclass(frozen=True)
 class ProductionAnalysisConfig:
     """Resolved once per process, reused for every case. Immutable --

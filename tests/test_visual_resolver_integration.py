@@ -29,8 +29,8 @@ from doar.visual_evidence import (  # noqa: E402
     VisualFinding, load_entities, run_and_persist_initial_scan, update_entities,
 )
 from doar.visual_observer import (  # noqa: E402
-    CallableVisualObserver, CallableVisualVerifier, GeminiVisualObserver, OpenAIVisualObserver,
-    VerificationResult, VisualObserverCandidate, VisualObserverConfigurationError,
+    CallableVisualObserver, CallableVisualVerifier, GeminiVisualObserver, GeminiVisualVerifier,
+    OpenAIVisualObserver, VerificationResult, VisualObserverCandidate, VisualObserverConfigurationError,
 )
 from doar.visual_qa import answer_with_visual_grounding  # noqa: E402
 
@@ -208,6 +208,23 @@ class VerifierApplicationTests(unittest.TestCase):
         verifier = CallableVisualVerifier(fn=lambda p, ent: VerificationResult(status="definitely_true"))
         updated = apply_verifier_to_entities([e], "fake.png", verifier)
         self.assertEqual(updated[0].case_verification_status, "uncertain")
+
+    def test_verifier_exception_on_one_entity_leaves_it_unchanged_not_fatal(self):
+        # A real verifier can raise (missing config, a transient request
+        # error, ...) -- must never take down verification of the rest
+        # of the batch, and must never fabricate a status for the entity
+        # that failed.
+        def flaky(p, ent):
+            if ent.canonical_label == "cat":
+                raise RuntimeError("simulated verifier failure")
+            return VerificationResult(status="verified")
+
+        dog = visual_finding_to_entity(_finding("dog"))
+        cat = visual_finding_to_entity(_finding("cat", finding_id="vf_cat"))
+        updated = apply_verifier_to_entities([dog, cat], "fake.png", CallableVisualVerifier(fn=flaky))
+        by_label = {e.canonical_label: e for e in updated}
+        self.assertEqual(by_label["dog"].case_verification_status, "verified")
+        self.assertEqual(by_label["cat"].case_verification_status, "unreviewed")  # untouched, not guessed
 
 
 class UpdateEntitiesPersistenceTests(unittest.TestCase):
@@ -490,6 +507,95 @@ class RealGeminiObserverShadowModeIntegrationTests(unittest.TestCase):
             os.environ.pop(self._KEY_VAR, None)
             with self.assertRaises(VisualObserverConfigurationError):
                 observer.analyze("fake.png")
+
+
+class RealGeminiVerifierShadowModeIntegrationTests(unittest.TestCase):
+    """The Visual Verifier phase's own CRITICAL requirement: even a
+    Gemini-only entity the REAL verifier marks "verified" must remain
+    psychologically rule-ineligible -- it still has no backing
+    VisualFinding, exactly like an unverified observer-only entity.
+    Verification changes case correctness (case_verification_status),
+    never rule eligibility (which is governed structurally, not by any
+    status field)."""
+
+    _OBSERVER_KEY_VAR = "DOAR_TEST_GEMINI_API_KEY_UNUSED_VERIFIER_IT"
+    _VERIFIER_KEY_VAR = "DOAR_TEST_GEMINI_VERIFIER_API_KEY_UNUSED_VERIFIER_IT"
+
+    def _fake_observer_response(self, candidates):
+        body = {
+            "candidates": [{"content": {"parts": [{"text": json.dumps({"candidates": candidates})}],
+                                         "role": "model"}, "finishReason": "STOP", "index": 0}],
+            "modelVersion": "gemini-3.6-flash", "responseId": "gemini_obs_resp_it_1",
+        }
+        return json.dumps(body).encode("utf-8")
+
+    def _fake_verifier_response(self, label, alternative_labels=()):
+        inner = {"label": label, "alternative_labels": list(alternative_labels), "confidence": 0.95}
+        body = {
+            "candidates": [{"content": {"parts": [{"text": json.dumps(inner)}], "role": "model"},
+                             "finishReason": "STOP", "index": 0}],
+            "modelVersion": "gemini-3.5-flash-lite", "responseId": "gemini_verifier_resp_it_1",
+        }
+        return json.dumps(body).encode("utf-8")
+
+    def test_verified_gemini_only_entity_never_reaches_the_rule_engine(self):
+        candidates_payload = [{"label": "kite", "alternative_labels": [], "entity_type": "object",
+                                "bbox": [0.2, 0.2, 0.3, 0.3], "count": 1, "confidence": 0.9}]
+        observer = GeminiVisualObserver(api_key_env_var=self._OBSERVER_KEY_VAR,
+                                         request_fn=lambda *a: self._fake_observer_response(candidates_payload))
+        # The REAL verifier, independently confirming the SAME region as "kite"
+        # -- a genuine VERIFIED outcome, not a stub that always says verified.
+        verifier = GeminiVisualVerifier(api_key_env_var=self._VERIFIER_KEY_VAR,
+                                         request_fn=lambda *a: self._fake_verifier_response("kite"))
+        with tempfile.TemporaryDirectory() as tmp:
+            case_dir = _real_case(tmp)
+            image_path = case_dir / "drawing.png"
+            Image.new("RGB", (200, 200), "white").save(image_path)
+            with mock.patch.dict(os.environ, {self._OBSERVER_KEY_VAR: "fake-observer-key",
+                                               self._VERIFIER_KEY_VAR: "fake-verifier-key"}):
+                run_and_persist_initial_scan(
+                    case_dir, str(image_path), eye_entry=_eye_entry(), registry_v2=FAKE_REGISTRY_V2,
+                    model_predict_fns=_predict_fns(), observer=observer, verifier=verifier)
+            analysis = json.loads((case_dir / "analysis.json").read_text(encoding="utf-8"))
+            triggered = [r for r in analysis["rule_evaluations"]
+                         if r.get("visual_evidence_sourced") and r["status"] == "weak_support"]
+            self.assertEqual(triggered, [])
+            entities = load_entities(case_dir)
+            kite = next(e for e in entities if e.canonical_label == "kite")
+            # Genuinely VERIFIED by the real, independent verifier --
+            # and STILL structurally excluded from the rule engine.
+            self.assertEqual(kite.case_verification_status, "verified")
+            self.assertEqual(kite.model_validation_status, "UNKNOWN")
+
+    def test_verifier_failure_does_not_break_base_doar_analysis(self):
+        # No verifier API key configured -- GeminiVisualVerifier.verify()
+        # raises VisualObserverConfigurationError for every entity. The
+        # base analysis and the observer's own candidates must still be
+        # produced -- apply_verifier_to_entities catches this per-entity.
+        candidates_payload = [{"label": "kite", "alternative_labels": [], "entity_type": "object",
+                                "bbox": [0.2, 0.2, 0.3, 0.3], "count": 1, "confidence": 0.9}]
+        observer = GeminiVisualObserver(api_key_env_var=self._OBSERVER_KEY_VAR,
+                                         request_fn=lambda *a: self._fake_observer_response(candidates_payload))
+        verifier = GeminiVisualVerifier(api_key_env_var=self._VERIFIER_KEY_VAR, request_fn=lambda *a: b"unreachable")
+        with tempfile.TemporaryDirectory() as tmp:
+            case_dir = _real_case(tmp)
+            image_path = case_dir / "drawing.png"
+            Image.new("RGB", (200, 200), "white").save(image_path)
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ[self._OBSERVER_KEY_VAR] = "fake-observer-key"
+                os.environ.pop(self._VERIFIER_KEY_VAR, None)
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    run_and_persist_initial_scan(
+                        case_dir, str(image_path), eye_entry=_eye_entry(), registry_v2=FAKE_REGISTRY_V2,
+                        model_predict_fns=_predict_fns(), observer=observer, verifier=verifier)
+            self.assertTrue(any("Visual verifier failed" in str(w.message) for w in caught))
+            self.assertTrue((case_dir / "analysis.json").exists())
+            entities = load_entities(case_dir)
+            kite = next(e for e in entities if e.canonical_label == "kite")
+            # Observer candidate still merged in -- verifier failure never
+            # loses it -- but stays "unreviewed" since verification itself failed.
+            self.assertEqual(kite.case_verification_status, "unreviewed")
 
 
 if __name__ == "__main__":
