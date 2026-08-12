@@ -55,6 +55,25 @@ def resolve_visual_observer_model() -> str:
     return os.environ.get(VISUAL_OBSERVER_MODEL_ENV_VAR, DEFAULT_VISUAL_OBSERVER_MODEL)
 
 
+# DOAR Gemini Observer: which Gemini model the real multimodal observer
+# uses. `gemini-3.6-flash` was VERIFIED (not assumed) against
+# ai.google.dev on 2026-08-12: current stable/GA, Flash-family, accepts
+# image input, supports structured JSON output, free-tier available --
+# the Gemini 2.0 Flash generation this repo might otherwise have assumed
+# was shut down 2026-06-01. Same "research/production config surface,
+# never a UI choice" contract as VISUAL_OBSERVER_MODEL_ENV_VAR above.
+GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR = "DOAR_GEMINI_VISUAL_OBSERVER_MODEL"
+DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL = "gemini-3.6-flash"
+
+
+def resolve_gemini_visual_observer_model() -> str:
+    """The Gemini vision model `GeminiVisualObserver` uses when the
+    caller doesn't inject a different one explicitly. Only configurable
+    via `DOAR_GEMINI_VISUAL_OBSERVER_MODEL` -- never exposed as a
+    normal-user UI choice."""
+    return os.environ.get(GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR, DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL)
+
+
 @dataclass(frozen=True)
 class ProductionAnalysisConfig:
     """Resolved once per process, reused for every case. Immutable --

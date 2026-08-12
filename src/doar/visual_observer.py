@@ -52,9 +52,22 @@ structurally invisible to the rule engine regardless of
 `test_visual_resolver_integration.py` for where that structural
 exclusion is enforced and tested.
 
-`GeminiVisualObserver` and both `*VisualVerifier` classes remain
-unimplemented stubs -- out of this phase's explicit scope (see this
-phase's own DO-NOT list); they still fix their shape exactly as before.
+**Real provider connected: `GeminiVisualObserver`** (shadow mode, same
+contract). Reads `GEMINI_API_KEY` only inside `.analyze()`, calls the
+stable `generateContent` REST API (model ID verified against
+ai.google.dev, not assumed -- see `production_config.
+resolve_gemini_visual_observer_model`), requests structured JSON output
+via `generationConfig.responseSchema`, and parses the response with the
+exact same defensive, never-fabricate discipline as
+`_parse_openai_candidates`. Uses the SAME broad, provider-agnostic
+`_BROAD_OPEN_WORLD_SYSTEM_PROMPT` as OpenAI -- no per-provider prompt
+tuning, so any difference in what the two providers find reflects the
+model, not a differently-worded ask.
+
+Both `*VisualVerifier` classes remain unimplemented stubs -- the
+observer -> verifier -> evidence-gate -> rules architecture is frozen,
+but the verifier itself (a separate, label-blind, crop/context-
+conditioned pass) is a later phase's work, not this one's.
 """
 from __future__ import annotations
 
@@ -67,7 +80,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Protocol
 
-from .production_config import resolve_visual_observer_model
+from .production_config import resolve_gemini_visual_observer_model, resolve_visual_observer_model
 from .visual_entity import ENTITY_TYPES
 
 # ---------------------------------------------------------------------------
@@ -198,8 +211,12 @@ _OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 # deliberately does NOT enumerate expected objects (no "look for a car, a
 # sun, ..."); the observer must inspect the whole image and report
 # whatever it can actually justify, including "I can't tell" via
-# entity_type="unknown" and a low/absent confidence.
-_OPENAI_SYSTEM_PROMPT = (
+# entity_type="unknown" and a low/absent confidence. SHARED verbatim by
+# every real provider (OpenAI, Gemini, ...) -- the prompt is
+# provider-agnostic, and using the identical wording keeps any future
+# cross-provider comparison meaningful (a difference in output reflects
+# the model, not a differently-worded ask).
+_BROAD_OPEN_WORLD_SYSTEM_PROMPT = (
     "You are a careful visual observer inspecting a hand-drawn sketch for a "
     "structural analysis pipeline. Look broadly across the ENTIRE image -- do "
     "not limit yourself to any fixed list of expected objects. Identify every "
@@ -257,7 +274,7 @@ def _build_openai_payload(model: str, image_b64: str, mime: str) -> dict:
     return {
         "model": model,
         "messages": [
-            {"role": "system", "content": _OPENAI_SYSTEM_PROMPT},
+            {"role": "system", "content": _BROAD_OPEN_WORLD_SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": [
@@ -395,17 +412,200 @@ class OpenAIVisualObserver:
         ) from last_error
 
 
+_GEMINI_GENERATE_CONTENT_URL_TEMPLATE = (
+    "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent")
+
+# generateContent (the stable, long-documented REST API) was chosen over
+# the newer "Interactions API" Google now recommends for new development:
+# generateContent remains fully supported with no deprecation timeline
+# (confirmed via ai.google.dev's own migration guide, 2026-08-12), and its
+# request/response shape is precisely documented and verifiable, unlike
+# the Interactions API's still-unsettled-in-tooling docs at the time this
+# was written. Revisit if/when generateContent is actually deprecated.
+#
+# `gemini-3.6-flash` was VERIFIED (not assumed) on 2026-08-12 against
+# ai.google.dev: current stable/GA, Flash-family, accepts image input,
+# supports structured JSON output, free-tier available. The Gemini 2.0
+# Flash generation this repo might otherwise have defaulted to was shut
+# down 2026-06-01.
+#
+# response_schema here uses Gemini's OpenAPI-3.0-subset dialect (uppercase
+# type names, `nullable: true` rather than a `["type", "null"]` union) --
+# the long-established, stable shape for this API. Response PARSING below
+# is defensive regardless (mirrors `_parse_openai_candidates`): a schema
+# quirk on either side degrades to skipped/malformed entries, never a
+# fabricated candidate.
+_GEMINI_CANDIDATE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "candidates": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "label": {"type": "STRING"},
+                    "alternative_labels": {"type": "ARRAY", "items": {"type": "STRING"}},
+                    "entity_type": {"type": "STRING", "enum": sorted(ENTITY_TYPES)},
+                    "bbox": {"type": "ARRAY", "items": {"type": "NUMBER"}, "nullable": True},
+                    "count": {"type": "INTEGER", "nullable": True},
+                    "confidence": {"type": "NUMBER", "nullable": True},
+                },
+                "required": ["label", "alternative_labels", "entity_type"],
+            },
+        },
+    },
+    "required": ["candidates"],
+}
+# A version tag for this request shape -- bumped whenever the schema or
+# prompt actually changes, so stored provenance can tell which version of
+# the ask produced a given candidate. NOT a hash of the live schema
+# object (dict key order isn't guaranteed stable across Python versions).
+_GEMINI_SCHEMA_VERSION = "gemini_observer_schema_v1"
+
+
+def _build_gemini_payload(image_b64: str, mime: str) -> dict:
+    return {
+        "systemInstruction": {"parts": [{"text": _BROAD_OPEN_WORLD_SYSTEM_PROMPT}]},
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"text": "Analyze this drawing and report every distinct visual element you can identify."},
+                {"inlineData": {"mimeType": mime, "data": image_b64}},
+            ],
+        }],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": _GEMINI_CANDIDATE_SCHEMA,
+            # Minimal reasoning: this is broad visual discovery, not multi-step
+            # reasoning -- keeps the call fast/cheap. `thinkingLevel: "minimal"`
+            # is gemini-3.6-flash's actual accepted control (VERIFIED live
+            # against the real API 2026-08-12 -- the older `thinkingBudget: 0`
+            # numeric form this repo might otherwise have assumed returns
+            # HTTP 400 INVALID_ARGUMENT on this model generation).
+            "thinkingConfig": {"thinkingLevel": "minimal"},
+        },
+    }
+
+
+def _post_gemini_generate_content(api_key: str, model: str, payload: dict, timeout_seconds: float) -> bytes:
+    """The one real network call this function makes -- never invoked by
+    the test suite (tests always inject `request_fn`)."""
+    url = _GEMINI_GENERATE_CONTENT_URL_TEMPLATE.format(model=model)
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 -- fixed https URL
+        return response.read()
+
+
+def _parse_gemini_candidates(raw: bytes, *, model: str) -> list[VisualObserverCandidate]:
+    """Parses one Gemini generateContent response into structured
+    candidates. Mirrors `_parse_openai_candidates` exactly: anything that
+    doesn't fit the expected shape raises `VisualObserverRequestError`;
+    individual malformed candidate entries are skipped, not fatal."""
+    try:
+        response = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise VisualObserverRequestError(f"Gemini response was not valid JSON: {exc}") from exc
+    if not isinstance(response, dict):
+        raise VisualObserverRequestError("Gemini response was not a JSON object.")
+    if "error" in response:
+        raise VisualObserverRequestError(f"Gemini API returned an error: {response['error']!r}")
+    response_id = response.get("responseId", "unknown")
+    model_version = response.get("modelVersion", model)
+    source_note = (f"gemini:{model}:model_version={model_version}:schema={_GEMINI_SCHEMA_VERSION}"
+                    f":response={response_id}")
+    try:
+        content_text = response["candidates"][0]["content"]["parts"][0]["text"]
+        raw_candidates = json.loads(content_text)["candidates"]
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise VisualObserverRequestError(
+            f"Gemini response (id={response_id}) could not be parsed into structured candidates: {exc}"
+        ) from exc
+    if not isinstance(raw_candidates, list):
+        raise VisualObserverRequestError(f"Gemini response (id={response_id}) 'candidates' field was not a list.")
+
+    candidates = []
+    for item in raw_candidates:
+        if not isinstance(item, dict):
+            continue
+        label = item.get("label")
+        if not isinstance(label, str) or not label.strip():
+            continue
+        bbox = item.get("bbox")
+        bbox_tuple = (
+            tuple(float(v) for v in bbox)
+            if isinstance(bbox, (list, tuple)) and len(bbox) == 4
+            else None
+        )
+        alt_labels = item.get("alternative_labels")
+        alt_tuple = tuple(str(a) for a in alt_labels) if isinstance(alt_labels, (list, tuple)) else ()
+        count = item.get("count")
+        count_int = int(count) if isinstance(count, (int, float)) and not isinstance(count, bool) else None
+        confidence = item.get("confidence")
+        confidence_float = (
+            float(confidence) if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) else None
+        )
+        candidates.append(VisualObserverCandidate(
+            label=label.strip(),
+            alternative_labels=alt_tuple,
+            entity_type=clamp_entity_type(item.get("entity_type")),
+            bbox=bbox_tuple,
+            count=count_int,
+            confidence=confidence_float,
+            source_note=source_note,
+        ))
+    return candidates
+
+
 @dataclass(frozen=True)
 class GeminiVisualObserver:
-    """NOT IMPLEMENTED -- see OpenAIVisualObserver's docstring; identical caveat."""
+    """Real Gemini multimodal observer -- shadow mode only (see module
+    docstring; identical safety contract to `OpenAIVisualObserver`).
+    `api_key_env_var` names the environment variable holding the API key
+    (never read at construction time, only inside `.analyze()`, never
+    hardcoded). `model` defaults to `production_config.
+    resolve_gemini_visual_observer_model()` -- a research/production
+    config surface (`DOAR_GEMINI_VISUAL_OBSERVER_MODEL` env var), never a
+    normal-user UI choice. `request_fn`, when set, replaces the real HTTP
+    transport entirely -- the test suite always sets it; production code
+    never does."""
     api_key_env_var: str = "GEMINI_API_KEY"
-    model: str = "gemini-1.5-pro"
+    model: str = field(default_factory=resolve_gemini_visual_observer_model)
+    timeout_seconds: float = 30.0
+    max_retries: int = 2
+    request_fn: Callable[[str, str, dict, float], bytes] | None = None
 
     def analyze(self, image_path: str) -> list[VisualObserverCandidate]:
-        raise NotImplementedError(
-            "Gemini visual observation is not implemented in this release -- "
-            "see visual_observer.py's module docstring for the integration shape needed."
-        )
+        api_key = os.environ.get(self.api_key_env_var)
+        if not api_key:
+            raise VisualObserverConfigurationError(
+                f"No Gemini API key found in the '{self.api_key_env_var}' environment variable -- "
+                "set it before using GeminiVisualObserver. Refusing to fabricate a result."
+            )
+        if not image_path or not Path(image_path).exists():
+            raise VisualObserverConfigurationError(f"Image not found: {image_path!r}")
+
+        image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
+        payload = _build_gemini_payload(image_b64, _guess_image_mime(image_path))
+        raw = self._send_with_retries(api_key, payload)
+        return _parse_gemini_candidates(raw, model=self.model)
+
+    def _send_with_retries(self, api_key: str, payload: dict) -> bytes:
+        transport = self.request_fn or _post_gemini_generate_content
+        last_error: Exception | None = None
+        for _attempt in range(self.max_retries + 1):
+            try:
+                return transport(api_key, self.model, payload, self.timeout_seconds)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_error = exc
+                continue
+        raise VisualObserverRequestError(
+            f"Gemini vision request failed after {self.max_retries + 1} attempt(s): {last_error}"
+        ) from last_error
 
 
 @dataclass(frozen=True)

@@ -19,8 +19,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from doar import emotion  # noqa: E402
 from doar.production_config import (  # noqa: E402
-    DEFAULT_VISUAL_OBSERVER_MODEL, EXPRESSIVE_MODEL_CHECKPOINT_PATH, EXPRESSIVE_MODEL_IDENTIFIER,
-    ProductionAnalysisConfig, VISUAL_OBSERVER_MODEL_ENV_VAR, resolve_production_config,
+    DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL, DEFAULT_VISUAL_OBSERVER_MODEL, EXPRESSIVE_MODEL_CHECKPOINT_PATH,
+    EXPRESSIVE_MODEL_IDENTIFIER, GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR, ProductionAnalysisConfig,
+    VISUAL_OBSERVER_MODEL_ENV_VAR, resolve_gemini_visual_observer_model, resolve_production_config,
     resolve_visual_observer_model,
 )
 
@@ -73,6 +74,22 @@ class ResolveVisualObserverModelTests(unittest.TestCase):
     def test_not_exposed_as_a_normal_streamlit_ui_choice(self):
         app_source = (ROOT / "doar_prototype_app.py").read_text(encoding="utf-8")
         self.assertNotIn(VISUAL_OBSERVER_MODEL_ENV_VAR, app_source)
+
+
+class ResolveGeminiVisualObserverModelTests(unittest.TestCase):
+    def test_defaults_to_the_verified_current_model_without_override(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR, None)
+            self.assertEqual(resolve_gemini_visual_observer_model(), DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL)
+            self.assertEqual(DEFAULT_GEMINI_VISUAL_OBSERVER_MODEL, "gemini-3.6-flash")
+
+    def test_environment_override_takes_effect(self):
+        with mock.patch.dict(os.environ, {GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR: "gemini-research-variant"}):
+            self.assertEqual(resolve_gemini_visual_observer_model(), "gemini-research-variant")
+
+    def test_not_exposed_as_a_normal_streamlit_ui_choice(self):
+        app_source = (ROOT / "doar_prototype_app.py").read_text(encoding="utf-8")
+        self.assertNotIn(GEMINI_VISUAL_OBSERVER_MODEL_ENV_VAR, app_source)
 
 
 class EmotionUnavailableBranchTests(unittest.TestCase):
