@@ -28,13 +28,14 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from doar.visual_entity import VisualEntity  # noqa: E402
+from doar.visual_entity import VisualEntity, _bbox_is_crop_usable  # noqa: E402
 from doar.visual_observer import (  # noqa: E402
     CallableVisualObserver, CallableVisualVerifier, GeminiVisualObserver, GeminiVisualVerifier,
     OpenAIVisualObserver, OpenAIVisualVerifier, StaticVisualVerifier, VerificationResult,
     VisualObserverCandidate, VisualObserverConfigurationError, VisualObserverRequestError,
-    _BROAD_OPEN_WORLD_SYSTEM_PROMPT, _compare_verifier_to_entity, _labels_plausibly_match,
-    _tokenize_label_for_comparison, build_verifier_crops, clamp_entity_type,
+    _BROAD_OPEN_WORLD_SYSTEM_PROMPT, _compare_verifier_to_entity, _GEMINI_CANDIDATE_SCHEMA,
+    _GEMINI_SCHEMA_VERSION, _labels_plausibly_match, _OPENAI_CANDIDATE_SCHEMA, _parse_gemini_candidates,
+    _parse_openai_candidates, _tokenize_label_for_comparison, build_verifier_crops, clamp_entity_type,
 )
 
 
@@ -575,6 +576,78 @@ class GeminiObserverModelConfigTests(unittest.TestCase):
     def test_explicit_model_argument_overrides_config(self):
         observer = GeminiVisualObserver(model="gemini-explicit")
         self.assertEqual(observer.model, "gemini-explicit")
+
+
+class GeminiBboxSchemaStabilizationTests(unittest.TestCase):
+    """DOAR V1.3 bbox stabilization. Root cause (verified against
+    ai.google.dev and this project's own saved raw responses): Gemini's
+    documented, trained-in bbox convention is [ymin, xmin, ymax, xmax]
+    scaled 0-1000 -- NOT this project's normalized-(x,y,w,h)-in-[0,1]
+    contract the observer's prompt asks for. A real response can still
+    drift from that ask even with an explicit schema (p2b_0004's saved
+    raw response showed three candidates with y+height == 10.0 EXACTLY
+    while x/width stayed correctly in [0,1] -- a Y-axis-only ~10x scale
+    slip). The fix is schema-level reinforcement (`description` +
+    `minimum`/`maximum` on the bbox array's items, confirmed live to be
+    accepted by the API without error) PLUS the crop-time safety net
+    (`visual_entity._bbox_is_crop_usable`, unchanged from the prior
+    phase) that refuses to guess a crop from anything still out of
+    range regardless of whether the schema hint worked. These tests
+    prove the schema change and confirm parsing does not add any
+    further (double) normalization on top of whatever Gemini returns."""
+
+    def test_bbox_schema_declares_explicit_normalized_range(self):
+        bbox_schema = _GEMINI_CANDIDATE_SCHEMA["properties"]["candidates"]["items"]["properties"]["bbox"]
+        self.assertIn("description", bbox_schema)
+        self.assertIn("0.0", bbox_schema["description"])
+        self.assertIn("1.0", bbox_schema["description"])
+        self.assertEqual(bbox_schema["items"]["minimum"], 0.0)
+        self.assertEqual(bbox_schema["items"]["maximum"], 1.0)
+
+    def test_schema_version_reflects_the_bbox_schema_change(self):
+        self.assertEqual(_GEMINI_SCHEMA_VERSION, "gemini_observer_schema_v2")
+
+    def test_parsing_a_valid_bbox_applies_no_further_scaling(self):
+        # Gemini reports an already-normalized bbox; DOAR must store
+        # EXACTLY those numbers, never divide/rescale them again.
+        payload = [{"label": "kite", "alternative_labels": [], "entity_type": "object",
+                    "bbox": [0.25, 0.5, 0.1, 0.2], "count": 1, "confidence": 0.9}]
+        raw = _fake_gemini_response(payload)
+        candidates = _parse_gemini_candidates(raw, model="gemini-3.6-flash")
+        self.assertEqual(candidates[0].bbox, (0.25, 0.5, 0.1, 0.2))
+
+    def test_the_h38_style_overshoot_from_the_new_run_is_still_safely_rejected(self):
+        # The exact bbox Gemini returned for h38's car candidate AFTER
+        # the schema fix was applied -- confirms the fix does not by
+        # itself guarantee compliance (the model can still misjudge an
+        # object's true extent near a frame edge), so the crop-time
+        # safety net remains the actual guarantee against a silently
+        # wrong region.
+        payload = [{"label": "car", "alternative_labels": [], "entity_type": "object",
+                    "bbox": [0.82, 0.344, 0.535, 0.598], "count": 1, "confidence": 0.9}]
+        raw = _fake_gemini_response(payload)
+        candidates = _parse_gemini_candidates(raw, model="gemini-3.6-flash")
+        self.assertEqual(candidates[0].bbox, (0.82, 0.344, 0.535, 0.598))  # preserved, not rescaled
+        self.assertFalse(_bbox_is_crop_usable(candidates[0].bbox))  # but never usable for a crop
+
+    def test_the_p2b_0004_style_y_axis_scale_error_is_still_safely_rejected(self):
+        # The exact real bbox shape observed pre-fix on p2b_0004 --
+        # y + height == 10.0 exactly, x/width normal -- must still be
+        # refused as a crop source regardless of the schema change.
+        self.assertFalse(_bbox_is_crop_usable((0.08, 6.32, 0.44, 3.68)))
+
+    def test_openai_bbox_schema_and_parsing_unchanged(self):
+        # This phase's bbox fix is Gemini-specific (a real, documented
+        # provider-format mismatch); OpenAI's own schema/parsing was
+        # never touched and must behave identically to before.
+        openai_bbox_schema = _OPENAI_CANDIDATE_SCHEMA["properties"]["candidates"]["items"]["properties"]["bbox"]
+        self.assertNotIn("description", openai_bbox_schema)
+        self.assertNotIn("minimum", openai_bbox_schema["items"])
+        payload = [{"label": "kite", "alternative_labels": [], "entity_type": "object",
+                    "bbox": [0.25, 0.5, 0.1, 0.2], "count": 1, "confidence": 0.9}]
+        raw = _fake_openai_response(payload)
+        candidates = _parse_openai_candidates(raw, model="gpt-4o")
+        self.assertEqual(candidates[0].bbox, (0.25, 0.5, 0.1, 0.2))
 
 
 class NoNormalUIProviderSelectorTests(unittest.TestCase):

@@ -457,6 +457,22 @@ _GEMINI_GENERATE_CONTENT_URL_TEMPLATE = (
 # is defensive regardless (mirrors `_parse_openai_candidates`): a schema
 # quirk on either side degrades to skipped/malformed entries, never a
 # fabricated candidate.
+#
+# DOAR V1.3 bbox stabilization: Gemini's own DOCUMENTED, trained-in bbox
+# convention is [ymin, xmin, ymax, xmax] scaled 0-1000 (ai.google.dev's
+# object-detection guide) -- NOT this project's normalized-[x,y,w,h]-in-
+# [0,1] contract the free-text prompt asks for. A real response can still
+# drift from that ask (verified live against p2b_0004's saved raw
+# response: three candidates had y+height == 10.0 EXACTLY while x/width
+# stayed in [0,1] -- a Y-axis-only ~10x scale slip, a model-inference
+# artifact, not a DOAR-side parsing bug). The `description`/`minimum`/
+# `maximum` below are a SCHEMA-level (not semantic-prompt) reinforcement
+# of the same ask, confirmed live to be accepted by the API -- whether
+# Gemini enforces numeric bounds as a hard constraint or only as a strong
+# hint is undocumented, so this is reinforcement, not a guarantee:
+# `visual_entity._bbox_is_crop_usable` (unchanged this phase) remains the
+# actual safety net that refuses to crop/localize from anything still out
+# of range, exactly as it already does.
 _GEMINI_CANDIDATE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
@@ -468,7 +484,16 @@ _GEMINI_CANDIDATE_SCHEMA = {
                     "label": {"type": "STRING"},
                     "alternative_labels": {"type": "ARRAY", "items": {"type": "STRING"}},
                     "entity_type": {"type": "STRING", "enum": sorted(ENTITY_TYPES)},
-                    "bbox": {"type": "ARRAY", "items": {"type": "NUMBER"}, "nullable": True},
+                    "bbox": {
+                        "type": "ARRAY",
+                        "description": (
+                            "[x, y, width, height] as four numbers, each a fraction of the image's "
+                            "own width (x, width) or height (y, height). Every one of the four numbers "
+                            "must be between 0.0 and 1.0 inclusive -- never a pixel coordinate, never a "
+                            "0-1000 scale, never greater than 1.0."),
+                        "items": {"type": "NUMBER", "minimum": 0.0, "maximum": 1.0},
+                        "nullable": True,
+                    },
                     "count": {"type": "INTEGER", "nullable": True},
                     "confidence": {"type": "NUMBER", "nullable": True},
                 },
@@ -482,7 +507,7 @@ _GEMINI_CANDIDATE_SCHEMA = {
 # prompt actually changes, so stored provenance can tell which version of
 # the ask produced a given candidate. NOT a hash of the live schema
 # object (dict key order isn't guaranteed stable across Python versions).
-_GEMINI_SCHEMA_VERSION = "gemini_observer_schema_v1"
+_GEMINI_SCHEMA_VERSION = "gemini_observer_schema_v2"
 
 
 def _build_gemini_payload(image_b64: str, mime: str) -> dict:

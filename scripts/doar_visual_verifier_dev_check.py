@@ -47,7 +47,14 @@ sys.path.insert(0, str(ROOT / "src"))
 from doar.visual_entity import VisualEntity  # noqa: E402
 from doar.visual_observer import GeminiVisualVerifier, build_verifier_crops  # noqa: E402
 
-OBSERVER_RESULTS_DIR = ROOT / "outputs" / "prototype_cases" / "gemini_observer_dev_check_1786540127"
+OBSERVER_RESULTS_DIR = ROOT / "outputs" / "prototype_cases" / "gemini_observer_dev_check_1786580023"
+# 4 of 5 images (h38, p2b_0001, p2b_0002, p2b_0003) in this directory are a
+# FRESH observer rerun with the DOAR V1.3 bbox-schema fix (schema version
+# gemini_observer_schema_v2). p2b_0004_raw.json in that same directory was
+# copied verbatim from the earlier gemini_observer_dev_check_1786540127 run
+# (pre-fix) -- the observer's real gemini-3.6-flash free-tier quota
+# (20 requests/day) was exhausted retrying p2b_0004 today, so a fresh pull
+# for that one image was not possible. Documented here, not hidden.
 OUT_DIR = ROOT / "outputs" / "prototype_cases" / f"gemini_verifier_dev_check_{int(time.time())}"
 
 # Same five permanently DEVELOPMENT-ONLY images/raw-result files as the
