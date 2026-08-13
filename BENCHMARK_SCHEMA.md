@@ -1,10 +1,14 @@
 # DOAR — Benchmark Schema and Metric Definitions (Development Stage)
 
-Prepares the comparison schema and metric definitions for a **future**
-"Direct Gemini vs. DOAR" benchmark run. **This document does not run any
-benchmark** — schema/definitions only, per this phase's explicit scope.
-Applies first to the 15-image development set (`DEVELOPMENT_SET_15.json`),
-never yet to the 100-image held-out set.
+Defines the comparison schema and metrics for the "Direct Gemini vs.
+DOAR" benchmark. Implemented by `src/doar/benchmark_metrics.py` (metric
+code) and `scripts/run_development_benchmark.py` (the runner) — both
+validated on real, already-saved Observer/Verifier development data with
+zero new API calls, but not yet run against real human annotations
+(none exist yet; see `ANNOTATION_PROTOCOL_DEVELOPMENT_SET.md` and
+`scripts/annotate_development_set.py`). Applies first to the 15-image
+development set (`DEVELOPMENT_SET_15.json`), never yet to the 100-image
+held-out set.
 
 ## 1. Comparison design
 
@@ -52,9 +56,12 @@ comparison (`visual_observer._labels_plausibly_match`) — reused, not
 reinvented, so "matched" means the same thing here as it already does
 throughout the Observer/Verifier pipeline.
 
-**No metric here is computed by this phase.** Definitions only — actual
-computation requires the human annotations (`ANNOTATION_PROTOCOL_
-DEVELOPMENT_SET.md`), which do not exist yet.
+**Implemented** in `src/doar/benchmark_metrics.py`
+(`visual_precision_recall_f1`/`salient_recall`/`hallucination_rate`/
+`abstention_rate`/`verifier_correction_rate`). No number here reflects a
+real result yet — computation requires the human annotations
+(`ANNOTATION_PROTOCOL_DEVELOPMENT_SET.md`), which do not exist yet; the
+runner reports every metric as `null` until they do.
 
 ## 4. Reasoning metrics (condition B only — direct Gemini has no reasoning layer)
 
@@ -65,6 +72,13 @@ DEVELOPMENT_SET.md`), which do not exist yet.
 | Rule/reference traceability | % of `CandidateHypothesis.supporting_rule_ids` that resolve to a real row in `RULE_EVIDENCE_MATRIX.csv` (expected 100%) |
 | Hypothesis derivability | Count of images where >=1 `CandidateHypothesis` was produced, broken down by `support_level` (`WEAK_HYPOTHESIS` / `POSSIBLE_FOR_EXPLORATION` / `PROFESSIONAL_REVIEW_SUGGESTED`) — reports HOW OFTEN the reasoning chain reaches each strength level on real drawings, never a claim about correctness |
 
+**Implemented** in `src/doar/benchmark_metrics.py`
+(`evidence_backed_claim_rate`/`unsupported_claim_rate`/
+`rule_reference_traceability`/`hypothesis_derivability`), confirmed
+1.0/0.0/1.0-as-expected on the 5 already-exposed anchor images'
+real saved data during this phase's dry run (2 rule references, 9
+eligible matches, zero unsupported).
+
 These "reasoning metrics" are largely **construction-time guarantees**
 (traceability is enforced by `reasoning_chain.py`'s own design — see
 `RULE_FREEZE_REPORT.md`), not something a benchmark run discovers after
@@ -72,7 +86,38 @@ the fact. Their inclusion here is for the future 100-image run, where
 running the pipeline at scale is the only way to confirm the guarantee
 holds under real, varied input, not just under this phase's smoke test.
 
-## 5. What this schema explicitly does NOT define
+## 5. Inter-annotator visual agreement
+
+Two independent annotators (`ANNOTATION_PROTOCOL_DEVELOPMENT_SET.md`)
+each complete Pass 1 and Pass 2 for all 15 images, entirely
+independently, with no consensus step. **Their two item lists are never
+merged into one combined ground truth** — every visual metric in Section
+3 is computed against EACH annotator's list separately (see
+`src/doar/benchmark_metrics.py`'s module docstring). This section defines
+a SEPARATE metric measuring how well the two annotators agree with each
+other, not a way of producing a single truth set.
+
+**Method — normalized concept-set pairwise F1/Jaccard + adjudication
+rate** (implemented in `benchmark_metrics.inter_annotator_agreement`):
+
+1. Normalize both annotators' item labels the same way every other label
+   comparison in DOAR already works — `visual_observer._labels_plausibly_
+   match` (whole-word token overlap, not raw substring matching).
+2. Greedily match each of annotator A's items to at most one still-
+   unclaimed item of annotator B's (so two "sun" items in B never both
+   match the one "sun" item in A) — `matched_pairs`.
+3. `jaccard = matched_pairs / (len(A) + len(B) - matched_pairs)`
+4. `f1 = 2 * matched_pairs / (len(A) + len(B))`
+5. `adjudication_rate = unmatched_items / (len(A) + len(B))` — the
+   fraction of ALL recorded items (either annotator) with no counterpart.
+   This is a flag for which items a human adjudicator would need to look
+   at before either annotator's list could be trusted alone — this
+   function does not resolve the disagreement itself.
+
+Computed once per image, separately for Pass 1 and Pass 2 (Pass 2 is
+expected to show higher agreement, having no time pressure).
+
+## 6. What this schema explicitly does NOT define
 
 - Any pass/fail threshold — the 15-image development set is for building
   and debugging the comparison itself, not for judging DOAR "good enough."
@@ -80,7 +125,7 @@ holds under real, varied input, not just under this phase's smoke test.
 - Statistical significance testing — reserved for the 100-image held-out
   run's own, separate protocol (not written yet, out of this phase's scope).
 
-## 6. Explicit non-goal
+## 7. Explicit non-goal
 
 This schema, and any future script that implements it, must never write
 back into `RULE_EVIDENCE_MATRIX.csv`, `CONCERN_DOMAIN_MAP.json`, or any
