@@ -1,0 +1,145 @@
+{
+  "schema_version": "concern_domain_map_v1",
+  "note": "Level 5 of the hierarchical rule model (RULE_EVIDENCE_AUDIT.md Section 6). Maps each concern domain to the atomic rules (RULE_EVIDENCE_MATRIX.csv) that COULD theoretically contribute to it if fully implemented and validated -- 27 of DOAR's 41 rules are DETECTOR_UNAVAILABLE and cannot fire at all today (see RULE_COVERAGE_MATRIX.csv), so 'candidate' here means 'source material proposes this construct', never 'currently produces this output'. No domain in this file is reachable in production today. A depicted sad face supports 'negative depicted affect' -- it does not, on its own or in combination with these other unvalidated rules, support 'the child is depressed' as a stated fact; every clinician-facing hypothesis wording example below is a HYPOTHESIS phrase for future decision-support use, not a claim this session generated for any real case.",
+  "domains": {
+    "positive_affect_or_social_engagement": {
+      "description": "Positive/warm depicted affect, social connection, imagination/creative themes.",
+      "example_clinician_hypothesis_wording": "Positive/social depicted affect",
+      "example_parent_wording": "Several signs in the drawing are commonly associated with positive mood or social connection.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "PSY_AR_FLOWERS_CLOUDS_SUN_010",
+        "PSY_AR_HEARTS_013",
+        "PSY_AR_PLACE_RIGHT_019",
+        "PSY_AR_TRANSPORT_012"
+      ],
+      "candidate_rule_count": 4,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "neutral_descriptive_only": {
+      "description": "Composition/geometry facts (placement, coverage) with no proposed emotional construct at all in the source.",
+      "example_clinician_hypothesis_wording": "No clinical hypothesis -- objective composition observation only.",
+      "example_parent_wording": "This is simply a description of where or how large the drawing is on the page.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "EN_COMPILED_PLACEMENT_CENTER_029",
+        "PSY_AR_SIZE_FULL_015"
+      ],
+      "candidate_rule_count": 2,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "neutral_descriptive_only_no_construct_proposed": {
+      "description": "Symbol/animal/shape rules whose SOURCE proposed a personality trait (e.g. 'outgoing personality'), not an emotional or clinical construct -- out of scope for concern-domain aggregation entirely, listed for completeness.",
+      "example_clinician_hypothesis_wording": "No clinical hypothesis -- source claim is a personality trait, not a concern-domain construct.",
+      "example_parent_wording": "Not applicable -- these observations are not used to build any concern hypothesis.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "EN_COMPILED_ANIMAL_CHOICE_GENERAL_022",
+        "EN_COMPILED_EYES_MISSING_DETAIL_020",
+        "EN_COMPILED_HOUSE_023",
+        "EN_COMPILED_LINE_OVER_ERASING_034",
+        "EN_COMPILED_MISSING_HANDS_035",
+        "EN_COMPILED_REFUSAL_TO_DRAW_039",
+        "EN_COMPILED_TREE_024",
+        "PSY_AR_ANIMAL_FOX_005",
+        "PSY_AR_ANIMAL_LION_007",
+        "PSY_AR_EYES_CLOSED_003",
+        "PSY_AR_EYES_WIDE_001",
+        "PSY_AR_PLACE_TOP_017",
+        "PSY_AR_SIZE_HALF_014",
+        "PSY_AR_STARS_009"
+      ],
+      "candidate_rule_count": 14,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "anxiety_or_stress_related": {
+      "description": "Fear/insecurity, protection/coping-seeking, caution/low visual energy.",
+      "example_clinician_hypothesis_wording": "Possible anxiety- or stress-related presentation",
+      "example_parent_wording": "Several repeated signs related to worry, caution, or nervous feelings were observed.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "EN_COMPILED_EXAGGERATED_BODY_PARTS_037",
+        "EN_COMPILED_LINE_LIGHT_PRESSURE_031",
+        "EN_COMPILED_REPEATED_MONSTERS_DANGER_025",
+        "EN_COMPILED_VERY_SMALL_DRAWING_026",
+        "PSY_AR_ANIMAL_SQUIRREL_006",
+        "PSY_AR_SIZE_SMALL_016"
+      ],
+      "candidate_rule_count": 6,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "depressive_or_low_mood_related": {
+      "description": "Low-mood/distress-associated facial expression, missing mouth, dark colours + sad face + isolation combination, repeated family-conflict themes.",
+      "example_clinician_hypothesis_wording": "Possible depressive/low-mood presentation",
+      "example_parent_wording": "Several repeated signs related to low mood or emotional difficulty were observed.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "EN_COMPILED_DARK_COLORS_SAD_ISOLATION_038",
+        "EN_COMPILED_FACE_EXPRESSION_021",
+        "EN_COMPILED_MISSING_MOUTH_036",
+        "EN_COMPILED_REPEATED_FAMILY_CONFLICT_027"
+      ],
+      "candidate_rule_count": 4,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "aggression_or_threat_related": {
+      "description": "Tension/anger-associated eyes, threat-associated animal symbolism, heavy pressure/zigzag lines.",
+      "example_clinician_hypothesis_wording": "Possible aggression- or threat-related theme",
+      "example_parent_wording": "A few signs sometimes linked to frustration or tension were observed.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "EN_COMPILED_LINE_HEAVY_PRESSURE_030",
+        "EN_COMPILED_LINE_ZIGZAG_033",
+        "PSY_AR_ANIMAL_TIGER_WOLF_004",
+        "PSY_AR_EYES_STERN_002"
+      ],
+      "candidate_rule_count": 4,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "social_withdrawal_related": {
+      "description": "Social-distance/isolation-associated shapes and placement, repeated isolation themes.",
+      "example_clinician_hypothesis_wording": "Possible social withdrawal or isolation theme",
+      "example_parent_wording": "A few signs sometimes linked to feeling alone or left out were observed.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "EN_COMPILED_REPEATED_ISOLATION_THEMES_028",
+        "PSY_AR_CIRCLES_011",
+        "PSY_AR_PLACE_LEFT_018"
+      ],
+      "candidate_rule_count": 3,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "developmental_or_attention_related": {
+      "description": "Repetition/rigidity, disorganisation/fragmentation, excessive detail/fixation, background neglect -- the closest DOAR gets to attention/developmental-style observations; explicitly NOT an ADHD diagnostic pathway (see REF_AAP_ADHD_CPG_2019).",
+      "example_clinician_hypothesis_wording": "Possible attention/developmental-related pattern worth noting (NEVER phrased as an ADHD hypothesis without a full clinical evaluation per AAP guidance)",
+      "example_parent_wording": "A few signs related to focus or task style were observed -- these have many ordinary explanations, including age and drawing experience.",
+      "abuse_or_diagnostic_domain": false,
+      "candidate_atomic_rule_ids": [
+        "EN_COMPILED_EXCESSIVE_DETAIL_040",
+        "EN_COMPILED_LINE_SHAKY_BROKEN_032",
+        "EN_COMPILED_NEGLECT_BACKGROUND_041",
+        "PSY_AR_GEOMETRY_008"
+      ],
+      "candidate_rule_count": 4,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    },
+    "maltreatment_or_safety_concern": {
+      "description": "No DOAR rule (active or candidate, 41-rule registry) maps here today -- deliberately empty at the atomic-rule level. Populated only via Section 7's transparent, display-only feature list (see RULE_EVIDENCE_AUDIT.md Section 7), never as an activatable rule or aggregation target.",
+      "example_clinician_hypothesis_wording": "NEVER a hypothesis DOAR proposes on its own -- see the absolute prohibition in SCIENTIFIC_LIMITATIONS.md Section 3, grounded by REF_ALLEN_TUSSEY_ABUSE_2012.",
+      "example_parent_wording": "Not applicable -- DOAR does not generate abuse/maltreatment hypotheses.",
+      "abuse_or_diagnostic_domain": true,
+      "candidate_atomic_rule_ids": [],
+      "candidate_rule_count": 0,
+      "current_status": "NOT_CURRENTLY_PRODUCIBLE -- CONCERNS_ENABLED=False in concerns.py; even if enabled, no per-domain taxonomy exists in the real pipeline today, only the single generic concern_converged_001. This file is a DESIGN/DEFINITION document, not an activation.",
+      "minimum_evidence_to_ever_surface": ">=2 independent evidence IDs from >=2 distinct source types (concerns.py's existing MIN_EVIDENCE/MIN_SOURCES constants) PLUS this domain's own concern-specific taxonomy being built and reviewed -- neither exists yet for any domain."
+    }
+  }
+}

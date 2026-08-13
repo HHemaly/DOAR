@@ -1,0 +1,465 @@
+{
+  "schema_version": "rule_relationship_graph_v1",
+  "relationship_types": [
+    "REQUIRES",
+    "SUPPORTS",
+    "CONTRADICTS",
+    "SAME_EVIDENCE_FAMILY",
+    "DUPLICATE_OF",
+    "MORE_SPECIFIC_THAN",
+    "ALTERNATIVE_EXPLANATION_OF",
+    "CONTEXT_LIMITED_BY"
+  ],
+  "note": "DUPLICATE_OF has zero edges below: source_rule_catalog.json's own 21 near_duplicate and 3 related_but_distinct source-entry-level relationships were ALREADY resolved into single rule_ids during the prior session's registry consolidation (see rules_registry_v2.json's source_entry_ids field, e.g. PSY_AR_EYES_WIDE_001.source_entry_ids == [SRC_AR_001, SRC_EN_001]) -- there is no remaining rule_id-level duplication to map. The 3 related_but_distinct pairs that were NOT merged (genuinely different rules) appear as MORE_SPECIFIC_THAN/ALTERNATIVE_EXPLANATION_OF edges below. No CONTRADICTS edge exists between any two of DOAR's own 41 rules -- see literature_level_contradictions for the one real contradiction found, which is between EXTERNAL REFERENCES, not DOAR rules.",
+  "same_evidence_family_edges": [
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "facial_feature_style",
+      "rule_ids": [
+        "EN_COMPILED_EYES_MISSING_DETAIL_020",
+        "EN_COMPILED_FACE_EXPRESSION_021",
+        "PSY_AR_EYES_CLOSED_003",
+        "PSY_AR_EYES_STERN_002",
+        "PSY_AR_EYES_WIDE_001"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "animal_symbolism",
+      "rule_ids": [
+        "EN_COMPILED_ANIMAL_CHOICE_GENERAL_022",
+        "PSY_AR_ANIMAL_FOX_005",
+        "PSY_AR_ANIMAL_LION_007",
+        "PSY_AR_ANIMAL_SQUIRREL_006",
+        "PSY_AR_ANIMAL_TIGER_WOLF_004"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "shape_symbolism",
+      "rule_ids": [
+        "PSY_AR_CIRCLES_011",
+        "PSY_AR_FLOWERS_CLOUDS_SUN_010",
+        "PSY_AR_GEOMETRY_008",
+        "PSY_AR_STARS_009"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "object_symbolism",
+      "rule_ids": [
+        "EN_COMPILED_HOUSE_023",
+        "EN_COMPILED_TREE_024",
+        "PSY_AR_HEARTS_013",
+        "PSY_AR_TRANSPORT_012"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "size_composition",
+      "rule_ids": [
+        "EN_COMPILED_VERY_SMALL_DRAWING_026",
+        "PSY_AR_SIZE_FULL_015",
+        "PSY_AR_SIZE_HALF_014",
+        "PSY_AR_SIZE_SMALL_016"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "spatial_placement",
+      "rule_ids": [
+        "EN_COMPILED_PLACEMENT_CENTER_029",
+        "PSY_AR_PLACE_LEFT_018",
+        "PSY_AR_PLACE_RIGHT_019",
+        "PSY_AR_PLACE_TOP_017"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "isolation_theme",
+      "rule_ids": [
+        "EN_COMPILED_REPEATED_FAMILY_CONFLICT_027",
+        "EN_COMPILED_REPEATED_ISOLATION_THEMES_028",
+        "EN_COMPILED_REPEATED_MONSTERS_DANGER_025"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "line_intensity_quality",
+      "rule_ids": [
+        "EN_COMPILED_LINE_HEAVY_PRESSURE_030",
+        "EN_COMPILED_LINE_LIGHT_PRESSURE_031"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "line_quality",
+      "rule_ids": [
+        "EN_COMPILED_LINE_OVER_ERASING_034",
+        "EN_COMPILED_LINE_ZIGZAG_033"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    },
+    {
+      "type": "SAME_EVIDENCE_FAMILY",
+      "evidence_family": "missing_body_part",
+      "rule_ids": [
+        "EN_COMPILED_EXAGGERATED_BODY_PARTS_037",
+        "EN_COMPILED_MISSING_HANDS_035",
+        "EN_COMPILED_MISSING_MOUTH_036"
+      ],
+      "note": "These rules would be counted as ONE piece of converging evidence, not several, in any future aggregation -- see EVIDENCE_AGGREGATION_POLICY.md's explicit warning against double-counting within a family (e.g. frown+tears+sad-face)."
+    }
+  ],
+  "requires_edges": [
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_EYES_WIDE_001",
+      "precondition": "face_or_eye_region_positively_detected",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_EYES_STERN_002",
+      "precondition": "face_or_eye_region_positively_detected",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_EYES_CLOSED_003",
+      "precondition": "face_or_eye_region_positively_detected",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_ANIMAL_TIGER_WOLF_004",
+      "precondition": "animal_species_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_ANIMAL_FOX_005",
+      "precondition": "animal_species_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_ANIMAL_SQUIRREL_006",
+      "precondition": "animal_species_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_ANIMAL_LION_007",
+      "precondition": "animal_species_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_GEOMETRY_008",
+      "precondition": "shape_or_symbol_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_STARS_009",
+      "precondition": "shape_or_symbol_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_FLOWERS_CLOUDS_SUN_010",
+      "precondition": "shape_or_symbol_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_CIRCLES_011",
+      "precondition": "shape_or_symbol_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_TRANSPORT_012",
+      "precondition": "object_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_HEARTS_013",
+      "precondition": "object_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_SIZE_HALF_014",
+      "precondition": "segmentation_and_bounding_box_coverage_available (already implemented)",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_SIZE_FULL_015",
+      "precondition": "segmentation_and_bounding_box_coverage_available (already implemented)",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_SIZE_SMALL_016",
+      "precondition": "segmentation_and_bounding_box_coverage_available (already implemented)",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_PLACE_TOP_017",
+      "precondition": "segmentation_and_centroid_available (already implemented)",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_PLACE_LEFT_018",
+      "precondition": "segmentation_and_centroid_available (already implemented)",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "PSY_AR_PLACE_RIGHT_019",
+      "precondition": "segmentation_and_centroid_available (already implemented)",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_EYES_MISSING_DETAIL_020",
+      "precondition": "face_or_eye_region_positively_detected",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_FACE_EXPRESSION_021",
+      "precondition": "face_or_eye_region_positively_detected",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_ANIMAL_CHOICE_GENERAL_022",
+      "precondition": "animal_species_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_HOUSE_023",
+      "precondition": "object_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_TREE_024",
+      "precondition": "object_positively_detected_and_classified",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_REPEATED_MONSTERS_DANGER_025",
+      "precondition": "longitudinal_case_with_multiple_dated_drawings_available",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_VERY_SMALL_DRAWING_026",
+      "precondition": "segmentation_and_bounding_box_coverage_available (already implemented)",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_REPEATED_FAMILY_CONFLICT_027",
+      "precondition": "longitudinal_case_with_multiple_dated_drawings_available",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_REPEATED_ISOLATION_THEMES_028",
+      "precondition": "longitudinal_case_with_multiple_dated_drawings_available",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_PLACEMENT_CENTER_029",
+      "precondition": "segmentation_and_centroid_available (already implemented)",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_LINE_HEAVY_PRESSURE_030",
+      "precondition": "stroke_pressure_appearance_proxy_feature_available",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_LINE_LIGHT_PRESSURE_031",
+      "precondition": "stroke_pressure_appearance_proxy_feature_available",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_LINE_SHAKY_BROKEN_032",
+      "precondition": "stroke_fragmentation_feature_available",
+      "currently_satisfied_in_doar": true
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_LINE_ZIGZAG_033",
+      "precondition": "stroke_or_edit_history_feature_available",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_LINE_OVER_ERASING_034",
+      "precondition": "stroke_or_edit_history_feature_available",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_MISSING_HANDS_035",
+      "precondition": "person_positively_detected_with_that_body_part_expected_visible",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_MISSING_MOUTH_036",
+      "precondition": "person_positively_detected_with_that_body_part_expected_visible",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_EXAGGERATED_BODY_PARTS_037",
+      "precondition": "person_positively_detected_with_that_body_part_expected_visible",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_DARK_COLORS_SAD_ISOLATION_038",
+      "precondition": "colour_feature_available AND co-occurring sad-face/isolation observation",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_REFUSAL_TO_DRAW_039",
+      "precondition": "process_metadata_available (child_refused_to_draw is not recoverable from a finished image alone)",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_EXCESSIVE_DETAIL_040",
+      "precondition": "shape_or_region_detail_density_feature_available",
+      "currently_satisfied_in_doar": false
+    },
+    {
+      "type": "REQUIRES",
+      "rule_id": "EN_COMPILED_NEGLECT_BACKGROUND_041",
+      "precondition": "background_vs_foreground_segmentation_available",
+      "currently_satisfied_in_doar": false
+    }
+  ],
+  "more_specific_and_alternative_edges": [
+    {
+      "type": "MORE_SPECIFIC_THAN",
+      "more_specific_rule_id": "EN_COMPILED_VERY_SMALL_DRAWING_026",
+      "more_general_rule_id": "PSY_AR_SIZE_SMALL_016",
+      "note": "PSY_AR_SIZE_SMALL_016 measures RELATIVE page coverage (a fraction DOAR can compute today); EN_COMPILED_VERY_SMALL_DRAWING_026 as literally written concerns ABSOLUTE figure size, which requires physical-scale calibration DOAR does not have (observability_class=not_operational). Conflating the two would silently promote an unmeasurable absolute-size claim under cover of the measurable relative-coverage rule."
+    },
+    {
+      "type": "ALTERNATIVE_EXPLANATION_OF",
+      "rule_id": "EN_COMPILED_ANIMAL_CHOICE_GENERAL_022",
+      "alternative_to_rule_ids": [
+        "PSY_AR_ANIMAL_TIGER_WOLF_004",
+        "PSY_AR_ANIMAL_FOX_005",
+        "PSY_AR_ANIMAL_SQUIRREL_006",
+        "PSY_AR_ANIMAL_LION_007"
+      ],
+      "note": "The English source's own general-principle entry ('animal choice ... can reflect interests, story play, fear, identification, or a projective theme') is itself listed as a broader, non-specific alternative reading to the four specific species-symbolism claims -- i.e. the source material itself hedges its own specific claims."
+    }
+  ],
+  "context_limited_by_edges": [
+    {
+      "type": "CONTEXT_LIMITED_BY",
+      "rule_ids": [
+        "PSY_AR_SIZE_HALF_014",
+        "PSY_AR_SIZE_FULL_015",
+        "PSY_AR_SIZE_SMALL_016",
+        "EN_COMPILED_VERY_SMALL_DRAWING_026"
+      ],
+      "reference_id": "LIT_CULTURAL_CONFOUND_008",
+      "note": "Cross-cultural studies found figure size varies by country/culture independent of psychological state."
+    },
+    {
+      "type": "CONTEXT_LIMITED_BY",
+      "rule_ids": [
+        "PSY_AR_TRANSPORT_012"
+      ],
+      "reference_id": "LIT_CULTURAL_CONFOUND_008",
+      "note": "Boys included vehicles roughly twice as often as girls in the cited cross-cultural data -- a strong gender-pattern alternative explanation."
+    },
+    {
+      "type": "CONTEXT_LIMITED_BY",
+      "rule_ids": [
+        "PSY_AR_SIZE_SMALL_016",
+        "EN_COMPILED_VERY_SMALL_DRAWING_026",
+        "EN_COMPILED_EXCESSIVE_DETAIL_040"
+      ],
+      "reference_id": "LIT_MOTOR_SKILL_CONFOUND_009",
+      "note": "Fine motor skill is an independent predictor of drawing-assessment scores generally."
+    },
+    {
+      "type": "CONTEXT_LIMITED_BY",
+      "rule_ids": [
+        "PSY_AR_SIZE_HALF_014",
+        "PSY_AR_SIZE_FULL_015",
+        "PSY_AR_SIZE_SMALL_016",
+        "EN_COMPILED_VERY_SMALL_DRAWING_026",
+        "EN_COMPILED_DARK_COLORS_SAD_ISOLATION_038"
+      ],
+      "reference_id": "LIT_MATERIAL_MEDIUM_CONFOUND_010",
+      "note": "Paper size and drawing medium materially affect coverage_* and colour_* features independent of anything psychological."
+    },
+    {
+      "type": "CONTEXT_LIMITED_BY",
+      "rule_ids": [
+        "EN_COMPILED_DARK_COLORS_SAD_ISOLATION_038"
+      ],
+      "reference_id": "REF_CRAWFORD_COLOUR_CAUTION_2012",
+      "note": "Colour use alone was found not to reliably track emotional valence even in an instructed, externally-framed paradigm."
+    },
+    {
+      "type": "CONTEXT_LIMITED_BY",
+      "rule_ids": [
+        "EN_COMPILED_LINE_SHAKY_BROKEN_032",
+        "EN_COMPILED_LINE_ZIGZAG_033",
+        "EN_COMPILED_LINE_HEAVY_PRESSURE_030",
+        "EN_COMPILED_LINE_LIGHT_PRESSURE_031"
+      ],
+      "reference_id": "LIT_PENCIL_PRESSURE_002",
+      "note": "The only validated pressure-related construct (digitizer force) is not recoverable from a static image; DOAR's stroke proxies measure a different, unvalidated construct."
+    }
+  ],
+  "literature_level_contradictions": [
+    {
+      "topic": "Does children's colour choice reflect their emotional state?",
+      "supporting_reference_ids": [
+        "REF_BURKITT_BARRETT_DAVIS_2003",
+        "LIT_COLOUR_EMOTION_001"
+      ],
+      "contradicting_reference_ids": [
+        "REF_CRAWFORD_COLOUR_CAUTION_2012"
+      ],
+      "note": "Direct disagreement in the literature itself, not merely a caveat on one side. No DOAR rule currently uses colour to claim emotion (EN_COMPILED_DARK_COLORS_SAD_ISOLATION_038 is disabled, DETECTOR_UNAVAILABLE) -- recorded here so this contradiction is checked BEFORE any future colour-emotion rule is proposed, not discovered after."
+    }
+  ],
+  "duplicate_of_edges": []
+}
