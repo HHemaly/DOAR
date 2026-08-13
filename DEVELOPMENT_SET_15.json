@@ -1,0 +1,123 @@
+{
+  "schema_version": "development_set_15_v1",
+  "note": "These 15 images are PERMANENTLY DEVELOPMENT-ONLY. They must NEVER enter the future 100-image held-out benchmark experiment. Selection is fully reproducible: no random seed, no manual cherry-picking -- see selection_algorithm below.",
+  "selection_algorithm": {
+    "pool_source": "outputs/phase2c1/private_images",
+    "pool_size_before_exclusion": 80,
+    "excluded_from_pool": [
+      "p2b_0000",
+      "p2b_0001",
+      "p2b_0002",
+      "p2b_0003",
+      "p2b_0004"
+    ],
+    "pool_size_after_exclusion": 75,
+    "method": "Evenly-spaced systematic sample: step = floor(pool_size / 10); indices = [0, step, 2*step, ..., 9*step] into the pool sorted by filename stem.",
+    "step": 7,
+    "indices_selected": [
+      0,
+      7,
+      14,
+      21,
+      28,
+      35,
+      42,
+      49,
+      56,
+      63
+    ]
+  },
+  "total_images": 15,
+  "images": [
+    {
+      "image_id": "h38",
+      "relative_path": "outputs/prototype_cases/h38_1786305027/h38.jpg",
+      "selection_reason": "Required development-anchor image, used throughout the Observer/Verifier development phases.",
+      "already_exposed_to_observer_verifier": true
+    },
+    {
+      "image_id": "p2b_0001",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0001.jpg",
+      "selection_reason": "Required development-anchor image (already used in prior Observer/Verifier dev-check phases).",
+      "already_exposed_to_observer_verifier": true
+    },
+    {
+      "image_id": "p2b_0002",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0002.jpg",
+      "selection_reason": "Required development-anchor image (already used in prior Observer/Verifier dev-check phases).",
+      "already_exposed_to_observer_verifier": true
+    },
+    {
+      "image_id": "p2b_0003",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0003.jpeg",
+      "selection_reason": "Required development-anchor image (already used in prior Observer/Verifier dev-check phases).",
+      "already_exposed_to_observer_verifier": true
+    },
+    {
+      "image_id": "p2b_0004",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0004.jpg",
+      "selection_reason": "Required development-anchor image (already used in prior Observer/Verifier dev-check phases).",
+      "already_exposed_to_observer_verifier": true
+    },
+    {
+      "image_id": "p2b_0005",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0005.jpeg",
+      "selection_reason": "Reproducible systematic sample: pool index 0 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0012",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0012.jpeg",
+      "selection_reason": "Reproducible systematic sample: pool index 7 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0019",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0019.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 14 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0026",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0026.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 21 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0033",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0033.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 28 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0040",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0040.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 35 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0047",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0047.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 42 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0054",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0054.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 49 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0061",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0061.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 56 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    },
+    {
+      "image_id": "p2b_0068",
+      "relative_path": "outputs/phase2c1/private_images/p2b_0068.jpg",
+      "selection_reason": "Reproducible systematic sample: pool index 63 of 75 (step=7, pool excludes p2b_0000 and the 4 already-exposed anchors).",
+      "already_exposed_to_observer_verifier": false
+    }
+  ]
+}
