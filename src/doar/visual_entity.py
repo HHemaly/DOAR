@@ -141,13 +141,54 @@ def compute_page_position(bbox: tuple[float, float, float, float] | None) -> str
     return f"{vertical}_{horizontal}"
 
 
+# A real provider (Gemini's own DOCUMENTED, trained-in bbox convention is
+# [ymin, xmin, ymax, xmax] scaled 0-1000 -- see ai.google.dev's object-
+# detection guide -- not this project's normalized-xywh-in-[0,1] contract)
+# does not always fully convert to the custom [x, y, w, h]/[0,1] schema
+# DOAR's own prompt asks for, even when explicitly instructed to. This is
+# the DOAR V1.2 stabilization bug (h38's "yellow car" bbox landed on the
+# traffic light instead): a moderately-out-of-range box like x=0.81,
+# w=0.54 (x+w=1.35) doesn't produce an EMPTY crop when naively clamped --
+# clamping just silently shifts the crop to a DIFFERENT, WRONG region
+# that still looks like a normal, non-empty result. A tolerance-gated
+# validity check catches this class of error BEFORE any crop math runs,
+# rather than clamping first and hoping. Small overshoots (a couple of
+# percent -- ordinary floating-point/rounding noise) still clamp safely;
+# anything beyond that is refused outright, never silently reinterpreted.
+_BBOX_OUT_OF_RANGE_TOLERANCE = 0.02
+
+
+def _bbox_is_crop_usable(bbox: tuple[float, float, float, float] | None) -> bool:
+    """True only for a bbox DOAR can safely crop without guessing.
+    Rejects (never reinterprets/rescales) anything with non-positive
+    area, negative origin beyond a tiny tolerance, or an extent that
+    overshoots the normalized [0, 1] image bounds by more than that same
+    tolerance -- the exact shape of a provider's coordinate-format
+    mismatch, not ordinary floating-point noise."""
+    if bbox is None:
+        return False
+    x, y, w, h = bbox
+    if w <= 0 or h <= 0:
+        return False
+    if x < -_BBOX_OUT_OF_RANGE_TOLERANCE or y < -_BBOX_OUT_OF_RANGE_TOLERANCE:
+        return False
+    if x + w > 1 + _BBOX_OUT_OF_RANGE_TOLERANCE or y + h > 1 + _BBOX_OUT_OF_RANGE_TOLERANCE:
+        return False
+    return True
+
+
 def _crop_region(image_path: str, bbox: tuple[float, float, float, float] | None):
     """Opens `image_path`, crops to `bbox` (normalized xywh), returns a
     real PIL Image or None if the image/bbox is unusable -- the ONE place
     this crop-math exists, shared by `compute_dominant_colors` and
     `save_entity_crop` so both agree exactly on what an entity's "crop"
-    is."""
-    if bbox is None:
+    is. Never crops an out-of-range bbox (see `_bbox_is_crop_usable`) --
+    a bbox that fails this check is REJECTED outright, never clamped
+    into a differently-shaped, silently-wrong region. The raw bbox value
+    itself is never touched/rescaled anywhere -- it stays exactly what
+    the provider reported, visible in the entity's own `bbox` field for
+    provenance, regardless of whether it was usable for cropping."""
+    if not _bbox_is_crop_usable(bbox):
         return None
     try:
         from PIL import Image

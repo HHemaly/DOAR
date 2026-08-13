@@ -805,11 +805,52 @@ def _normalize_label_for_comparison(label: str) -> str:
     return normalized
 
 
+# Small, fixed filler-word list -- NOT a synonym/ontology system, just the
+# handful of words that add no identifying content to a label ("drawing
+# of a person" vs "person inside car" should compare on "person", not on
+# "of"/"a"/"drawing"). Deliberately short; if a real label ever needs a
+# word here that isn't, that's a sign this list needs one more entry, not
+# that this needs to grow into semantic matching.
+_GENERIC_LABEL_WORDS = frozenset({
+    "drawing", "drawings", "image", "picture", "sketch", "shape", "region", "mark", "marks",
+    "of", "a", "an", "the", "with", "in", "on", "inside", "part", "figure", "like",
+})
+
+
+def _tokenize_label_for_comparison(label: str) -> frozenset:
+    """Words only (punctuation stripped), each singular/case-normalized
+    the same simple way as `_normalize_label_for_comparison`, with short
+    and generic/filler words dropped -- the token set two labels are
+    compared against as a FALLBACK when they don't already match as
+    whole strings (see `_labels_plausibly_match`)."""
+    cleaned = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in label.lower())
+    tokens = set()
+    for word in cleaned.split():
+        if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+            word = word[:-1]
+        if len(word) > 2 and word not in _GENERIC_LABEL_WORDS:
+            tokens.add(word)
+    return frozenset(tokens)
+
+
 def _labels_plausibly_match(a: str, b: str) -> bool:
+    """Two-tier check: (1) whole-string equality/containment after simple
+    case/plural normalization -- the strong signal, unchanged from
+    before; (2) a FALLBACK token-overlap check -- after dropping generic
+    filler words, do the two labels share at least one real content word
+    ("person" in both "person inside car" and "drawing of a person")?
+    Still deterministic, plain-code comparison -- never a second LLM
+    judging "do these agree?", and never full semantic/embedding
+    matching -- just literal shared words."""
     na, nb = _normalize_label_for_comparison(a), _normalize_label_for_comparison(b)
     if not na or not nb:
         return False
-    return na == nb or na in nb or nb in na
+    if na == nb or na in nb or nb in na:
+        return True
+    tokens_a, tokens_b = _tokenize_label_for_comparison(a), _tokenize_label_for_comparison(b)
+    if not tokens_a or not tokens_b:
+        return False
+    return bool(tokens_a & tokens_b)
 
 
 def _compare_verifier_to_entity(label: str, alternative_labels: tuple[str, ...], confidence: float | None,

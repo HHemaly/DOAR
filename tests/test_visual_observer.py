@@ -33,7 +33,8 @@ from doar.visual_observer import (  # noqa: E402
     CallableVisualObserver, CallableVisualVerifier, GeminiVisualObserver, GeminiVisualVerifier,
     OpenAIVisualObserver, OpenAIVisualVerifier, StaticVisualVerifier, VerificationResult,
     VisualObserverCandidate, VisualObserverConfigurationError, VisualObserverRequestError,
-    _BROAD_OPEN_WORLD_SYSTEM_PROMPT, build_verifier_crops, clamp_entity_type,
+    _BROAD_OPEN_WORLD_SYSTEM_PROMPT, _compare_verifier_to_entity, _labels_plausibly_match,
+    _tokenize_label_for_comparison, build_verifier_crops, clamp_entity_type,
 )
 
 
@@ -773,6 +774,62 @@ class GeminiVerifierLabelBlindTests(unittest.TestCase):
         system_text = captured["body"]["systemInstruction"]["parts"][0]["text"]
         self.assertNotEqual(system_text, _BROAD_OPEN_WORLD_SYSTEM_PROMPT)
         self.assertNotIn("Look broadly across the ENTIRE image", system_text)
+
+
+class LabelMatchingStabilizationTests(unittest.TestCase):
+    """DOAR Visual Verification stabilization: the deterministic label
+    matcher previously only checked whole-string containment, which
+    incorrectly REJECTED genuinely-matching multi-word labels whose
+    shared content word wasn't at a matching contiguous position (e.g.
+    "person inside car" vs. "drawing of a person" -- "person" is shared,
+    but neither string contains the other). Adds a token-overlap
+    FALLBACK: after dropping a small, fixed set of generic/filler words
+    ("drawing", "of", "a", ...) and normalizing simple plurals per word,
+    do the two labels share any real content word? Still fully
+    deterministic plain code -- never a second LLM asked to judge
+    agreement, and never a semantic/embedding system. These are the
+    EXACT before/after examples from the DOAR V1.2 stabilization dev
+    run (outputs/prototype_cases/gemini_verifier_dev_check_*)."""
+
+    def test_previously_broken_match_now_matches_on_shared_concept(self):
+        self.assertTrue(_labels_plausibly_match("drawing of a person", "person inside car"))
+        self.assertTrue(_labels_plausibly_match("crying face drawing", "green face circle"))
+
+    def test_already_working_substring_matches_still_work(self):
+        # Whole-string containment is untouched -- these worked before
+        # this stabilization and must keep working identically.
+        self.assertTrue(_labels_plausibly_match("tree branches", "tree"))
+        self.assertTrue(_labels_plausibly_match("house roof", "roof"))
+
+    def test_required_non_matches_stay_rejected(self):
+        # The token-overlap fallback must NEVER turn these into matches --
+        # they share no real content word.
+        self.assertFalse(_labels_plausibly_match("yellow car", "traffic light"))
+        self.assertFalse(_labels_plausibly_match("window", "french fries"))
+
+    def test_generic_words_alone_never_cause_a_match(self):
+        # Two labels that are ENTIRELY generic filler share no real
+        # content token -- must not match just because both happen to
+        # contain "drawing"/"of"/"a".
+        self.assertFalse(_labels_plausibly_match("a drawing", "a picture of a shape"))
+
+    def test_tokenize_drops_generic_words_and_normalizes_plurals(self):
+        tokens = _tokenize_label_for_comparison("Drawing of a Person's Eyes")
+        self.assertIn("person", tokens)
+        self.assertIn("eye", tokens)  # plural stripped
+        self.assertNotIn("drawing", tokens)
+        self.assertNotIn("of", tokens)
+        self.assertNotIn("a", tokens)
+
+    def test_compare_verifier_to_entity_now_verifies_the_person_case(self):
+        entity = _make_entity(canonical_label="person inside car", aliases_en=("driver",))
+        status = _compare_verifier_to_entity("drawing of a person", (), 0.9, entity)
+        self.assertEqual(status, "verified")
+
+    def test_compare_verifier_to_entity_still_rejects_confident_mismatch(self):
+        entity = _make_entity(canonical_label="yellow car")
+        status = _compare_verifier_to_entity("traffic light", (), 0.98, entity)
+        self.assertEqual(status, "rejected")
 
 
 class GeminiVerifierStructuredParsingAndComparisonTests(unittest.TestCase):

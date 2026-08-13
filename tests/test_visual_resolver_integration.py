@@ -22,8 +22,8 @@ from doar.analysis import analyze_image  # noqa: E402
 from doar.phase2c7.detector_policy import EXPERIMENTAL_AUTOMATIC, build_eye_policy_entry  # noqa: E402
 from doar.registry_v2_build import build_registry_v2  # noqa: E402
 from doar.visual_entity import (  # noqa: E402
-    VisualEntity, apply_verifier_to_entities, merge_observer_candidates_into_entities, populate_crop_refs,
-    save_entity_crop, visual_finding_to_entity,
+    VisualEntity, _bbox_is_crop_usable, _crop_region, apply_verifier_to_entities,
+    merge_observer_candidates_into_entities, populate_crop_refs, save_entity_crop, visual_finding_to_entity,
 )
 from doar.visual_evidence import (  # noqa: E402
     VisualFinding, load_entities, run_and_persist_initial_scan, update_entities,
@@ -174,6 +174,84 @@ class CropRefTests(unittest.TestCase):
             e = VisualEntity.from_dict(d)
             updated = populate_crop_refs([e], str(image_path), case_dir)
             self.assertEqual(updated[0].crop_ref, "artifacts/crops/already_set.png")
+
+
+class BboxValidityTests(unittest.TestCase):
+    """DOAR Visual Verification stabilization: Gemini's own documented,
+    trained-in bbox convention ([ymin, xmin, ymax, xmax] scaled 0-1000,
+    per ai.google.dev's object-detection guide) is NOT this project's
+    normalized-xywh-in-[0,1] contract -- even with an explicit custom
+    schema asking for the latter, a real response can still land
+    (moderately) outside it. Proves the fix: an out-of-range bbox is
+    REJECTED outright (never clamped into a differently-shaped, silently
+    WRONG crop -- the h38 "yellow car" bug, whose bbox landed on the
+    traffic light instead), while ordinary in-range boxes and tiny
+    (rounding-noise-sized) overshoots still crop normally -- exactly
+    once, with no double normalization anywhere in this path."""
+
+    def test_valid_bbox_is_usable(self):
+        self.assertTrue(_bbox_is_crop_usable((0.1, 0.1, 0.3, 0.3)))
+
+    def test_edge_bbox_touching_bounds_is_usable(self):
+        self.assertTrue(_bbox_is_crop_usable((0.0, 0.0, 1.0, 1.0)))
+        self.assertTrue(_bbox_is_crop_usable((0.7, 0.7, 0.3, 0.3)))  # x+w == 1.0 exactly
+
+    def test_tiny_rounding_overshoot_still_usable(self):
+        # x + w = 1.01 -- ordinary floating-point noise, not a real error.
+        self.assertTrue(_bbox_is_crop_usable((0.7, 0.7, 0.31, 0.31)))
+
+    def test_the_h38_yellow_car_bbox_is_rejected_not_clamped(self):
+        # The exact real bbox that produced the localization bug: x=0.81,
+        # w=0.54 -> x+w=1.35, far beyond any rounding tolerance.
+        self.assertFalse(_bbox_is_crop_usable((0.81, 0.343, 0.54, 0.596)))
+
+    def test_grossly_out_of_range_bbox_is_rejected(self):
+        # The exact shape of p2b_0004's observer bug: y and h values in a
+        # completely different (non-[0,1]) scale.
+        self.assertFalse(_bbox_is_crop_usable((0.08, 6.32, 0.44, 3.68)))
+
+    def test_non_positive_area_bbox_is_rejected(self):
+        self.assertFalse(_bbox_is_crop_usable((0.1, 0.1, 0.0, 0.3)))
+        self.assertFalse(_bbox_is_crop_usable((0.1, 0.1, 0.3, 0.0)))
+        self.assertFalse(_bbox_is_crop_usable((0.1, 0.1, -0.1, 0.3)))
+
+    def test_negative_origin_beyond_tolerance_is_rejected(self):
+        self.assertFalse(_bbox_is_crop_usable((-0.5, 0.1, 0.3, 0.3)))
+
+    def test_none_bbox_is_not_usable(self):
+        self.assertFalse(_bbox_is_crop_usable(None))
+
+    def test_crop_region_returns_none_for_the_yellow_car_bbox_not_a_wrong_crop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            image_path = Path(tmp) / "drawing.png"
+            Image.new("RGB", (300, 300), "white").save(image_path)
+            self.assertIsNone(_crop_region(str(image_path), (0.81, 0.343, 0.54, 0.596)))
+
+    def test_crop_region_produces_the_exact_requested_pixels_no_double_normalization(self):
+        # A valid, fully in-range bbox must crop EXACTLY the pixels its
+        # own normalized coordinates describe -- no extra scaling step
+        # applied on top of the provider's already-normalized numbers.
+        with tempfile.TemporaryDirectory() as tmp:
+            image_path = Path(tmp) / "drawing.png"
+            Image.new("RGB", (200, 100), "white").save(image_path)
+            crop = _crop_region(str(image_path), (0.25, 0.5, 0.5, 0.5))
+            self.assertIsNotNone(crop)
+            # x=0.25*200=50, w=0.5*200=100 -> width 100; y=0.5*100=50, h=0.5*100=50 -> height 50.
+            self.assertEqual(crop.size, (100, 50))
+
+    def test_populate_crop_refs_never_guesses_a_crop_for_an_invalid_bbox(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case_dir = Path(tmp) / "case"
+            case_dir.mkdir()
+            image_path = case_dir / "drawing.png"
+            Image.new("RGB", (200, 200), "white").save(image_path)
+            bad_bbox_entity = visual_finding_to_entity(
+                _finding("yellow car", bbox=(0.81, 0.343, 0.54, 0.596), finding_id="vf_car"))
+            updated = populate_crop_refs([bad_bbox_entity], str(image_path), case_dir)
+            self.assertIsNone(updated[0].crop_ref)
+            # The raw (invalid) bbox itself is still preserved on the entity --
+            # never discarded, only refused as a crop source.
+            self.assertEqual(updated[0].bbox, (0.81, 0.343, 0.54, 0.596))
 
 
 class VerifierApplicationTests(unittest.TestCase):
