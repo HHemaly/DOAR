@@ -1,0 +1,17 @@
+{
+  "annotator_id": "A1",
+  "image_id": "p2b_0001",
+  "pass": 1,
+  "items": [
+    {
+      "label": "big house with 2 windows",
+      "location": "left side"
+    },
+    {
+      "label": "sun rays",
+      "location": "top right"
+    }
+  ],
+  "elapsed_seconds": 60.0,
+  "timed_out": true
+}

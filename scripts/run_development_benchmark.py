@@ -5,7 +5,8 @@ Implements `BENCHMARK_SCHEMA.md` against `DEVELOPMENT_SET_15.json`:
 Condition A (`direct_gemini`, raw observer candidates) and Condition B
 (`doar_full_pipeline`, Observer -> Verifier -> `reasoning_chain.py`
 through clinician/parent packages), both compared against the human
-Pass-1/Pass-2 annotations produced by `annotate_development_set.py`.
+annotations produced by `scripts/annotate_ui.py` (one exhaustive item
+list per annotator per image, each item flagged `salient` yes/no).
 
 **This script does NOT invent annotations.** If an image has no saved
 human annotation file under `annotations/<annotator>/`, its per-image
@@ -150,62 +151,61 @@ def run_live_observer_and_verifier(image_id: str, image_path: Path) -> list[dict
 
 
 def load_human_annotations(image_id: str) -> dict:
-    """annotator_id -> {"pass1": [HumanAnnotationItem]|None, "pass2": [...]|None}.
-    Never merges annotators -- each annotator's data is kept fully
-    separate all the way through, per the parent task's explicit
-    instruction."""
+    """annotator_id -> list[HumanAnnotationItem] | None (None = that
+    annotator has no saved file yet for this image). One exhaustive item
+    list per (annotator, image) -- `annotations/<annotator_id>/
+    <image_id>.json`, written by `scripts/annotate_ui.py`. Never merges
+    annotators -- each annotator's data is kept fully separate all the
+    way through, per the parent task's explicit instruction."""
     result = {}
     for annotator_id in ANNOTATOR_IDS:
-        entry = {"pass1": None, "pass2": None}
-        for pass_number in (1, 2):
-            path = ANNOTATIONS_DIR / annotator_id / f"{image_id}_pass{pass_number}.json"
-            if path.exists():
-                record = json.loads(path.read_text(encoding="utf-8"))
-                entry[f"pass{pass_number}"] = [
-                    bm.HumanAnnotationItem(label=i["label"], location=i.get("location", ""),
-                                            confidence=i.get("confidence"))
-                    for i in record["items"]
-                ]
-        result[annotator_id] = entry
+        path = ANNOTATIONS_DIR / annotator_id / f"{image_id}.json"
+        if path.exists():
+            record = json.loads(path.read_text(encoding="utf-8"))
+            result[annotator_id] = [
+                bm.HumanAnnotationItem(
+                    label=i["label"], location=i.get("location", ""), salient=bool(i.get("salient", False)),
+                    confidence=i.get("confidence", "clear"), note=i.get("note", ""),
+                )
+                for i in record["items"]
+            ]
+        else:
+            result[annotator_id] = None
     return result
 
 
 def compute_visual_metrics(candidate_labels: list[str], candidates_full: list[dict], human: dict) -> dict:
     """Per-annotator visual metrics -- NEVER a merged-annotator number.
-    `human` is the dict `load_human_annotations` returns for one image."""
+    `human` is the dict `load_human_annotations` returns for one image:
+    annotator_id -> list[HumanAnnotationItem] | None. `exhaustive
+    reference = all annotated items`; `salient reference = items where
+    salient=True` (BENCHMARK_SCHEMA.md)."""
     per_annotator = {}
-    for annotator_id, passes in human.items():
-        entry = {}
-        if passes["pass2"] is not None:
-            entry["precision_recall_f1"] = bm.visual_precision_recall_f1(candidate_labels, passes["pass2"])
-        else:
-            entry["precision_recall_f1"] = None
-        if passes["pass1"] is not None:
-            entry["salient_recall"] = bm.salient_recall(candidate_labels, passes["pass1"])
-        else:
-            entry["salient_recall"] = None
-        per_annotator[annotator_id] = entry
+    for annotator_id, items in human.items():
+        if items is None:
+            per_annotator[annotator_id] = {"precision_recall_f1": None, "salient_recall": None}
+            continue
+        per_annotator[annotator_id] = {
+            "precision_recall_f1": bm.visual_precision_recall_f1(candidate_labels, items),
+            "salient_recall": bm.salient_recall(candidate_labels, bm.salient_items(items)),
+        }
 
-    pass2_union = [item for passes in human.values() if passes["pass2"] for item in passes["pass2"]]
-    hallucination = bm.hallucination_rate(candidate_labels, pass2_union) if pass2_union else None
+    all_items = [item for items in human.values() if items for item in items]
+    hallucination = bm.hallucination_rate(candidate_labels, all_items) if all_items else None
 
     abstention = bm.abstention_rate(candidates_full)
     correction = bm.verifier_correction_rate(candidates_full)
 
     agreement = None
     salience = None
-    a1, a2 = human.get("A1", {}), human.get("A2", {})
-    if a1.get("pass2") is not None and a2.get("pass2") is not None:
-        agreement = {
-            "pass1": bm.inter_annotator_agreement(a1["pass1"], a2["pass1"]) if a1.get("pass1") and a2.get("pass1") else None,
-            "pass2": bm.inter_annotator_agreement(a1["pass2"], a2["pass2"]),
-        }
-    if a1.get("pass1") is not None and a2.get("pass1") is not None:
+    a1, a2 = human.get("A1"), human.get("A2")
+    if a1 is not None and a2 is not None:
+        agreement = bm.inter_annotator_agreement(a1, a2)
         # Frozen salience definitions (BENCHMARK_SCHEMA.md Section 5):
-        # salient = union of both annotators' Pass-1 concepts, core_salient
+        # SALIENT = union of both annotators' salient items, CORE_SALIENT
         # = intersection. Reported ALONGSIDE, never instead of, each
         # annotator's own salient_recall in `per_annotator` above.
-        salience = bm.primary_and_sensitivity_salient_recall(candidate_labels, a1["pass1"], a2["pass1"])
+        salience = bm.primary_and_sensitivity_salient_recall(candidate_labels, a1, a2)
 
     return {
         "per_annotator": per_annotator,
@@ -285,7 +285,7 @@ def _hypothesis_to_dict(h: rc.CandidateHypothesis) -> dict:
 
 
 def _annotation_item_to_dict(i: bm.HumanAnnotationItem) -> dict:
-    return {"label": i.label, "location": i.location, "confidence": i.confidence}
+    return {"label": i.label, "location": i.location, "salient": i.salient, "confidence": i.confidence, "note": i.note}
 
 
 def write_inspection_folder(out_dir: Path, image: dict, source_path: Path | None,
@@ -299,8 +299,8 @@ def write_inspection_folder(out_dir: Path, image: dict, source_path: Path | None
             f"Observer/Verifier data reused from: {source_path}\nOriginal image: {ROOT / image['relative_path']}\n",
             encoding="utf-8")
 
-    human_json = {aid: {p: [_annotation_item_to_dict(i) for i in items] if items is not None else None
-                         for p, items in passes.items()} for aid, passes in human.items()}
+    human_json = {aid: ([_annotation_item_to_dict(i) for i in items] if items is not None else None)
+                  for aid, items in human.items()}
     (out_dir / "human_annotations.json").write_text(json.dumps(human_json, indent=2, ensure_ascii=False), encoding="utf-8")
 
     md_lines = [f"# Development benchmark inspection -- {image_id}", "",
@@ -350,14 +350,16 @@ def write_inspection_folder(out_dir: Path, image: dict, source_path: Path | None
 
     md_lines += ["## Human annotations", ""]
     any_human = False
-    for annotator_id, passes in human.items():
-        for pass_number in (1, 2):
-            items = passes[f"pass{pass_number}"]
-            if items is None:
-                md_lines.append(f"- {annotator_id} Pass {pass_number}: **not yet recorded**")
-            else:
-                any_human = True
-                md_lines.append(f"- {annotator_id} Pass {pass_number}: " + ", ".join(i.label for i in items))
+    for annotator_id, items in human.items():
+        if items is None:
+            md_lines.append(f"- {annotator_id}: **not yet recorded**")
+            continue
+        any_human = True
+        all_labels = ", ".join(i.label for i in items) or "(none)"
+        salient_labels = ", ".join(i.label for i in items if i.salient) or "(none)"
+        md_lines.append(f"- {annotator_id}: {len(items)} item(s) total")
+        md_lines.append(f"    - all: {all_labels}")
+        md_lines.append(f"    - salient: {salient_labels}")
     if not any_human:
         md_lines.append("")
         md_lines.append("(No human annotations exist yet for this image -- see repo root for how to start annotating.)")
@@ -429,9 +431,9 @@ def main() -> None:
         all_matches.extend(conditions["doar_full_pipeline"]["eligible_matches"])
         all_hypotheses.extend(conditions["doar_full_pipeline"]["hypotheses"])
 
-        any_pass2 = any(p["pass2"] is not None for p in human.values())
+        any_annotation = any(items is not None for items in human.values())
         metrics = None
-        if any_pass2:
+        if any_annotation:
             metrics = compute_visual_metrics(
                 conditions["direct_gemini"]["raw_candidate_labels"],
                 conditions["direct_gemini"]["candidates_full"], human)
@@ -441,7 +443,7 @@ def main() -> None:
             "image_id": image_id, "status": "ok",
             "eligible_matches": len(conditions["doar_full_pipeline"]["eligible_matches"]),
             "hypotheses": len(conditions["doar_full_pipeline"]["hypotheses"]),
-            "has_human_annotations": any_pass2,
+            "has_human_annotations": any_annotation,
         })
 
     reasoning_summary = {
@@ -470,7 +472,7 @@ def main() -> None:
     summary_md = [
         "# DOAR 15-image development benchmark -- run summary", "",
         f"Images with Observer/Verifier data available: {images_with_observer_data}/{len(images)}",
-        f"Images with at least one human annotator's Pass-2 data: {images_with_annotations}/{len(images)}",
+        f"Images with at least one human annotator's data: {images_with_annotations}/{len(images)}",
         "", "## Reasoning metrics (Condition B, aggregated)", "",
         "```json", json.dumps(_metrics_json_safe(reasoning_summary), indent=2), "```", "",
         "See each `<image_id>/SUMMARY.md` for a per-drawing, code-free breakdown.",
@@ -482,7 +484,8 @@ def main() -> None:
 
     if images_with_annotations == 0:
         print("\nANNOTATION READY: YES (no real human annotations exist yet -- run "
-              "scripts/annotate_development_set.py first, then re-run this benchmark).")
+              "streamlit run scripts/annotate_ui.py -- --annotator A1 (and A2) first, "
+              "then re-run this benchmark).")
 
 
 if __name__ == "__main__":

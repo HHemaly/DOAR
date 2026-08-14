@@ -1,24 +1,41 @@
-"""DOAR development benchmark metrics (V1.7). Computes the visual and
+"""DOAR development benchmark metrics (V1.8). Computes the visual and
 reasoning metrics `BENCHMARK_SCHEMA.md` defines, plus inter-annotator
 visual agreement (normalized concept-set pairwise F1/Jaccard +
 adjudication rate).
+
+**One-page-per-drawing protocol.** Each annotator produces ONE
+exhaustive item list per image (`ANNOTATION_PROTOCOL_DEVELOPMENT_SET.md`
+-- no separate timed Pass 1 / untimed Pass 2 anymore). Every item
+carries its own `salient` flag, so:
+
+    exhaustive reference = all annotated items (one annotator)
+    salient reference    = that annotator's items where salient=True
+
+Across the two annotators (never merged into a single "true" item list
+for precision/recall purposes -- see `normalized_salience` below):
+
+    SALIENT      = normalized union of salient items from either annotator
+    CORE_SALIENT = normalized intersection of salient items from both
 
 **Human annotation is ALWAYS the reference.** No function here ever
 compares one LLM/DOAR output against another and calls the result
 "ground truth" -- every visual metric takes `HumanAnnotationItem`s as an
 explicit, required argument. **The two annotators are never silently
-merged**: `visual_precision_recall_f1`/`salient_recall`/`hallucination_
-rate` all take ONE annotator's items at a time -- a caller wanting both
-annotators' numbers calls these twice and reports both, never a union.
-The only function that looks at both annotators together is
-`inter_annotator_agreement` itself, whose whole purpose is comparing them
-to EACH OTHER, not producing a merged ground truth.
+merged for precision/recall/F1**: `visual_precision_recall_f1`/
+`salient_recall`/`hallucination_rate` all take ONE annotator's items at a
+time -- a caller wanting both annotators' numbers calls these twice and
+reports both, never a union. `normalized_salience` and
+`inter_annotator_agreement` are the only functions that look at both
+annotators together, and their whole purpose is comparing them to EACH
+OTHER (or building the SALIENT/CORE_SALIENT reference sets), never
+producing a merged "ground truth" item list for precision/recall.
 
 Reuses `visual_observer._labels_plausibly_match` (the same deterministic,
 token-overlap label matcher already used throughout the Observer/Verifier
 pipeline) for every "does this label match that label" decision --
 "matched" means the same thing here as it already does everywhere else in
-DOAR, not a new, second definition of matching.
+DOAR, not a new, second definition of matching. No LLM is ever used for
+annotation matching or ground truth.
 """
 from __future__ import annotations
 
@@ -35,7 +52,16 @@ from .visual_observer import _labels_plausibly_match
 class HumanAnnotationItem:
     label: str
     location: str = ""
-    confidence: str | None = None  # "clear" | "ambiguous" -- Pass 2 only, None for Pass 1
+    salient: bool = False
+    confidence: str = "clear"  # "clear" | "ambiguous"
+    note: str = ""
+
+
+def salient_items(items: list[HumanAnnotationItem]) -> list[HumanAnnotationItem]:
+    """The salient subset of one annotator's exhaustive item list --
+    items where `salient=True`, as flagged by the annotator directly in
+    the annotation UI (no separate timed pass to derive this from)."""
+    return [item for item in items if item.salient]
 
 
 def _matches_any(label: str, items: list[HumanAnnotationItem]) -> bool:
@@ -51,15 +77,16 @@ def _item_matched_by_any(item: HumanAnnotationItem, labels: list[str]) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def visual_precision_recall_f1(candidate_labels: list[str], human_items_pass2: list[HumanAnnotationItem]) -> dict:
+def visual_precision_recall_f1(candidate_labels: list[str], human_items: list[HumanAnnotationItem]) -> dict:
     """Precision/recall/F1 of `candidate_labels` (one condition's output on
-    one image) against ONE annotator's Pass-2 exhaustive list. Returns
-    None for any ratio whose denominator is zero -- never a fabricated
-    0.0 or 1.0 for an undefined case."""
+    one image) against ONE annotator's exhaustive item list (every item
+    they recorded, salient or not). Returns None for any ratio whose
+    denominator is zero -- never a fabricated 0.0 or 1.0 for an
+    undefined case."""
     total_candidates = len(candidate_labels)
-    total_human_items = len(human_items_pass2)
-    matched_candidates = sum(1 for c in candidate_labels if _matches_any(c, human_items_pass2))
-    matched_human_items = sum(1 for h in human_items_pass2 if _item_matched_by_any(h, candidate_labels))
+    total_human_items = len(human_items)
+    matched_candidates = sum(1 for c in candidate_labels if _matches_any(c, human_items))
+    matched_human_items = sum(1 for h in human_items if _item_matched_by_any(h, candidate_labels))
     precision = (matched_candidates / total_candidates) if total_candidates else None
     recall = (matched_human_items / total_human_items) if total_human_items else None
     f1 = None
@@ -72,25 +99,26 @@ def visual_precision_recall_f1(candidate_labels: list[str], human_items_pass2: l
     }
 
 
-def salient_recall(candidate_labels: list[str], human_items_pass1: list[HumanAnnotationItem]) -> dict:
-    """What fraction of a Pass-1 item list did the candidates cover?
+def salient_recall(candidate_labels: list[str], salient_reference_items: list[HumanAnnotationItem]) -> dict:
+    """What fraction of a salient item list did the candidates cover?
     Takes whatever item list the caller passes (one annotator's own
-    Pass-1 items, the union `salient` set, or the intersection
-    `core_salient` set -- see `normalized_pass1_salience` below); this
-    function itself has no opinion about which one is "the" reference."""
-    total = len(human_items_pass1)
-    matched = sum(1 for h in human_items_pass1 if _item_matched_by_any(h, candidate_labels))
+    `salient_items(items)`, the union `SALIENT` set, or the intersection
+    `CORE_SALIENT` set -- see `normalized_salience` below); this function
+    itself has no opinion about which one is "the" reference."""
+    total = len(salient_reference_items)
+    matched = sum(1 for h in salient_reference_items if _item_matched_by_any(h, candidate_labels))
     return {"salient_recall": (matched / total) if total else None, "matched": matched, "total": total}
 
 
-def normalized_pass1_salience(
-        items_a_pass1: list[HumanAnnotationItem], items_b_pass1: list[HumanAnnotationItem],
+def normalized_salience(
+        items_a: list[HumanAnnotationItem], items_b: list[HumanAnnotationItem],
 ) -> dict:
     """The frozen salience definitions, computed from two annotators'
-    independent Pass-1 lists:
+    independent exhaustive item lists (each annotator's own `salient`
+    flags decide which of their items are candidates for this):
 
-        salient      = normalized Pass-1 concept UNION (present for >=1 annotator)
-        core_salient = normalized Pass-1 concept INTERSECTION (present for BOTH)
+        SALIENT      = normalized union of salient items from either annotator
+        CORE_SALIENT = normalized intersection of salient items from both
 
     "Normalized" means concept identity is decided by the same
     deterministic `_labels_plausibly_match` matcher every other label
@@ -98,13 +126,15 @@ def normalized_pass1_salience(
     `inter_annotator_agreement`'s own matching so the two metrics agree
     about which items are "the same concept") -- it does NOT rewrite or
     canonicalize any label text. Neither list is copied into or mutated
-    by this function; `items_a_pass1`/`items_b_pass1` (and the original
-    annotation files they were loaded from) are left exactly as they
-    were -- this only reads them to build two NEW lists."""
-    remaining_b = list(items_b_pass1)
+    by this function; `items_a`/`items_b` (and the original annotation
+    files they were loaded from) are left exactly as they were -- this
+    only reads them to build two NEW lists."""
+    salient_a = salient_items(items_a)
+    salient_b = salient_items(items_b)
+    remaining_b = list(salient_b)
     core: list[HumanAnnotationItem] = []
     unmatched_a: list[HumanAnnotationItem] = []
-    for item_a in items_a_pass1:
+    for item_a in salient_a:
         match_index = None
         for i, item_b in enumerate(remaining_b):
             if _labels_plausibly_match(item_a.label, item_b.label):
@@ -122,25 +152,29 @@ def normalized_pass1_salience(
 
 def primary_and_sensitivity_salient_recall(
         candidate_labels: list[str],
-        items_a_pass1: list[HumanAnnotationItem], items_b_pass1: list[HumanAnnotationItem],
+        items_a: list[HumanAnnotationItem], items_b: list[HumanAnnotationItem],
 ) -> dict:
     """The two salient-recall numbers this phase's parent task requires:
 
-        primary_salient_recall     -- recall against `salient` (the union;
+        primary_salient_recall     -- recall against SALIENT (the union;
                                        the more lenient, "did DOAR notice
-                                       ANYTHING either annotator flagged"
-                                       reading)
-        sensitivity_salient_recall -- recall against `core_salient` (the
+                                       ANYTHING either annotator flagged
+                                       as salient" reading)
+        sensitivity_salient_recall -- recall against CORE_SALIENT (the
                                        intersection; the stricter reading
                                        -- only items BOTH annotators
                                        independently flagged as salient)
 
-    Per-annotator `salient_recall(candidate_labels, items_a_pass1)` /
-    `salient_recall(candidate_labels, items_b_pass1)` remain separately
-    available to callers -- this function does not replace them, and
-    does not merge the two annotators into anything treated as sole
-    ground truth."""
-    salience = normalized_pass1_salience(items_a_pass1, items_b_pass1)
+    `items_a`/`items_b` are each annotator's FULL exhaustive item list --
+    this function filters to `salient=True` items itself via
+    `normalized_salience`, callers never need to pre-filter.
+
+    Per-annotator `salient_recall(candidate_labels, salient_items(items_a))`
+    / `salient_recall(candidate_labels, salient_items(items_b))` remain
+    separately available to callers -- this function does not replace
+    them, and does not merge the two annotators into anything treated as
+    sole ground truth."""
+    salience = normalized_salience(items_a, items_b)
     return {
         "primary_salient_recall": salient_recall(candidate_labels, salience["salient"]),
         "sensitivity_salient_recall": salient_recall(candidate_labels, salience["core_salient"]),
@@ -149,15 +183,15 @@ def primary_and_sensitivity_salient_recall(
     }
 
 
-def hallucination_rate(candidate_labels: list[str], human_items_pass2_any_annotator: list[HumanAnnotationItem]) -> dict:
+def hallucination_rate(candidate_labels: list[str], human_items_any_annotator: list[HumanAnnotationItem]) -> dict:
     """Fraction of candidates matching NO human-listed item from EITHER
-    annotator's Pass-2 list (caller passes the union of both annotators'
-    items here specifically -- a candidate is only a hallucination if
-    NEITHER annotator saw it, the more charitable and correct reading of
-    "matching no human-listed item" than requiring both annotators to
-    agree)."""
+    annotator's exhaustive list (caller passes the union of both
+    annotators' items here specifically -- a candidate is only a
+    hallucination if NEITHER annotator saw it, the more charitable and
+    correct reading of "matching no human-listed item" than requiring
+    both annotators to agree)."""
     total = len(candidate_labels)
-    unmatched = sum(1 for c in candidate_labels if not _matches_any(c, human_items_pass2_any_annotator))
+    unmatched = sum(1 for c in candidate_labels if not _matches_any(c, human_items_any_annotator))
     return {"hallucination_rate": (unmatched / total) if total else None, "unmatched": unmatched, "total": total}
 
 

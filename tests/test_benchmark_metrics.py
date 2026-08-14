@@ -15,8 +15,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from doar import benchmark_metrics as bm  # noqa: E402
 
 
-def fixture_items(*labels: str) -> list[bm.HumanAnnotationItem]:
-    return [bm.HumanAnnotationItem(label=label, location="fixture") for label in labels]
+def fixture_items(*labels: str, salient: bool = False) -> list[bm.HumanAnnotationItem]:
+    return [bm.HumanAnnotationItem(label=label, location="fixture", salient=salient) for label in labels]
 
 
 class VisualPrecisionRecallF1Tests(unittest.TestCase):
@@ -78,53 +78,76 @@ class HallucinationRateTests(unittest.TestCase):
         self.assertIsNone(result["hallucination_rate"])
 
 
-class NormalizedPass1SalienceTests(unittest.TestCase):
-    """salient = union of both annotators' Pass-1 concepts;
-    core_salient = intersection. Frozen definitions, BENCHMARK_SCHEMA.md
-    Section 5."""
+class SalientItemsTests(unittest.TestCase):
+    def test_filters_to_salient_true_only(self):
+        items = fixture_items("sun", salient=True) + fixture_items("small mark", salient=False)
+        salient = bm.salient_items(items)
+        self.assertEqual([i.label for i in salient], ["sun"])
+
+    def test_empty_when_none_salient(self):
+        items = fixture_items("a", "b", salient=False)
+        self.assertEqual(bm.salient_items(items), [])
+
+
+class NormalizedSalienceTests(unittest.TestCase):
+    """SALIENT = normalized union of salient items from either annotator;
+    CORE_SALIENT = normalized intersection. Frozen definitions,
+    BENCHMARK_SCHEMA.md Section 5. Callers pass each annotator's FULL
+    exhaustive item list -- this function filters to salient=True
+    itself."""
 
     def test_union_is_correct_with_partial_overlap(self):
-        a = fixture_items("sun", "tree", "house")
-        b = fixture_items("sun", "tree", "car")
-        result = bm.normalized_pass1_salience(a, b)
+        a = fixture_items("sun", "tree", "house", salient=True)
+        b = fixture_items("sun", "tree", "car", salient=True)
+        result = bm.normalized_salience(a, b)
         salient_labels = sorted(i.label for i in result["salient"])
         self.assertEqual(salient_labels, sorted(["sun", "tree", "house", "car"]))
 
     def test_intersection_is_correct_with_partial_overlap(self):
-        a = fixture_items("sun", "tree", "house")
-        b = fixture_items("sun", "tree", "car")
-        result = bm.normalized_pass1_salience(a, b)
+        a = fixture_items("sun", "tree", "house", salient=True)
+        b = fixture_items("sun", "tree", "car", salient=True)
+        result = bm.normalized_salience(a, b)
         core_labels = sorted(i.label for i in result["core_salient"])
         self.assertEqual(core_labels, sorted(["sun", "tree"]))
 
     def test_union_of_disjoint_lists_is_everything(self):
-        a = fixture_items("sun", "tree")
-        b = fixture_items("dinosaur", "spaceship")
-        result = bm.normalized_pass1_salience(a, b)
+        a = fixture_items("sun", "tree", salient=True)
+        b = fixture_items("dinosaur", "spaceship", salient=True)
+        result = bm.normalized_salience(a, b)
         self.assertEqual(len(result["salient"]), 4)
         self.assertEqual(result["core_salient"], [])
 
     def test_intersection_of_identical_lists_is_everything(self):
-        a = fixture_items("sun", "tree", "person")
-        b = fixture_items("sun", "tree", "person")
-        result = bm.normalized_pass1_salience(a, b)
+        a = fixture_items("sun", "tree", "person", salient=True)
+        b = fixture_items("sun", "tree", "person", salient=True)
+        result = bm.normalized_salience(a, b)
         self.assertEqual(len(result["salient"]), 3)
         self.assertEqual(len(result["core_salient"]), 3)
 
     def test_duplicate_within_one_annotator_matched_at_most_once(self):
-        a = fixture_items("sun")
-        b = fixture_items("sun", "sun")
-        result = bm.normalized_pass1_salience(a, b)
+        a = fixture_items("sun", salient=True)
+        b = fixture_items("sun", "sun", salient=True)
+        result = bm.normalized_salience(a, b)
         # one core match consumes one "sun" from b; the leftover "sun" in
         # b is unmatched and still appears once in the union.
         self.assertEqual(len(result["core_salient"]), 1)
         self.assertEqual(len(result["salient"]), 2)
 
+    def test_non_salient_items_are_excluded_from_both_sets(self):
+        # An annotator's exhaustive list mixes salient and non-salient
+        # items -- only salient=True items may ever appear in SALIENT/
+        # CORE_SALIENT, regardless of label overlap.
+        a = fixture_items("sun", salient=True) + fixture_items("small mark", salient=False)
+        b = fixture_items("sun", salient=True) + fixture_items("small mark", salient=False)
+        result = bm.normalized_salience(a, b)
+        self.assertEqual(sorted(i.label for i in result["salient"]), ["sun"])
+        self.assertEqual(sorted(i.label for i in result["core_salient"]), ["sun"])
+
     def test_original_annotator_lists_are_never_mutated(self):
-        a = fixture_items("sun", "tree")
-        b = fixture_items("sun", "car")
+        a = fixture_items("sun", "tree", salient=True)
+        b = fixture_items("sun", "car", salient=True)
         a_before, b_before = list(a), list(b)
-        bm.normalized_pass1_salience(a, b)
+        bm.normalized_salience(a, b)
         self.assertEqual(a, a_before)
         self.assertEqual(b, b_before)
 
@@ -135,7 +158,7 @@ class NormalizedPass1SalienceTests(unittest.TestCase):
         # true by construction. Guard: the function accepts plain lists,
         # not file paths, so there is nothing it *could* write to.
         import inspect
-        sig = inspect.signature(bm.normalized_pass1_salience)
+        sig = inspect.signature(bm.normalized_salience)
         for param in sig.parameters.values():
             self.assertNotIn("path", param.name.lower())
             self.assertNotIn("file", param.name.lower())
@@ -143,8 +166,8 @@ class NormalizedPass1SalienceTests(unittest.TestCase):
 
 class PrimaryAndSensitivitySalientRecallTests(unittest.TestCase):
     def test_primary_uses_union_sensitivity_uses_intersection(self):
-        a = fixture_items("sun", "tree", "house")
-        b = fixture_items("sun", "tree", "car")
+        a = fixture_items("sun", "tree", "house", salient=True)
+        b = fixture_items("sun", "tree", "car", salient=True)
         # Candidates cover sun/tree (the intersection) plus house (only A saw it).
         result = bm.primary_and_sensitivity_salient_recall(["sun", "tree", "house"], a, b)
         # primary: matched 3 of 4 union items (sun, tree, house) -> car missing
@@ -154,12 +177,20 @@ class PrimaryAndSensitivitySalientRecallTests(unittest.TestCase):
         self.assertEqual(result["salient_count"], 4)
         self.assertEqual(result["core_salient_count"], 2)
 
+    def test_takes_full_exhaustive_lists_and_filters_internally(self):
+        # Non-salient items in the input must not affect the result.
+        a = fixture_items("sun", salient=True) + fixture_items("small mark", salient=False)
+        b = fixture_items("sun", salient=True) + fixture_items("other detail", salient=False)
+        result = bm.primary_and_sensitivity_salient_recall(["sun"], a, b)
+        self.assertEqual(result["salient_count"], 1)
+        self.assertEqual(result["core_salient_count"], 1)
+
     def test_per_annotator_salient_recall_remains_independently_available(self):
-        a = fixture_items("sun", "tree")
-        b = fixture_items("sun", "car")
+        a = fixture_items("sun", "tree", salient=True)
+        b = fixture_items("sun", "car", salient=True)
         # per-annotator numbers (existing function, unmerged) still work standalone.
-        recall_a = bm.salient_recall(["sun"], a)
-        recall_b = bm.salient_recall(["sun"], b)
+        recall_a = bm.salient_recall(["sun"], bm.salient_items(a))
+        recall_b = bm.salient_recall(["sun"], bm.salient_items(b))
         self.assertEqual(recall_a["salient_recall"], 0.5)
         self.assertEqual(recall_b["salient_recall"], 0.5)
 

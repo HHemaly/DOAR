@@ -1,7 +1,7 @@
 # DOAR — Human Annotation Protocol for the 15-Image Development Set
 
 For **TWO independent annotators**, each working alone (no discussion until
-both passes are complete for all 15 images). Applies only to
+both have annotated all 15 images). Applies only to
 `DEVELOPMENT_SET_15.json`'s 15 images — **never** the future held-out
 benchmark set. Purpose: an independent, human ground truth for what is
 *visually present* in each drawing, to compare against the Observer/
@@ -21,82 +21,112 @@ abstract/scribble mark, write **"unclear region"** or **"unidentified
 mark"** — never guess a specific object to fill the field, and never guess
 a psychological meaning.
 
-## Pass 1 — 60-second salient items (per image)
+## The protocol: one page per drawing, no timer, no separate passes
 
-1. Look at the image for **60 seconds only** (use a timer).
-2. Write down every **salient** (immediately obvious, would-notice-at-a-
-   glance) visual item you saw. No minimum or maximum count — write what
-   you actually noticed.
-3. For each item, record: a short label (2-4 words, plain description,
-   e.g. "yellow car", "traffic light", "two people"), and an approximate
-   location in the drawing (e.g. "top-left", "center", "bottom edge") —
-   no need for exact coordinates in Pass 1.
-4. Stop at 60 seconds even if you think you might notice more — that is
-   the point of this pass (salience, not completeness).
+Use the visual annotation tool (`scripts/annotate_ui.py`) — see
+"How to annotate" below. For each of the 15 drawings, the image stays
+visible on screen the whole time. There is no time limit and no separate
+"quick pass" / "exhaustive pass": in one sitting per drawing, list
+**every** item you can identify, however small or incidental, and for
+each one flag directly whether it struck you as **salient** (immediately
+obvious, would-notice-at-a-glance) or not.
 
-## Pass 2 — exhaustive visible items (per image, separate sitting)
+For each visible item, record:
 
-1. Look at the image for as long as needed.
-2. List **every** distinct item you can identify, however small or
-   incidental (individual butterflies, background marks, decorative
-   details, text-like marks, scribbles) — not just the salient ones from
-   Pass 1.
-3. For each item: label, approximate bounding region (a rough box
-   description is enough, e.g. "roughly the left third, upper half" — a
-   precise pixel bbox is not required from human annotators), and a
-   **confidence flag**: `clear` (confident what it is) or `ambiguous`
-   (visible mark, but you are not sure what it depicts).
-4. Re-list every Pass-1 item too (so Pass 2 is a complete, standalone
-   record, not a diff against Pass 1).
+- **label** — a short, plain description (e.g. "yellow car", "traffic
+  light", "two people").
+- **location** — an approximate region (e.g. "top-left", "center",
+  "bottom edge") — no need for exact coordinates or a pixel bounding box.
+- **salient** — `yes` if this is something you'd notice at a glance,
+  `no` if it's a smaller/incidental detail you only saw on closer look.
+- **confidence** — `clear` (confident what it is) or `ambiguous`
+  (visible mark, but you are not sure what it depicts).
+- **note** — optional free-text, only if something needs a short
+  clarifying remark (still subject to the non-negotiable rule above —
+  never a psychological remark).
 
-## Template (per image, per annotator, per pass)
+### Example
 
 ```
-Annotator: A1 | A2
-Image ID: <from DEVELOPMENT_SET_15.json, e.g. "h38">
-Pass: 1 | 2
-Timestamp started:
-Timestamp finished:
-
-Items:
-  1. label: <plain description>
-     location: <approximate region>
-     confidence: clear | ambiguous   (Pass 2 only)
-  2. ...
+person       | center     | salient=yes | clear
+sun          | top-right  | salient=yes | clear
+small mark   | bottom     | salient=no  | ambiguous
 ```
 
-Save as one file per `(annotator, image_id, pass)` —
-`annotations/<annotator_id>/<image_id>_pass<1|2>.json` (or `.md`, either is
-fine, kept plain-text/structured so it is easy to diff later) — schema
-suggestion:
+## How to annotate
 
-```json
-{
-  "annotator_id": "A1",
-  "image_id": "h38",
-  "pass": 1,
-  "items": [
-    {"label": "sun", "location": "top-left", "confidence": "clear"},
-    {"label": "yellow car", "location": "center-left", "confidence": "clear"}
-  ]
-}
+Launch one instance per annotator (each instance only ever reads/writes
+that annotator's own `annotations/<annotator_id>/` subtree — an A1
+session can never see A2's annotations, or vice versa):
+
 ```
+streamlit run scripts/annotate_ui.py -- --annotator A1
+streamlit run scripts/annotate_ui.py -- --annotator A2
+```
+
+The image is shown large on the left; an editable table on the right
+lists items for the current drawing — add a row, fill in the five
+fields, check "Salient" if applicable, pick a confidence level. Rows can
+be edited or deleted directly in the table. Every edit autosaves; closing
+the browser tab loses nothing. Use **Previous** / **Save & Next** to move
+between drawings, and check **Mark this drawing complete** when you are
+done with a drawing (the sidebar shows which of the 15 are complete, so
+you can always see progress and resume exactly where you left off).
 
 ## What annotators do NOT need to do
 
+- No timer, no separate quick/exhaustive passes.
 - No bounding-box pixel coordinates (approximate region text is enough).
 - No agreement/consensus step during annotation — inter-annotator
   comparison happens afterward, by whoever runs the benchmark comparison,
   not by the annotators themselves.
 - No rating of "how psychologically meaningful" anything is — out of
   scope for this protocol entirely (see the non-negotiable rule above).
+- No console typing — all annotation happens in the on-screen table.
+
+## Storage schema
+
+One file per `(annotator, image_id)` —
+`annotations/<annotator_id>/<image_id>.json`:
+
+```json
+{
+  "annotator_id": "A1",
+  "image_id": "h38",
+  "items": [
+    {"label": "sun", "location": "top-right", "salient": true, "confidence": "clear", "note": ""},
+    {"label": "small mark", "location": "bottom", "salient": false, "confidence": "ambiguous", "note": ""}
+  ],
+  "complete": true
+}
+```
 
 ## How this will be used later (not part of the annotator's task)
 
-Pass-1 items become the **salient recall** ground truth (Section 7's
-visual metrics); Pass-2 items become the **exhaustive precision/recall**
-ground truth. Two annotators exist so a simple agreement measure
-(e.g. item-label overlap between A1 and A2) can flag genuinely ambiguous
-images before they are used for any metric — not implemented in this
-phase (`BENCHMARK_SCHEMA.md` defines the metric, the comparison script
-itself is future work, out of scope per this phase's instructions).
+Every recorded item becomes part of that annotator's **exhaustive
+reference** (`src/doar/benchmark_metrics.py::visual_precision_recall_f1`);
+items with `salient=true` become that annotator's **salient reference**
+(`salient_recall`). Across both annotators, `SALIENT` = the normalized
+union of salient items from either annotator, and `CORE_SALIENT` = the
+normalized intersection of salient items from both
+(`normalized_salience`, `primary_and_sensitivity_salient_recall`) — never
+a merged "ground truth" item list, only a separate agreement/salience
+measure. The two annotators' item lists are never combined into a single
+truth set for precision/recall purposes; both remain independently
+available. An LLM is never used for annotation matching or as ground
+truth — all matching reuses the same deterministic label matcher
+(`visual_observer._labels_plausibly_match`) already used throughout the
+Observer/Verifier pipeline.
+
+## History: retired console/timed workflow
+
+An earlier version of this protocol used a console tool
+(`scripts/annotate_development_set.py`, now removed) with a hard
+60-second timed Pass 1 and a separate untimed Pass 2. That workflow was
+found difficult to use in practice and never produced a valid or complete
+annotation set (at most 3 of 15 images touched, one with 0 items
+recorded before its timer elapsed). Those old-schema files were
+quarantined, not reused, under
+`annotations/_quarantined_pre_ui_timer_experiment/` — see the `README.md`
+there for exactly what existed. This document now describes only the
+current one-page-per-drawing protocol above.
