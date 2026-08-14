@@ -193,15 +193,23 @@ def compute_visual_metrics(candidate_labels: list[str], candidates_full: list[di
     correction = bm.verifier_correction_rate(candidates_full)
 
     agreement = None
+    salience = None
     a1, a2 = human.get("A1", {}), human.get("A2", {})
     if a1.get("pass2") is not None and a2.get("pass2") is not None:
         agreement = {
             "pass1": bm.inter_annotator_agreement(a1["pass1"], a2["pass1"]) if a1.get("pass1") and a2.get("pass1") else None,
             "pass2": bm.inter_annotator_agreement(a1["pass2"], a2["pass2"]),
         }
+    if a1.get("pass1") is not None and a2.get("pass1") is not None:
+        # Frozen salience definitions (BENCHMARK_SCHEMA.md Section 5):
+        # salient = union of both annotators' Pass-1 concepts, core_salient
+        # = intersection. Reported ALONGSIDE, never instead of, each
+        # annotator's own salient_recall in `per_annotator` above.
+        salience = bm.primary_and_sensitivity_salient_recall(candidate_labels, a1["pass1"], a2["pass1"])
 
     return {
         "per_annotator": per_annotator,
+        "salience": salience,
         "hallucination_rate": hallucination,
         "abstention_rate": abstention,
         "verifier_correction_rate": correction,

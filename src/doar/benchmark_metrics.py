@@ -73,11 +73,80 @@ def visual_precision_recall_f1(candidate_labels: list[str], human_items_pass2: l
 
 
 def salient_recall(candidate_labels: list[str], human_items_pass1: list[HumanAnnotationItem]) -> dict:
-    """What fraction of ONE annotator's 60-second salient (Pass-1) items
-    did the candidates cover?"""
+    """What fraction of a Pass-1 item list did the candidates cover?
+    Takes whatever item list the caller passes (one annotator's own
+    Pass-1 items, the union `salient` set, or the intersection
+    `core_salient` set -- see `normalized_pass1_salience` below); this
+    function itself has no opinion about which one is "the" reference."""
     total = len(human_items_pass1)
     matched = sum(1 for h in human_items_pass1 if _item_matched_by_any(h, candidate_labels))
     return {"salient_recall": (matched / total) if total else None, "matched": matched, "total": total}
+
+
+def normalized_pass1_salience(
+        items_a_pass1: list[HumanAnnotationItem], items_b_pass1: list[HumanAnnotationItem],
+) -> dict:
+    """The frozen salience definitions, computed from two annotators'
+    independent Pass-1 lists:
+
+        salient      = normalized Pass-1 concept UNION (present for >=1 annotator)
+        core_salient = normalized Pass-1 concept INTERSECTION (present for BOTH)
+
+    "Normalized" means concept identity is decided by the same
+    deterministic `_labels_plausibly_match` matcher every other label
+    comparison in this module uses (greedy one-to-one, matching
+    `inter_annotator_agreement`'s own matching so the two metrics agree
+    about which items are "the same concept") -- it does NOT rewrite or
+    canonicalize any label text. Neither list is copied into or mutated
+    by this function; `items_a_pass1`/`items_b_pass1` (and the original
+    annotation files they were loaded from) are left exactly as they
+    were -- this only reads them to build two NEW lists."""
+    remaining_b = list(items_b_pass1)
+    core: list[HumanAnnotationItem] = []
+    unmatched_a: list[HumanAnnotationItem] = []
+    for item_a in items_a_pass1:
+        match_index = None
+        for i, item_b in enumerate(remaining_b):
+            if _labels_plausibly_match(item_a.label, item_b.label):
+                match_index = i
+                break
+        if match_index is not None:
+            core.append(item_a)
+            del remaining_b[match_index]
+        else:
+            unmatched_a.append(item_a)
+    unmatched_b = remaining_b
+    salient = core + unmatched_a + unmatched_b
+    return {"salient": salient, "core_salient": core}
+
+
+def primary_and_sensitivity_salient_recall(
+        candidate_labels: list[str],
+        items_a_pass1: list[HumanAnnotationItem], items_b_pass1: list[HumanAnnotationItem],
+) -> dict:
+    """The two salient-recall numbers this phase's parent task requires:
+
+        primary_salient_recall     -- recall against `salient` (the union;
+                                       the more lenient, "did DOAR notice
+                                       ANYTHING either annotator flagged"
+                                       reading)
+        sensitivity_salient_recall -- recall against `core_salient` (the
+                                       intersection; the stricter reading
+                                       -- only items BOTH annotators
+                                       independently flagged as salient)
+
+    Per-annotator `salient_recall(candidate_labels, items_a_pass1)` /
+    `salient_recall(candidate_labels, items_b_pass1)` remain separately
+    available to callers -- this function does not replace them, and
+    does not merge the two annotators into anything treated as sole
+    ground truth."""
+    salience = normalized_pass1_salience(items_a_pass1, items_b_pass1)
+    return {
+        "primary_salient_recall": salient_recall(candidate_labels, salience["salient"]),
+        "sensitivity_salient_recall": salient_recall(candidate_labels, salience["core_salient"]),
+        "salient_count": len(salience["salient"]),
+        "core_salient_count": len(salience["core_salient"]),
+    }
 
 
 def hallucination_rate(candidate_labels: list[str], human_items_pass2_any_annotator: list[HumanAnnotationItem]) -> dict:
