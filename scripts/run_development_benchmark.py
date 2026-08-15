@@ -147,19 +147,39 @@ def entities_from_verification_rows(rows: list[dict]) -> list[VisualEntity]:
     return entities
 
 
-def run_live_observer_and_verifier(image_id: str, image_path: Path) -> list[dict]:
-    """NOT exercised this phase (no --run-live invocation was made). Kept
-    minimal and using the exact same call pattern as
-    `scripts/doar_visual_verifier_dev_check.py` so a future run behaves
-    identically to that already-validated path -- not a new, untested
-    integration."""
+def run_live_observer_and_verifier(
+        image_id: str, image_path: Path, *, observer=None, verifier=None, sleep_seconds: float = 3.0,
+) -> list[dict]:
+    """Uses the ACTUAL public interface of the frozen `GeminiVisualObserver`
+    / `GeminiVisualVerifier` -- `observer.analyze(image_path) ->
+    list[VisualObserverCandidate]` and `verifier.verify(image_path, entity)
+    -> VerificationResult` -- exactly the call pattern already validated by
+    `scripts/doar_gemini_observer_dev_check.py` (`candidates = observer.
+    analyze(str(image_path))`) and `scripts/doar_visual_verifier_dev_check.py`
+    (`result = verifier.verify(str(image_path), entity)`). Neither class
+    has (or should ever gain) an `.observe()` method or a wrapper result
+    object with a `.candidates` attribute -- `.analyze()` returns the
+    candidate list directly, which a prior version of this function got
+    wrong (`observer.observe(...).candidates`, an interface that was
+    never real), raising `AttributeError` on the first live run.
+
+    `observer`/`verifier` default to real instances when not supplied --
+    `main()`'s real `--run-live` path never passes them, so production
+    behavior is unchanged. Tests inject real `GeminiVisualObserver`/
+    `GeminiVisualVerifier` instances constructed with their own
+    `request_fn` set (the same officially-supported test seam
+    `tests/test_visual_observer.py` already uses throughout), so the
+    REAL `.analyze()`/`.verify()` methods run for real -- only the HTTP
+    transport is replaced, not the classes. `sleep_seconds` defaults to
+    the real inter-request pacing but is overridable so tests don't have
+    to wait on it."""
     from doar.visual_observer import GeminiVisualObserver, GeminiVisualVerifier
 
-    observer = GeminiVisualObserver()
-    observer_result = observer.observe(str(image_path))
-    verifier = GeminiVisualVerifier()
+    observer = observer or GeminiVisualObserver()
+    verifier = verifier or GeminiVisualVerifier()
+    candidates = observer.analyze(str(image_path))
     rows = []
-    for i, candidate in enumerate(observer_result.candidates):
+    for i, candidate in enumerate(candidates):
         observation_id = f"{image_id}_c{i:02d}"
         bbox = tuple(candidate.bbox) if candidate.bbox else None
         entity = VisualEntity(
@@ -175,7 +195,8 @@ def run_live_observer_and_verifier(image_id: str, image_path: Path) -> list[dict
             timestamp="2026-08-13T00:00:00+00:00",
         )
         result = verifier.verify(str(image_path), entity)
-        time.sleep(3.0)
+        if sleep_seconds:
+            time.sleep(sleep_seconds)
         rows.append({
             "drawing_id": image_id, "observation_id": observation_id,
             "observer_candidate": {

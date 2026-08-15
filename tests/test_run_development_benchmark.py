@@ -5,9 +5,11 @@ reference; nothing downstream may mutate it, not even by accident.
 """
 import importlib.util
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -255,6 +257,153 @@ class AnnotationCountIndependentOfObserverDataTests(unittest.TestCase):
                 self.assertEqual(summary["images_with_saved_or_live_observer_data"], 5)
             finally:
                 shutil.rmtree(run_dir, ignore_errors=True)
+
+
+from doar.visual_observer import GeminiVisualObserver, GeminiVisualVerifier  # noqa: E402
+
+
+def _fake_gemini_observer_response(candidates_payload, *, response_id="gemini_resp_test_1",
+                                    model_version="gemini-3.6-flash"):
+    """Same wire shape `tests/test_visual_observer.py::_fake_gemini_response`
+    builds -- a real Gemini generateContent body wrapping the structured
+    candidate JSON as `.analyze()`'s own parser expects."""
+    body = {
+        "candidates": [{"content": {"parts": [{"text": json.dumps({"candidates": candidates_payload})}],
+                                     "role": "model"}, "finishReason": "STOP", "index": 0}],
+        "modelVersion": model_version, "responseId": response_id,
+    }
+    return json.dumps(body).encode("utf-8")
+
+
+def _fake_gemini_verifier_response(label, alternative_labels=(), confidence=None,
+                                    *, response_id="gemini_verifier_resp_1", model_version="gemini-3.5-flash-lite"):
+    inner = {"label": label, "alternative_labels": list(alternative_labels), "confidence": confidence}
+    body = {
+        "candidates": [{"content": {"parts": [{"text": json.dumps(inner)}], "role": "model"},
+                         "finishReason": "STOP", "index": 0}],
+        "modelVersion": model_version, "responseId": response_id,
+    }
+    return json.dumps(body).encode("utf-8")
+
+
+def _tmp_real_image_path(size=(64, 64), color=(255, 220, 0)):
+    """The verifier's `.verify()` crops the image via PIL, so unlike the
+    observer's fixture image (arbitrary bytes are fine -- the mocked
+    transport never actually decodes them), this needs real, decodable
+    pixel data."""
+    import tempfile
+
+    from PIL import Image
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    Image.new("RGB", size, color).save(path)
+    return path
+
+
+class LiveObserverVerifierInterfaceTests(unittest.TestCase):
+    """Regression test for the exact bug this phase fixes: a prior version
+    called `observer.observe(image_path).candidates`, an interface that
+    never existed on the frozen `GeminiVisualObserver` (the real method is
+    `.analyze(image_path) -> list[VisualObserverCandidate]`), raising
+    `AttributeError` on the very first `--run-live` invocation.
+
+    Uses REAL `GeminiVisualObserver`/`GeminiVisualVerifier` instances
+    (not mocks/fakes of the classes) with their own `request_fn` swapped
+    for a canned response -- the officially-supported test seam these
+    classes already document and `tests/test_visual_observer.py` already
+    uses throughout -- so `run_live_observer_and_verifier` exercises the
+    REAL `.analyze()`/`.verify()` method resolution. Had the bug still
+    been present, this test would fail with the same AttributeError the
+    real `--run-live` run hit, not a mock-shaped false pass."""
+
+    def test_live_observer_and_verifier_uses_the_real_analyze_and_verify_interface(self):
+        observer_key_var = "DOAR_TEST_RDB_OBSERVER_KEY_UNUSED"
+        verifier_key_var = "DOAR_TEST_RDB_VERIFIER_KEY_UNUSED"
+
+        candidates_payload = [
+            {"label": "car", "alternative_labels": ["vehicle"], "entity_type": "object",
+             "bbox": [0.1, 0.1, 0.4, 0.4], "count": 1, "confidence": 0.8},
+        ]
+        observer_raw = _fake_gemini_observer_response(candidates_payload, response_id="gemini_resp_car")
+        fake_observer = GeminiVisualObserver(
+            api_key_env_var=observer_key_var, model="gemini-test-observer-model",
+            request_fn=lambda key, model, body, timeout: observer_raw)
+
+        verifier_raw = _fake_gemini_verifier_response("car", ["vehicle"], confidence=0.85)
+        fake_verifier = GeminiVisualVerifier(
+            api_key_env_var=verifier_key_var, model="gemini-test-verifier-model",
+            request_fn=lambda key, model, body, timeout: verifier_raw)
+
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {observer_key_var: "fake-observer-key",
+                                               verifier_key_var: "fake-verifier-key"}):
+                rows = rdb.run_live_observer_and_verifier(
+                    "fixture_image", Path(image_path),
+                    observer=fake_observer, verifier=fake_verifier, sleep_seconds=0)
+        finally:
+            os.unlink(image_path)
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["drawing_id"], "fixture_image")
+        self.assertEqual(row["observation_id"], "fixture_image_c00")
+
+        # Step 5: candidate fields/bbox translated correctly into the
+        # existing benchmark row schema.
+        oc = row["observer_candidate"]
+        self.assertEqual(oc["label"], "car")
+        self.assertEqual(oc["alternative_labels"], ["vehicle"])
+        self.assertEqual(oc["bbox"], (0.1, 0.1, 0.4, 0.4))
+        self.assertEqual(oc["confidence"], 0.8)
+        self.assertEqual(oc["entity_type"], "object")
+
+        self.assertEqual(row["verifier_independent_label"], "car")
+        self.assertEqual(row["verifier_independent_alternative_labels"], ["vehicle"])
+        self.assertEqual(row["verifier_confidence"], 0.85)
+        self.assertEqual(row["verification_status"], "verified")
+        self.assertEqual(row["observer_model"], "gemini-test-observer-model")
+        self.assertEqual(row["verifier_model"], "gemini-test-verifier-model")
+
+        # The row schema this benchmark script's OWN reader expects --
+        # proves the fix's output is consumable by the rest of the script,
+        # not just structurally similar.
+        entities = rdb.entities_from_verification_rows(rows)
+        self.assertEqual(len(entities), 1)
+        self.assertEqual(entities[0].canonical_label, "car")
+        self.assertEqual(entities[0].case_verification_status, "verified")
+
+    def test_no_candidates_returns_empty_rows_without_calling_verifier(self):
+        observer_key_var = "DOAR_TEST_RDB_OBSERVER_KEY_UNUSED_2"
+        observer_raw = _fake_gemini_observer_response([])
+        fake_observer = GeminiVisualObserver(api_key_env_var=observer_key_var, request_fn=lambda *a: observer_raw)
+
+        def verifier_must_not_be_called(*_a):
+            raise AssertionError("verifier.verify must not be called when there are no candidates")
+        fake_verifier = GeminiVisualVerifier(request_fn=verifier_must_not_be_called)
+
+        image_path = _tmp_real_image_path()
+        try:
+            with mock.patch.dict(os.environ, {observer_key_var: "fake-observer-key"}):
+                rows = rdb.run_live_observer_and_verifier(
+                    "fixture_image", Path(image_path),
+                    observer=fake_observer, verifier=fake_verifier, sleep_seconds=0)
+        finally:
+            os.unlink(image_path)
+
+        self.assertEqual(rows, [])
+
+    def test_default_observer_verifier_are_the_real_frozen_classes(self):
+        # Confirms the DI seam's defaults are the actual production
+        # classes (not a test double silently substituted), matching
+        # main()'s own no-kwargs call site.
+        import inspect
+        sig = inspect.signature(rdb.run_live_observer_and_verifier)
+        source = inspect.getsource(rdb.run_live_observer_and_verifier)
+        self.assertIn("observer or GeminiVisualObserver()", source)
+        self.assertIn("verifier or GeminiVisualVerifier()", source)
+        self.assertIn("observer", sig.parameters)
+        self.assertIn("verifier", sig.parameters)
 
 
 if __name__ == "__main__":
