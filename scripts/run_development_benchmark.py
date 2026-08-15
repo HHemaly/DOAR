@@ -14,12 +14,17 @@ inspection folder says so plainly and its metrics are reported as
 unavailable (`None`) rather than skipped silently or fabricated.
 
 **This script does NOT call the live Gemini APIs by default** (quota
-conservation + this phase's own scope: validate the pipeline, don't run
-the real rehearsal until annotations exist). It reuses already-saved
-Observer/Verifier development data
-(`outputs/prototype_cases/gemini_verifier_dev_check_*/`) wherever
-available. Pass `--run-live` to call the real Observer+Verifier for any
-image that has no saved data yet -- NOT exercised by this phase.
+conservation). It reuses already-saved Observer/Verifier data, searched
+in this order: (1) `outputs/prototype_cases/development_live_cache/`
+-- this script's own persistent cache of prior `--run-live` results,
+keyed by `image_id`, so a live call is NEVER repeated for an image once
+made; (2) `outputs/prototype_cases/gemini_verifier_dev_check_*/` -- the
+earlier, pre-existing dev-check data. Pass `--run-live` to call the real
+Observer+Verifier for any image found in neither location; each
+successful live result is written to the persistent cache immediately
+(atomically -- write-to-temp-file then rename), before moving on to the
+next image, so a later run (or a crash partway through this one) never
+re-spends quota on an image already completed.
 
 **These 15 images are development-only** (`DEVELOPMENT_SET_15.json`'s own
 note) -- results here may surface implementation bugs to fix; they must
@@ -35,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -49,6 +55,13 @@ from doar.visual_entity import VisualEntity  # noqa: E402
 DEV_SET_PATH = ROOT / "DEVELOPMENT_SET_15.json"
 ANNOTATIONS_DIR = ROOT / "annotations"
 ANNOTATOR_IDS = ("A1", "A2")
+
+# This script's own persistent cache of `--run-live` results, keyed by
+# image_id -- checked BEFORE the legacy dev-check dirs below, and the
+# only location `--run-live` ever writes a fresh result to. Exists so a
+# live Gemini call is made AT MOST ONCE per image across every future
+# invocation of this script, not just within a single run.
+LIVE_CACHE_DIR = ROOT / "outputs" / "prototype_cases" / "development_live_cache"
 
 # Already-saved, real Observer/Verifier development data -- searched newest
 # first so a later dev-check run (if one is ever added) takes precedence.
@@ -65,7 +78,35 @@ def load_development_set() -> list[dict]:
     return json.loads(DEV_SET_PATH.read_text(encoding="utf-8"))["images"]
 
 
+def live_cache_path(image_id: str) -> Path:
+    return LIVE_CACHE_DIR / f"{image_id}_verification.json"
+
+
+def _atomic_write_json(path: Path, data) -> None:
+    """Writes `data` to `path` atomically: serialize to a sibling temp
+    file in the SAME directory, then `os.replace` it over the
+    destination (an atomic rename on both POSIX and Windows). A crash or
+    interruption mid-write can therefore never leave a half-written,
+    corrupt cache file at `path` -- the file at `path` is always either
+    the previous complete version or the new complete version, never a
+    partial one. Used for the live cache specifically because its
+    content is expensive (real Gemini API quota) to reproduce; the
+    other, cheap-to-regenerate report files this script writes are not
+    a correctness concern the same way."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp-{os.getpid()}-{int(time.time() * 1000)}")
+    tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp_path, path)
+
+
 def find_saved_verification_rows(image_id: str) -> tuple[list[dict] | None, Path | None]:
+    """Search order: (1) this script's own persistent live cache --
+    checked FIRST so a `--run-live` result already captured (even in a
+    prior invocation) is always reused and never re-fetched; (2) the
+    legacy `gemini_verifier_dev_check_*` dev-check directories."""
+    live_path = live_cache_path(image_id)
+    if live_path.exists():
+        return json.loads(live_path.read_text(encoding="utf-8")), live_path
     for d in SAVED_VERIFICATION_DIRS:
         f = d / f"{image_id}_verification.json"
         if f.exists():
@@ -413,16 +454,28 @@ def main() -> None:
         if rows is None and args.run_live:
             image_path = ROOT / image["relative_path"]
             rows = run_live_observer_and_verifier(image_id, image_path)
-            source_path = None
+            live_path = live_cache_path(image_id)
+            _atomic_write_json(live_path, rows)
+            print(f"    cached live Observer/Verifier result -> {live_path}", flush=True)
+            # Also keep a copy scoped to this run's own output folder, as before.
             (out_root / f"{image_id}_verification_live.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
+            source_path = live_path
 
+        # Loaded and counted unconditionally, regardless of whether
+        # Observer/Verifier data exists for this image -- annotations and
+        # observer data are independent facts about an image, and missing
+        # one must never make the other appear missing too.
         human = load_human_annotations(image_id)
+        any_annotation = any(items is not None for items in human.values())
 
         if rows is None:
             print(f"    no saved Observer/Verifier data for {image_id}; skipping Conditions A/B "
-                  f"(pass --run-live to fetch live, not done this phase).")
+                  f"(pass --run-live to fetch live).")
             write_inspection_folder(image_out_dir, image, None, None, human, None, None)
-            per_image_results.append({"image_id": image_id, "status": "no_observer_data"})
+            per_image_results.append({
+                "image_id": image_id, "status": "no_observer_data",
+                "has_human_annotations": any_annotation,
+            })
             hypotheses_by_image[image_id] = []
             continue
 
@@ -431,7 +484,6 @@ def main() -> None:
         all_matches.extend(conditions["doar_full_pipeline"]["eligible_matches"])
         all_hypotheses.extend(conditions["doar_full_pipeline"]["hypotheses"])
 
-        any_annotation = any(items is not None for items in human.values())
         metrics = None
         if any_annotation:
             metrics = compute_visual_metrics(
