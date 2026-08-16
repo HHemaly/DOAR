@@ -1,6 +1,30 @@
-"""DOAR reasoning chain (V1.6): verified visual observation -> eligible
+"""DOAR reasoning chain (V1.9): verified visual observation -> eligible
 atomic rule -> evidence family -> concern domain -> candidate clinical
 hypothesis.
+
+**Semantic matching fixes (15-image development rehearsal, V1.9):** four
+real precondition-matching bugs found by inspecting real trace output,
+none of which touch `RULE_EVIDENCE_MATRIX.csv`, `CONCERN_DOMAIN_MAP.
+json`, or any rule's claim/interpretation/strength -- only which
+`VisualEntity` tokens are allowed to satisfy which rule's PRECONDITION:
+1. Generic "eye"/"eyes" presence no longer satisfies all three mutually
+   incompatible eye-style rules (wide/stern/closed) at once -- each now
+   requires an explicit style qualifier on the SAME entity
+   (`STYLE_QUALIFIED_PRESENCE_TERMS`).
+2. A person-like entity being verified while a part (mouth/hands) was
+   merely never independently verified no longer satisfies the
+   corresponding missing-part rule -- "not detected" is not "confirmed
+   absent"; these rules are now intentionally near-unsatisfiable pending
+   a real omission detector (`ABSENCE_REQUIRES_EXPLICIT_OMISSION_
+   EVIDENCE`).
+3. A face/head's own circular OUTLINE (e.g. "green face circle") no
+   longer satisfies the standalone circle-symbolism rule
+   (`CONTEXT_EXCLUDED_PRESENCE_TERMS`).
+4. Generic face/eyes/hair presence no longer satisfies the face-
+   expression rule -- it now requires the rule's own source_claim
+   expression vocabulary (smiling/sad/frown/tense/frightened/crying,
+   etc.), not mere face-shaped presence (`POSITIVE_PRESENCE_TERMS["EN_
+   COMPILED_FACE_EXPRESSION_021"]`).
 
 **SHADOW MODE, unconditionally.** This module is entirely NEW and
 ADDITIVE: it reads the frozen `RULE_EVIDENCE_MATRIX.csv` / `RULE_
@@ -89,15 +113,20 @@ def load_concern_domain_map() -> dict:
 # rule's `observable_feature` (RULE_EVIDENCE_MATRIX.csv) and REQUIRES
 # precondition text (RULE_RELATIONSHIP_GRAPH.json) -- NOT auto-derived from
 # the observable string, so an odd observable name never silently produces
-# a wrong search term. Three disjoint categories, each with an honest,
+# a wrong search term. Four disjoint categories, each with an honest,
 # stated reason when a rule cannot be checked:
 #
 #   POSITIVE_PRESENCE_TERMS: satisfied by >=1 VERIFIED VisualEntity whose
 #     canonical_label/aliases match one of the listed terms.
-#   ABSENCE_PATTERNS: satisfied by a VERIFIED "person"-like entity AND the
-#     ABSENCE of any VERIFIED entity matching the listed part terms --
-#     mirrors this task's own example ("missing_hands REQUIRES
-#     visible_person + hands_expected_visible").
+#   STYLE_QUALIFIED_PRESENCE_TERMS: satisfied by >=1 VERIFIED VisualEntity
+#     whose canonical_label/aliases match BOTH an object term (e.g. "eye")
+#     AND a style-qualifier term (e.g. "wide") -- see the dict's own
+#     docstring for why this exists (Bug 1 fix).
+#   CONTEXT_EXCLUDED_PRESENCE_TERMS: like POSITIVE_PRESENCE_TERMS, but an
+#     entity whose tokens ALSO include a disqualifying context term is
+#     never counted (Bug 3 fix).
+#   ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE: intentionally near-
+#     unsatisfiable today -- see the dict's own docstring (Bug 2 fix).
 #   Everything else in the 41-rule matrix is `blocked_structural` with a
 #   reason drawn directly from RULE_EVIDENCE_MATRIX.csv's own
 #   requires_process_data/requires_longitudinal_data/requires_absolute_
@@ -108,32 +137,94 @@ def load_concern_domain_map() -> dict:
 # ---------------------------------------------------------------------------
 
 POSITIVE_PRESENCE_TERMS: dict[str, tuple[str, ...]] = {
-    "PSY_AR_EYES_WIDE_001": ("eye", "eyes"),
-    "PSY_AR_EYES_STERN_002": ("eye", "eyes"),
-    "PSY_AR_EYES_CLOSED_003": ("eye", "eyes"),
     "PSY_AR_ANIMAL_TIGER_WOLF_004": ("tiger", "wolf"),
     "PSY_AR_ANIMAL_FOX_005": ("fox",),
     "PSY_AR_ANIMAL_SQUIRREL_006": ("squirrel",),
     "PSY_AR_ANIMAL_LION_007": ("lion",),
     "PSY_AR_GEOMETRY_008": ("geometric shape", "shape", "square", "triangle", "rectangle"),
     "PSY_AR_STARS_009": ("star",),
-    "PSY_AR_CIRCLES_011": ("circle",),
     "PSY_AR_TRANSPORT_012": ("car", "vehicle", "truck", "bicycle", "bus", "train", "airplane", "boat"),
     "PSY_AR_HEARTS_013": ("heart",),
-    "EN_COMPILED_FACE_EXPRESSION_021": ("face",),
+    # Bug 4 fix: `observable_feature` for this rule is literally
+    # "face_expression" and its own `source_claim` names two concrete
+    # readings -- "smiling" (positive tone) vs "sad, tense, or frightened"
+    # (distress) -- yet the precondition used to be just the bare term
+    # "face", so ANY verified face-shaped entity (e.g. a plain "green face
+    # circle") wrongly satisfied a rule about a specific EXPRESSION. Fixed
+    # by requiring one of the source_claim's own expression terms (plus
+    # "crying"/"tears"/"tearful" and "frown/frowning/downturned", the
+    # ordinary visual vocabulary for the same "distress" reading, and
+    # explicitly named in this task's own bug report as legitimate
+    # expression evidence) -- never mere face/eyes/hair presence.
+    "EN_COMPILED_FACE_EXPRESSION_021": (
+        "smiling", "smile", "sad", "frown", "frowning", "downturned", "tense", "frightened",
+        "crying", "tears", "tearful",
+    ),
     "EN_COMPILED_ANIMAL_CHOICE_GENERAL_022": ("animal", "tiger", "wolf", "fox", "squirrel", "lion"),
     "EN_COMPILED_HOUSE_023": ("house",),
     "EN_COMPILED_TREE_024": ("tree",),
 }
 
-# (person_terms, missing_part_terms) -- precondition satisfied only if a
-# VERIFIED person-like entity exists AND no VERIFIED entity matches any
-# missing_part_terms anywhere in the same case.
-ABSENCE_PATTERNS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    "EN_COMPILED_MISSING_HANDS_035": (("person", "girl", "boy", "man", "woman", "child", "figure"),
-                                       ("hand", "hands")),
-    "EN_COMPILED_MISSING_MOUTH_036": (("person", "girl", "boy", "man", "woman", "child", "figure", "face"),
-                                       ("mouth",)),
+# Bug 1 fix: a generic "eye"/"eyes" entity only proves eyes are PRESENT --
+# it says nothing about their STYLE, so it must never satisfy all three
+# mutually incompatible style rules (wide vs. stern vs. closed) at once, a
+# real bug found during the 15-image development rehearsal (any "eye"/
+# "eyes"/"left eye"/"right eye" entity satisfied all three simultaneously).
+# Each rule here now requires BOTH the generic object term (an eye is
+# present) AND a style-qualifier term drawn from that rule's OWN name/
+# `observable_feature` -- "wide"/"open"/"exaggerated" for wide_eyes (this
+# task's own wording), "closed"/"shut" for closed_eyes (ditto), and
+# "stern"/"narrowed"/"glaring" for stern_eyes (the closest ordinary visual
+# -- not psychological -- synonyms for "stern" as an eye's drawn
+# appearance; deliberately NOT the broader "angry/tense/suspicious"
+# vocabulary from the rule's `possible_interpretation_as_written`, since
+# those are the PSYCHOLOGICAL reading this precondition must not smuggle
+# in as if it were visual evidence). A style-qualifier term must appear on
+# the SAME entity as the object term -- a separate entity being "wide" or
+# "stern" elsewhere in the drawing does not count.
+STYLE_QUALIFIED_PRESENCE_TERMS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "PSY_AR_EYES_WIDE_001": (("eye", "eyes"), ("wide", "open", "exaggerated")),
+    "PSY_AR_EYES_STERN_002": (("eye", "eyes"), ("stern", "narrowed", "glaring")),
+    "PSY_AR_EYES_CLOSED_003": (("eye", "eyes"), ("closed", "shut")),
+}
+
+# Bug 3 fix: "circle" as a bare term matched a face/head's own OUTLINE
+# shape (e.g. observer candidate "green face circle", aliases including
+# "head"/"face") just as readily as a genuine standalone circle
+# symbol/shape drawn in the scene -- a real bug found during the 15-image
+# rehearsal. `PSY_AR_CIRCLES_011` is a shape-SYMBOLISM rule (`evidence_
+# family=shape_symbolism`) about a circle drawn AS a symbol, not about
+# anatomy happening to be round -- so an entity whose tokens also include
+# a face/head context term is excluded even if "circle" is also present.
+CONTEXT_EXCLUDED_PRESENCE_TERMS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "PSY_AR_CIRCLES_011": (("circle",), ("face", "head")),
+}
+
+# Bug 2 fix: "not detected" is NOT "visually confirmed absent". The prior
+# implementation satisfied a missing-part rule whenever a person-like
+# entity was VERIFIED but no part entity was independently VERIFIED --
+# but a part can go unverified for reasons that have nothing to do with
+# it being absent (the Observer never proposed it at all, or the
+# label-blind Verifier rejected/left it "uncertain" for an unrelated
+# labelling disagreement, e.g. p2b_0003's own "frowning mouth" candidate,
+# independently re-described by the Verifier as "unknown" and left
+# `uncertain` -- clearly a real mouth the child drew, not a missing one).
+# This module has no explicit, reliable OMISSION detector (a calibrated
+# whole-person completeness assessment that positively confirms a part
+# was never drawn, as opposed to merely never being independently
+# confirmed) -- until one exists, these two rules are intentionally never
+# satisfied by absence-of-verification alone; they stay `not_satisfied`,
+# abstaining rather than guessing. `omission_evidence_terms` is the
+# extension point for that future detector: once a real one exists and
+# tags its output with vocabulary listed here, this same branch in
+# `check_visual_preconditions` will already know how to use it -- no
+# redesign needed. It is deliberately empty for both rules today, so
+# neither can ever be satisfied by the current pipeline.
+ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE: dict[str, tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]] = {
+    "EN_COMPILED_MISSING_HANDS_035": (
+        ("person", "girl", "boy", "man", "woman", "child", "figure"), ("hand", "hands"), ()),
+    "EN_COMPILED_MISSING_MOUTH_036": (
+        ("person", "girl", "boy", "man", "woman", "child", "figure", "face"), ("mouth",), ()),
 }
 
 # Rules this module explicitly cannot check via presence/absence matching,
@@ -205,11 +296,52 @@ def _find_matches(entities: list["VisualEntity"], terms: tuple[str, ...]) -> tup
     matched = []
     for entity in entities:
         entity_tokens = _entity_tokens(entity)
-        for term in terms:
-            term_tokens = _tokenize(term)
-            if term_tokens and term_tokens <= entity_tokens:
-                matched.append(entity.entity_id)
-                break
+        if _any_term_present(entity_tokens, terms):
+            matched.append(entity.entity_id)
+    return tuple(matched)
+
+
+def _any_term_present(entity_tokens: frozenset[str], terms: tuple[str, ...]) -> bool:
+    """True if any `terms` entry's own tokens are a whole-word subset of
+    `entity_tokens` -- shared by every matcher in this module so "whole
+    word, not substring" means the same thing everywhere."""
+    return any(_tokenize(term) and _tokenize(term) <= entity_tokens for term in terms)
+
+
+def _find_style_qualified_matches(
+        entities: list["VisualEntity"], object_terms: tuple[str, ...], qualifier_terms: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Bug 1 fix: satisfied only by an entity whose own tokens contain
+    BOTH an object term (e.g. "eye"/"eyes" -- proves eyes are present)
+    AND a style-qualifier term (e.g. "wide"/"closed" -- proves which
+    STYLE) -- so a generic "eye"/"eyes" entity with no style qualifier at
+    all never satisfies a style-specific rule, and mutually incompatible
+    styles (wide vs. stern vs. closed) can never all activate from the
+    same generic entity."""
+    matched = []
+    for entity in entities:
+        entity_tokens = _entity_tokens(entity)
+        if _any_term_present(entity_tokens, object_terms) and _any_term_present(entity_tokens, qualifier_terms):
+            matched.append(entity.entity_id)
+    return tuple(matched)
+
+
+def _find_matches_excluding_context(
+        entities: list["VisualEntity"], terms: tuple[str, ...], exclude_context_terms: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Bug 3 fix: like `_find_matches`, but an entity whose tokens ALSO
+    include a disqualifying context term is never counted, even if a
+    `terms` entry also matches -- e.g. "circle" describing a face/head's
+    own outline shape ("green face circle") is context, not a standalone
+    circle symbol; only an entity with NO such context term can satisfy
+    the precondition."""
+    matched = []
+    for entity in entities:
+        entity_tokens = _entity_tokens(entity)
+        if _any_term_present(entity_tokens, exclude_context_terms):
+            continue
+        if _any_term_present(entity_tokens, terms):
+            matched.append(entity.entity_id)
     return tuple(matched)
 
 
@@ -222,6 +354,37 @@ def check_visual_preconditions(entities: list["VisualEntity"]) -> list[VisualPre
     verified = _verified_entities(entities)
     results = []
     for rule_id, row in matrix.items():
+        if rule_id in STYLE_QUALIFIED_PRESENCE_TERMS:
+            object_terms, qualifier_terms = STYLE_QUALIFIED_PRESENCE_TERMS[rule_id]
+            matched = _find_style_qualified_matches(verified, object_terms, qualifier_terms)
+            if matched:
+                results.append(VisualPreconditionCheck(
+                    rule_id, "satisfied",
+                    f"{len(matched)} verified entity(ies) matched {object_terms!r} WITH style qualifier "
+                    f"{qualifier_terms!r} on the same entity.",
+                    matched))
+            else:
+                results.append(VisualPreconditionCheck(
+                    rule_id, "not_satisfied",
+                    f"No verified entity carries both an eye term {object_terms!r} and an explicit style "
+                    f"qualifier {qualifier_terms!r} -- generic eye presence alone does not imply this style."))
+            continue
+        if rule_id in CONTEXT_EXCLUDED_PRESENCE_TERMS:
+            terms, exclude_terms = CONTEXT_EXCLUDED_PRESENCE_TERMS[rule_id]
+            matched = _find_matches_excluding_context(verified, terms, exclude_terms)
+            if matched:
+                results.append(VisualPreconditionCheck(
+                    rule_id, "satisfied",
+                    f"{len(matched)} verified entity(ies) matched {terms!r} without any of the excluded "
+                    f"context term(s) {exclude_terms!r}.",
+                    matched))
+            else:
+                results.append(VisualPreconditionCheck(
+                    rule_id, "not_satisfied",
+                    f"No standalone verified entity matched {terms!r} -- any match was describing "
+                    f"another object's shape (context term(s) {exclude_terms!r} present on the same "
+                    f"entity), not a standalone symbolic instance."))
+            continue
         if rule_id in POSITIVE_PRESENCE_TERMS:
             matched = _find_matches(verified, POSITIVE_PRESENCE_TERMS[rule_id])
             if matched:
@@ -233,15 +396,23 @@ def check_visual_preconditions(entities: list["VisualEntity"]) -> list[VisualPre
                 results.append(VisualPreconditionCheck(
                     rule_id, "not_satisfied", "No verified entity in this case matched the required term(s)."))
             continue
-        if rule_id in ABSENCE_PATTERNS:
-            person_terms, part_terms = ABSENCE_PATTERNS[rule_id]
+        if rule_id in ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE:
+            person_terms, part_terms, omission_terms = ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE[rule_id]
             person_matches = _find_matches(verified, person_terms)
             part_matches = _find_matches(verified, part_terms)
-            if person_matches and not part_matches:
+            omission_matches = _find_matches(verified, omission_terms) if omission_terms else ()
+            if omission_matches:
+                # Extension point for a future, real omission detector --
+                # unreachable today since every rule's omission_terms is
+                # empty (see the dict's own docstring).
                 results.append(VisualPreconditionCheck(
                     rule_id, "satisfied",
-                    f"A verified person-like entity is present and no verified {part_terms!r} entity exists.",
-                    person_matches))
+                    f"Explicit omission evidence {omission_terms!r} confirms this part was verified "
+                    f"absent (not merely undetected).",
+                    omission_matches))
+            elif part_matches:
+                results.append(VisualPreconditionCheck(
+                    rule_id, "not_satisfied", "The part was itself verified as present -- not missing."))
             elif not person_matches:
                 results.append(VisualPreconditionCheck(
                     rule_id, "not_satisfied",
@@ -249,7 +420,11 @@ def check_visual_preconditions(entities: list["VisualEntity"]) -> list[VisualPre
                     "meaningful once a person is confirmed present."))
             else:
                 results.append(VisualPreconditionCheck(
-                    rule_id, "not_satisfied", "The part was itself verified as present -- not missing."))
+                    rule_id, "not_satisfied",
+                    "A person is present and the part was not independently verified, but "
+                    "non-detection is not proof of visual absence -- this module has no explicit, "
+                    "reliable omission detector (e.g. a calibrated whole-person completeness "
+                    "assessment). Abstaining rather than guessing absence."))
             continue
         if row["requires_process_data"] == "yes":
             results.append(VisualPreconditionCheck(

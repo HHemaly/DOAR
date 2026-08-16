@@ -78,11 +78,16 @@ class VisualPreconditionTests(unittest.TestCase):
         self.assertEqual(lion_check.status, "satisfied")
         self.assertEqual(lion_check.matched_entity_ids, ("e1",))
 
-    def test_absence_pattern_satisfied_when_person_present_part_absent(self):
+    def test_absence_pattern_abstains_when_part_merely_not_detected(self):
+        # Bug 2 fix: a person-like entity being verified while the part was
+        # merely never independently verified must NOT satisfy the missing-
+        # part rule -- "not detected" is not "confirmed absent". This module
+        # has no explicit omission detector, so it abstains (not_satisfied).
         entities = [_entity("e1", "girl", aliases_en=("person",))]
         checks = rc.check_visual_preconditions(entities)
         check = next(c for c in checks if c.rule_id == "EN_COMPILED_MISSING_HANDS_035")
-        self.assertEqual(check.status, "satisfied")
+        self.assertEqual(check.status, "not_satisfied")
+        self.assertIn("not proof of visual absence", check.reason)
 
     def test_absence_pattern_not_satisfied_when_part_present(self):
         entities = [_entity("e1", "girl", aliases_en=("person",)), _entity("e2", "hand")]
@@ -117,6 +122,231 @@ class VisualPreconditionTests(unittest.TestCase):
         self.assertTrue(check.reason)
 
 
+class Bug1EyeStyleRegressionTests(unittest.TestCase):
+    """Bug 1: generic "eye"/"eyes" presence must not satisfy mutually
+    incompatible eye-style rules (wide/stern/closed) all at once."""
+
+    def _check(self, rule_id, entities):
+        checks = rc.check_visual_preconditions(entities)
+        return next(c for c in checks if c.rule_id == rule_id)
+
+    def test_generic_eye_does_not_satisfy_any_style_rule(self):
+        for label in ("eye", "eyes", "left eye", "right eye"):
+            entities = [_entity("e1", label)]
+            for rule_id in ("PSY_AR_EYES_WIDE_001", "PSY_AR_EYES_STERN_002", "PSY_AR_EYES_CLOSED_003"):
+                check = self._check(rule_id, entities)
+                self.assertEqual(check.status, "not_satisfied", f"{label!r} must not satisfy {rule_id}")
+
+    def test_generic_eye_never_satisfies_all_three_styles_at_once(self):
+        # The exact reported failure: one generic eye entity must not mean
+        # wide AND stern AND closed simultaneously.
+        entities = [_entity("e1", "left eye", aliases_en=("eye",)),
+                    _entity("e2", "right eye", aliases_en=("eye",))]
+        matches = rc.build_eligible_matches(entities)
+        style_rule_ids = {m.rule_id for m in matches} & {
+            "PSY_AR_EYES_WIDE_001", "PSY_AR_EYES_STERN_002", "PSY_AR_EYES_CLOSED_003"}
+        self.assertEqual(style_rule_ids, set())
+
+    def test_explicit_closed_eyes_satisfies_closed_predicate(self):
+        entities = [_entity("e1", "closed eyes", aliases_en=("eye",))]
+        check = self._check("PSY_AR_EYES_CLOSED_003", entities)
+        self.assertEqual(check.status, "satisfied")
+        self.assertEqual(check.matched_entity_ids, ("e1",))
+        # And must NOT also satisfy the other two incompatible styles.
+        self.assertEqual(self._check("PSY_AR_EYES_WIDE_001", entities).status, "not_satisfied")
+        self.assertEqual(self._check("PSY_AR_EYES_STERN_002", entities).status, "not_satisfied")
+
+    def test_explicit_wide_eyes_satisfies_wide_predicate(self):
+        entities = [_entity("e1", "wide eyes", aliases_en=("eye",))]
+        check = self._check("PSY_AR_EYES_WIDE_001", entities)
+        self.assertEqual(check.status, "satisfied")
+        self.assertEqual(check.matched_entity_ids, ("e1",))
+        self.assertEqual(self._check("PSY_AR_EYES_STERN_002", entities).status, "not_satisfied")
+        self.assertEqual(self._check("PSY_AR_EYES_CLOSED_003", entities).status, "not_satisfied")
+
+    def test_shut_synonym_also_satisfies_closed_predicate(self):
+        entities = [_entity("e1", "eyes shut tight", aliases_en=("eye",))]
+        self.assertEqual(self._check("PSY_AR_EYES_CLOSED_003", entities).status, "satisfied")
+
+    def test_style_qualifier_on_a_different_entity_does_not_count(self):
+        # "wide" appearing on an unrelated entity must not lend its
+        # qualifier to a separate, generic eye entity.
+        entities = [_entity("e1", "eye"), _entity("e2", "wide smile")]
+        self.assertEqual(self._check("PSY_AR_EYES_WIDE_001", entities).status, "not_satisfied")
+
+
+class Bug2AbsenceInferenceRegressionTests(unittest.TestCase):
+    """Bug 2: non-detection/non-verification of a part must never be
+    treated as visually confirmed absence."""
+
+    def test_lack_of_mouth_detection_does_not_satisfy_missing_mouth(self):
+        entities = [_entity("e1", "girl", aliases_en=("person",))]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "EN_COMPILED_MISSING_MOUTH_036")
+        self.assertEqual(check.status, "not_satisfied")
+
+    def test_lack_of_hand_detection_does_not_satisfy_missing_hands(self):
+        entities = [_entity("e1", "girl", aliases_en=("person",))]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "EN_COMPILED_MISSING_HANDS_035")
+        self.assertEqual(check.status, "not_satisfied")
+
+    def test_an_uncertain_or_rejected_part_candidate_still_does_not_prove_absence(self):
+        # A mouth candidate that exists but was left uncertain/rejected by
+        # the verifier (a labelling disagreement, not evidence of absence)
+        # must not flip the missing-mouth predicate to satisfied.
+        for status in ("uncertain", "rejected"):
+            entities = [_entity("e1", "girl", aliases_en=("person",)),
+                        _entity("e2", "frowning mouth", status=status)]
+            checks = rc.check_visual_preconditions(entities)
+            check = next(c for c in checks if c.rule_id == "EN_COMPILED_MISSING_MOUTH_036")
+            self.assertEqual(check.status, "not_satisfied", f"status={status} must still abstain")
+
+    def test_omission_evidence_extension_point_works_when_evidence_type_exists(self):
+        # Proves the extension point is real: IF a rule's own
+        # omission_evidence_terms were ever populated with a genuine
+        # omission-detector vocabulary, the SAME branch would correctly
+        # satisfy the predicate from that explicit evidence -- without
+        # needing to touch check_visual_preconditions' control flow at
+        # all. Monkeypatches the (currently-empty) vocabulary for one
+        # rule only, restores it immediately after.
+        original = rc.ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE["EN_COMPILED_MISSING_HANDS_035"]
+        person_terms, part_terms, _ = original
+        rc.ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE["EN_COMPILED_MISSING_HANDS_035"] = (
+            person_terms, part_terms, ("hands not visible", "arms end without hands"))
+        try:
+            entities = [_entity("e1", "girl", aliases_en=("person",)),
+                        _entity("e2", "arms end without hands")]
+            checks = rc.check_visual_preconditions(entities)
+            check = next(c for c in checks if c.rule_id == "EN_COMPILED_MISSING_HANDS_035")
+            self.assertEqual(check.status, "satisfied")
+            self.assertEqual(check.matched_entity_ids, ("e2",))
+        finally:
+            rc.ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE["EN_COMPILED_MISSING_HANDS_035"] = original
+
+    def test_no_rule_has_real_omission_vocabulary_today(self):
+        # The extension point exists but is INERT by default -- neither
+        # rule can be satisfied by the current pipeline, matching the
+        # task's explicit "prefer conservative abstention" requirement.
+        for rule_id, (_, _, omission_terms) in rc.ABSENCE_REQUIRES_EXPLICIT_OMISSION_EVIDENCE.items():
+            self.assertEqual(omission_terms, (), f"{rule_id} must have no live omission vocabulary yet")
+
+
+class Bug3ContextSensitiveShapeRegressionTests(unittest.TestCase):
+    """Bug 3: an object's own geometric descriptor (e.g. a circular face)
+    must not satisfy a standalone shape-symbolism predicate."""
+
+    def test_circular_face_does_not_satisfy_circle_symbolism(self):
+        entities = [_entity("e1", "green face circle", aliases_en=("head", "face"))]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "PSY_AR_CIRCLES_011")
+        self.assertEqual(check.status, "not_satisfied")
+
+    def test_round_head_does_not_satisfy_circle_symbolism(self):
+        entities = [_entity("e1", "round head", aliases_en=("head", "circle"))]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "PSY_AR_CIRCLES_011")
+        self.assertEqual(check.status, "not_satisfied")
+
+    def test_standalone_circle_still_satisfies_circle_symbolism(self):
+        entities = [_entity("e1", "circle", aliases_en=("shape",))]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "PSY_AR_CIRCLES_011")
+        self.assertEqual(check.status, "satisfied")
+        self.assertEqual(check.matched_entity_ids, ("e1",))
+
+
+class Bug4FaceExpressionRegressionTests(unittest.TestCase):
+    """Bug 4: generic face/eyes/hair presence must not automatically
+    satisfy the face-expression rule -- explicit expression evidence
+    (per the rule's own source_claim vocabulary) is required."""
+
+    def test_generic_face_alone_does_not_satisfy_face_expression(self):
+        entities = [_entity("e1", "green face circle", aliases_en=("head", "face"))]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "EN_COMPILED_FACE_EXPRESSION_021")
+        self.assertEqual(check.status, "not_satisfied")
+
+    def test_generic_eyes_alone_does_not_satisfy_face_expression(self):
+        entities = [_entity("e1", "eyes")]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "EN_COMPILED_FACE_EXPRESSION_021")
+        self.assertEqual(check.status, "not_satisfied")
+
+    def test_generic_hair_alone_does_not_satisfy_face_expression(self):
+        entities = [_entity("e1", "hair", aliases_en=("head hair",))]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "EN_COMPILED_FACE_EXPRESSION_021")
+        self.assertEqual(check.status, "not_satisfied")
+
+    def test_explicit_expression_evidence_satisfies_face_expression(self):
+        for label in ("sad face", "smiling face", "frowning mouth", "crying face"):
+            entities = [_entity("e1", label)]
+            checks = rc.check_visual_preconditions(entities)
+            check = next(c for c in checks if c.rule_id == "EN_COMPILED_FACE_EXPRESSION_021")
+            self.assertEqual(check.status, "satisfied", f"{label!r} should satisfy face_expression")
+
+
+class RealCachedEvidenceRegressionTests(unittest.TestCase):
+    """Uses the REAL cached p2b_0003 Observer+Verifier data (the exact
+    fixture the bug report was found against) to prove the previous
+    contradictory activation -- one generic eye entity satisfying wide
+    AND stern AND closed simultaneously -- cannot recur."""
+
+    def _load_real_p2b_0003_entities(self):
+        verification_path = (
+            ROOT / "outputs" / "prototype_cases" / "gemini_verifier_dev_check_1786580377"
+            / "p2b_0003_verification.json")
+        if not verification_path.exists():
+            self.skipTest(f"real cached fixture not present in this checkout: {verification_path}")
+        import json
+        rows = json.loads(verification_path.read_text(encoding="utf-8"))
+        entities = []
+        for row in rows:
+            oc = row["observer_candidate"]
+            aliases = tuple(oc.get("alternative_labels") or ()) + (row.get("verifier_independent_label") or "",) + \
+                tuple(row.get("verifier_independent_alternative_labels") or ())
+            aliases = tuple(a for a in aliases if a)
+            entities.append(VisualEntity(
+                entity_id=row["observation_id"], entity_type=oc.get("entity_type", "unknown"),
+                canonical_label=oc["label"], candidate_labels=((oc["label"], oc.get("confidence") or 0.0),),
+                aliases_en=aliases, aliases_ar=(),
+                broader_categories=(), possible_subtypes=(), visual_similarities=(),
+                bbox=tuple(oc["bbox"]) if oc.get("bbox") else None, crop_ref=None, dominant_colors=None,
+                relative_size=None, page_position=None, shape_features=None, line_features=None,
+                detector=f"visual_observer:{row.get('observer_model', '')}", checkpoint="", prompt="",
+                confidence=oc.get("confidence") or 0.0, model_validation_status="UNKNOWN",
+                case_verification_status=row["verification_status"],
+                evidence_status="experimental_evidence_technical_view_only", rule_mapping_status="UNMAPPED",
+                related_rule_ids=(), source="visual_observer", query=None,
+                timestamp="2026-08-13T00:00:00+00:00",
+            ))
+        return entities
+
+    def test_real_p2b_0003_eye_entities_no_longer_trigger_all_three_styles(self):
+        entities = self._load_real_p2b_0003_entities()
+        matches = rc.build_eligible_matches(entities)
+        rule_ids = {m.rule_id for m in matches}
+        style_rule_ids = rule_ids & {"PSY_AR_EYES_WIDE_001", "PSY_AR_EYES_STERN_002", "PSY_AR_EYES_CLOSED_003"}
+        self.assertEqual(style_rule_ids, set(),
+                          "real p2b_0003 'left eye'/'right eye' entities must not satisfy any eye-style rule")
+
+    def test_real_p2b_0003_missing_mouth_no_longer_activates(self):
+        # p2b_0003's own observer candidate "frowning mouth" exists but was
+        # left `uncertain` by the verifier -- the exact scenario this bug
+        # report names explicitly.
+        entities = self._load_real_p2b_0003_entities()
+        matches = rc.build_eligible_matches(entities)
+        rule_ids = {m.rule_id for m in matches}
+        self.assertNotIn("EN_COMPILED_MISSING_MOUTH_036", rule_ids)
+
+    def test_real_p2b_0003_face_circle_no_longer_satisfies_standalone_circle_symbolism(self):
+        entities = self._load_real_p2b_0003_entities()
+        matches = rc.build_eligible_matches(entities)
+        rule_ids = {m.rule_id for m in matches}
+        self.assertNotIn("PSY_AR_CIRCLES_011", rule_ids)
+
+
 class EligibleMatchTests(unittest.TestCase):
     def test_only_satisfied_checks_become_matches(self):
         entities = [_entity("e1", "lion")]
@@ -140,11 +370,16 @@ class EligibleMatchTests(unittest.TestCase):
 
 class DeduplicationAndAggregationTests(unittest.TestCase):
     def test_same_family_rules_grouped_together(self):
-        entities = [_entity("e1", "eye", aliases_en=("eye", "eyes"))]
+        # Two DIFFERENT entities, each with an explicit style qualifier
+        # (Bug 1 fix: generic "eye"/"eyes" alone no longer satisfies any
+        # style rule) -- both land in facial_feature_style, so grouping
+        # by evidence family still works across genuinely distinct matches.
+        entities = [_entity("e1", "wide eyes", aliases_en=("eye",)),
+                    _entity("e2", "stern eyes", aliases_en=("eye",))]
         matches = rc.build_eligible_matches(entities)
         families = rc.deduplicate_by_evidence_family(matches)
         self.assertIn("facial_feature_style", families)
-        self.assertGreaterEqual(len(families["facial_feature_style"]), 3)  # wide/stern/closed all match "eye"
+        self.assertGreaterEqual(len(families["facial_feature_style"]), 2)
 
     def test_domain_aggregation_groups_by_concern_domain(self):
         entities = [_entity("e1", "lion")]
@@ -164,14 +399,15 @@ class CandidateHypothesisSafetyTests(unittest.TestCase):
         self.assertEqual(hyps, [])
 
     def test_two_verified_rules_same_domain_cap_at_weak_hypothesis(self):
-        # face_expression (facial_feature_style) + missing_mouth (missing_body_part) both
-        # map to depressive_or_low_mood_related -- two DIFFERENT evidence families, two
-        # DIFFERENT rules, both visually verified -- but still ONE source type
+        # stern_eyes (facial_feature_style) + tiger_wolf (animal_symbolism) both
+        # map to aggression_or_threat_related -- two DIFFERENT evidence families, two
+        # DIFFERENT rules, both visually verified (stern_eyes with its Bug-1-fix
+        # explicit style qualifier) -- but still ONE source type
         # (clinician_symbolic). Must stay WEAK_HYPOTHESIS, never higher.
-        entities = [_entity("e1", "sad face", aliases_en=("face",)),
-                    _entity("e2", "girl", aliases_en=("person",))]
+        entities = [_entity("e1", "stern eyes", aliases_en=("eye",)),
+                    _entity("e2", "wolf")]
         matches = rc.build_eligible_matches(entities)
-        domain_matches = [m for m in matches if m.concern_domain == "depressive_or_low_mood_related"]
+        domain_matches = [m for m in matches if m.concern_domain == "aggression_or_threat_related"]
         self.assertGreaterEqual(len(domain_matches), 2)
         hyps = rc.build_candidate_hypotheses(domain_matches)
         self.assertEqual(len(hyps), 1)
@@ -201,18 +437,17 @@ class CandidateHypothesisSafetyTests(unittest.TestCase):
         self.assertEqual(hyps, [])
 
     def test_disclaimer_present_on_every_hypothesis(self):
-        entities = [_entity("e1", "sad face", aliases_en=("face",)),
-                    _entity("e2", "girl", aliases_en=("person",))]
+        entities = [_entity("e1", "stern eyes", aliases_en=("eye",)), _entity("e2", "wolf")]
         matches = rc.build_eligible_matches(entities)
         hyps = rc.build_candidate_hypotheses(matches)
+        self.assertTrue(hyps, "fixture must actually produce a hypothesis for this test to check anything")
         for h in hyps:
             self.assertIn("not a final diagnosis", h.disclaimer)
 
 
 class PackageBuilderTests(unittest.TestCase):
     def _one_hypothesis(self):
-        entities = [_entity("e1", "sad face", aliases_en=("face",)),
-                    _entity("e2", "girl", aliases_en=("person",))]
+        entities = [_entity("e1", "stern eyes", aliases_en=("eye",)), _entity("e2", "wolf")]
         matches = rc.build_eligible_matches(entities)
         return rc.build_candidate_hypotheses(matches)[0]
 

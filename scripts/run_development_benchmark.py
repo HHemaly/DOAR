@@ -279,6 +279,53 @@ def compute_visual_metrics(candidate_labels: list[str], candidates_full: list[di
     }
 
 
+def compute_raw_vs_verified_metrics(
+        raw_candidate_labels: list[str], verified_candidate_labels: list[str], human: dict,
+) -> dict:
+    """Bug 5 fix: Condition A (RAW Observer candidates, unfiltered) vs
+    Condition B (VERIFIED-only Observer+Verifier candidates), scored
+    against A1 and A2 INDEPENDENTLY -- `abstention_rate`/`verifier_
+    correction_rate` alone cannot say whether a "correction" helped
+    (dropped a false detection) or hurt (dropped a true, salient one);
+    `bm.raw_vs_verified_comparison`'s paired delta makes that visible.
+    `human` is what `load_human_annotations` returns for one image."""
+    result = {}
+    for annotator_id, items in human.items():
+        if items is None:
+            result[annotator_id] = None
+            continue
+        result[annotator_id] = bm.raw_vs_verified_comparison(raw_candidate_labels, verified_candidate_labels, items)
+    return result
+
+
+def _mean(values: list[float | None]) -> float | None:
+    present = [v for v in values if v is not None]
+    return (sum(present) / len(present)) if present else None
+
+
+def summarize_raw_vs_verified_deltas(per_image_deltas_by_annotator: dict[str, list[dict]]) -> dict:
+    """Aggregates the paired per-image (verified - raw) deltas into a
+    mean per annotator per metric, keeping the full per-image list too
+    (`BENCHMARK` requirement: "report paired per-image deltas") -- an
+    aggregate mean alone would hide which specific images the verifier
+    helped or hurt on."""
+    summary = {}
+    for annotator_id, records in per_image_deltas_by_annotator.items():
+        if not records:
+            summary[annotator_id] = None
+            continue
+        summary[annotator_id] = {
+            "mean_delta": {
+                "precision": _mean([r["precision"] for r in records]),
+                "recall": _mean([r["recall"] for r in records]),
+                "f1": _mean([r["f1"] for r in records]),
+                "salient_recall": _mean([r["salient_recall"] for r in records]),
+            },
+            "per_image_deltas": records,
+        }
+    return summary
+
+
 # ---------------------------------------------------------------------------
 # Condition registry -- deliberately just the two BENCHMARK_SCHEMA.md
 # defines today. A future C2/C3 ablation adds an entry here (e.g. "doar_
@@ -352,7 +399,7 @@ def _annotation_item_to_dict(i: bm.HumanAnnotationItem) -> dict:
 
 def write_inspection_folder(out_dir: Path, image: dict, source_path: Path | None,
                              conditions: dict | None, human: dict, metrics: dict | None,
-                             reasoning_metrics: dict | None) -> None:
+                             reasoning_metrics: dict | None, raw_vs_verified: dict | None = None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     image_id = image["image_id"]
 
@@ -434,10 +481,22 @@ def write_inspection_folder(out_dir: Path, image: dict, source_path: Path | None
         md_lines.append("```json")
         md_lines.append(json.dumps(_metrics_json_safe(metrics), indent=2))
         md_lines.append("```")
+    md_lines.append("")
+
+    md_lines += ["## RAW Observer vs VERIFIED-only (Condition A vs Condition B)", ""]
+    if raw_vs_verified is None:
+        md_lines.append("Not computed -- requires human annotations, none available for this image yet.")
+    else:
+        md_lines.append("```json")
+        md_lines.append(json.dumps(_metrics_json_safe(raw_vs_verified), indent=2))
+        md_lines.append("```")
     (out_dir / "SUMMARY.md").write_text("\n".join(md_lines), encoding="utf-8")
 
     if metrics is not None:
         (out_dir / "visual_metrics.json").write_text(json.dumps(_metrics_json_safe(metrics), indent=2), encoding="utf-8")
+    if raw_vs_verified is not None:
+        (out_dir / "raw_vs_verified_metrics.json").write_text(
+            json.dumps(_metrics_json_safe(raw_vs_verified), indent=2), encoding="utf-8")
 
 
 def _metrics_json_safe(obj):
@@ -465,6 +524,7 @@ def main() -> None:
     hypotheses_by_image = {}
     all_matches = []
     all_hypotheses = []
+    raw_vs_verified_deltas_by_annotator: dict[str, list[dict]] = {aid: [] for aid in ANNOTATOR_IDS}
 
     for i, image in enumerate(images, start=1):
         image_id = image["image_id"]
@@ -506,12 +566,21 @@ def main() -> None:
         all_hypotheses.extend(conditions["doar_full_pipeline"]["hypotheses"])
 
         metrics = None
+        raw_vs_verified = None
         if any_annotation:
             metrics = compute_visual_metrics(
                 conditions["direct_gemini"]["raw_candidate_labels"],
                 conditions["direct_gemini"]["candidates_full"], human)
+            raw_vs_verified = compute_raw_vs_verified_metrics(
+                conditions["direct_gemini"]["raw_candidate_labels"],
+                conditions["doar_full_pipeline"]["verified_labels"], human)
+            for annotator_id, comparison in raw_vs_verified.items():
+                if comparison is not None:
+                    raw_vs_verified_deltas_by_annotator[annotator_id].append({
+                        "image_id": image_id, **comparison["delta_verified_minus_raw"],
+                    })
 
-        write_inspection_folder(image_out_dir, image, source_path, conditions, human, metrics, None)
+        write_inspection_folder(image_out_dir, image, source_path, conditions, human, metrics, None, raw_vs_verified)
         per_image_results.append({
             "image_id": image_id, "status": "ok",
             "eligible_matches": len(conditions["doar_full_pipeline"]["eligible_matches"]),
@@ -526,6 +595,8 @@ def main() -> None:
         "hypothesis_derivability": bm.hypothesis_derivability(hypotheses_by_image),
     }
 
+    raw_vs_verified_summary = summarize_raw_vs_verified_deltas(raw_vs_verified_deltas_by_annotator)
+
     images_with_annotations = sum(1 for r in per_image_results if r.get("has_human_annotations"))
     images_with_observer_data = sum(1 for r in per_image_results if r["status"] == "ok")
 
@@ -538,6 +609,7 @@ def main() -> None:
         "images_with_human_annotations": images_with_annotations,
         "per_image": per_image_results,
         "reasoning_metrics": reasoning_summary,
+        "raw_vs_verified_summary": raw_vs_verified_summary,
         "output_directory": str(out_root),
     }
     (out_root / "summary.json").write_text(json.dumps(_metrics_json_safe(top_summary), indent=2, ensure_ascii=False), encoding="utf-8")
@@ -548,6 +620,8 @@ def main() -> None:
         f"Images with at least one human annotator's data: {images_with_annotations}/{len(images)}",
         "", "## Reasoning metrics (Condition B, aggregated)", "",
         "```json", json.dumps(_metrics_json_safe(reasoning_summary), indent=2), "```", "",
+        "## RAW Observer vs VERIFIED-only -- mean paired delta per annotator (Bug 5)", "",
+        "```json", json.dumps(_metrics_json_safe(raw_vs_verified_summary), indent=2), "```", "",
         "See each `<image_id>/SUMMARY.md` for a per-drawing, code-free breakdown.",
     ]
     (out_root / "SUMMARY.md").write_text("\n".join(summary_md), encoding="utf-8")

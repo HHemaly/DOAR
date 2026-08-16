@@ -339,5 +339,66 @@ class InterAnnotatorAgreementTests(unittest.TestCase):
             self.assertNotIn("ground_truth", key.lower())
 
 
+class UnmatchedCandidateRateTests(unittest.TestCase):
+    def test_all_matched_is_zero(self):
+        result = bm.unmatched_candidate_rate(["sun", "tree"], fixture_items("sun", "tree", "house"))
+        self.assertEqual(result["unmatched_rate"], 0.0)
+
+    def test_none_matched_is_one(self):
+        result = bm.unmatched_candidate_rate(["dinosaur"], fixture_items("sun"))
+        self.assertEqual(result["unmatched_rate"], 1.0)
+
+    def test_empty_candidates_is_none(self):
+        self.assertIsNone(bm.unmatched_candidate_rate([], fixture_items("sun"))["unmatched_rate"])
+
+
+class RawVsVerifiedComparisonTests(unittest.TestCase):
+    """Bug 5: a verifier 'correction' can be GOOD (drops a false
+    detection) or BAD (drops a true one) -- these tests prove both
+    directions are visible as separate, correctly-signed deltas rather
+    than collapsing into one ambiguous number."""
+
+    def test_verifier_removes_a_false_detection_precision_improves_recall_unchanged(self):
+        # RAW has an extra hallucinated "dinosaur" the human never saw;
+        # VERIFIED correctly drops it. Both find the real "sun".
+        items = fixture_items("sun", salient=True)
+        result = bm.raw_vs_verified_comparison(["sun", "dinosaur"], ["sun"], items)
+        self.assertEqual(result["raw_observer"]["precision_recall_f1"]["precision"], 0.5)
+        self.assertEqual(result["verified_only"]["precision_recall_f1"]["precision"], 1.0)
+        self.assertAlmostEqual(result["delta_verified_minus_raw"]["precision"], 0.5)
+        self.assertEqual(result["delta_verified_minus_raw"]["recall"], 0.0)
+
+    def test_verifier_rejects_a_true_salient_detection_recall_and_salient_recall_worsen(self):
+        # RAW correctly finds both "sun" and "person"; VERIFIED wrongly
+        # drops the person (a real, salient, human-confirmed detection).
+        items = fixture_items("sun", salient=True) + fixture_items("person", salient=True)
+        result = bm.raw_vs_verified_comparison(["sun", "person"], ["sun"], items)
+        self.assertEqual(result["raw_observer"]["precision_recall_f1"]["recall"], 1.0)
+        self.assertEqual(result["verified_only"]["precision_recall_f1"]["recall"], 0.5)
+        self.assertAlmostEqual(result["delta_verified_minus_raw"]["recall"], -0.5)
+        self.assertAlmostEqual(result["delta_verified_minus_raw"]["salient_recall"], -0.5)
+
+    def test_a1_and_a2_scored_independently_never_merged(self):
+        items_a1 = fixture_items("sun")
+        items_a2 = fixture_items("sun", "moon")
+        result_a1 = bm.raw_vs_verified_comparison(["sun"], ["sun"], items_a1)
+        result_a2 = bm.raw_vs_verified_comparison(["sun"], ["sun"], items_a2)
+        # Different references -> different recall, proving no cross-annotator merge happened.
+        self.assertEqual(result_a1["raw_observer"]["precision_recall_f1"]["recall"], 1.0)
+        self.assertEqual(result_a2["raw_observer"]["precision_recall_f1"]["recall"], 0.5)
+
+    def test_identical_raw_and_verified_gives_zero_deltas(self):
+        items = fixture_items("sun", salient=True)
+        result = bm.raw_vs_verified_comparison(["sun"], ["sun"], items)
+        for delta in result["delta_verified_minus_raw"].values():
+            self.assertEqual(delta, 0.0)
+
+    def test_empty_verified_candidates_reports_none_precision_not_a_crash(self):
+        items = fixture_items("sun")
+        result = bm.raw_vs_verified_comparison(["sun"], [], items)
+        self.assertIsNone(result["verified_only"]["precision_recall_f1"]["precision"])
+        self.assertIsNone(result["delta_verified_minus_raw"]["precision"])
+
+
 if __name__ == "__main__":
     unittest.main()

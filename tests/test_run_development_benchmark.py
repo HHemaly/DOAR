@@ -406,5 +406,77 @@ class LiveObserverVerifierInterfaceTests(unittest.TestCase):
         self.assertIn("verifier", sig.parameters)
 
 
+class RawVsVerifiedIntegrationTests(unittest.TestCase):
+    """Bug 5, regression item 10: the benchmark runner computes RAW
+    Observer and VERIFIED-only metrics SEPARATELY (not just one blended
+    number), per annotator, independently."""
+
+    def test_compute_raw_vs_verified_metrics_scores_both_conditions_per_annotator(self):
+        from doar import benchmark_metrics as bm
+
+        human = {
+            "A1": [bm.HumanAnnotationItem(label="sun", location="top", salient=True, confidence="clear"),
+                   bm.HumanAnnotationItem(label="person", location="center", salient=True, confidence="clear")],
+            "A2": None,
+        }
+        # RAW finds sun + a hallucinated "dinosaur"; VERIFIED drops the
+        # dinosaur but ALSO wrongly drops the real "person".
+        result = rdb.compute_raw_vs_verified_metrics(["sun", "dinosaur", "person"], ["sun"], human)
+
+        self.assertIsNone(result["A2"])
+        a1 = result["A1"]
+        self.assertEqual(a1["raw_observer"]["precision_recall_f1"]["recall"], 1.0)
+        self.assertEqual(a1["verified_only"]["precision_recall_f1"]["recall"], 0.5)
+        # Precision improves (dinosaur dropped) but recall worsens (person dropped) --
+        # both directions visible, not collapsed into one ambiguous "correction rate".
+        self.assertGreater(a1["delta_verified_minus_raw"]["precision"], 0)
+        self.assertLess(a1["delta_verified_minus_raw"]["recall"], 0)
+
+    def test_missing_annotator_reports_none_not_a_crash(self):
+        result = rdb.compute_raw_vs_verified_metrics(["sun"], ["sun"], {"A1": None, "A2": None})
+        self.assertIsNone(result["A1"])
+        self.assertIsNone(result["A2"])
+
+    def test_summarize_raw_vs_verified_deltas_averages_across_images_and_keeps_per_image_detail(self):
+        deltas_by_annotator = {
+            "A1": [
+                {"image_id": "img1", "precision": 0.5, "recall": -0.5, "f1": 0.0, "salient_recall": -0.5},
+                {"image_id": "img2", "precision": 0.3, "recall": -0.1, "f1": 0.1, "salient_recall": None},
+            ],
+            "A2": [],
+        }
+        summary = rdb.summarize_raw_vs_verified_deltas(deltas_by_annotator)
+        self.assertAlmostEqual(summary["A1"]["mean_delta"]["precision"], 0.4)
+        self.assertAlmostEqual(summary["A1"]["mean_delta"]["recall"], -0.3)
+        # salient_recall mean ignores the None entry rather than treating it as 0.
+        self.assertAlmostEqual(summary["A1"]["mean_delta"]["salient_recall"], -0.5)
+        self.assertEqual(len(summary["A1"]["per_image_deltas"]), 2)
+        self.assertIsNone(summary["A2"])
+
+    def test_real_cached_p2b_0033_data_shows_verifier_dropping_a_real_mouth_candidate(self):
+        # p2b_0033's own cached data: the Observer's "tears" candidate was
+        # independently re-read by the Verifier as "mouth" but REJECTED
+        # (a labelling mismatch, not proof the mouth wasn't drawn) -- so
+        # VERIFIED-only loses that candidate entirely while RAW still has
+        # it under its own (wrong) "tears" label. This is exactly the
+        # asymmetric-correction scenario Bug 5 exists to make visible.
+        from doar import benchmark_metrics as bm
+
+        live_cache_path = ROOT / "outputs" / "prototype_cases" / "development_live_cache" / "p2b_0033_verification.json"
+        if not live_cache_path.exists():
+            self.skipTest(f"real cached fixture not present in this checkout: {live_cache_path}")
+        rows = json.loads(live_cache_path.read_text(encoding="utf-8"))
+        raw_labels = [row["observer_candidate"]["label"] for row in rows]
+        verified_labels = [row["observer_candidate"]["label"] for row in rows if row["verification_status"] == "verified"]
+        self.assertIn("tears", raw_labels)
+        self.assertNotIn("tears", verified_labels)
+
+        items = [bm.HumanAnnotationItem(label="crying face", location="center", salient=True, confidence="clear")]
+        result = bm.raw_vs_verified_comparison(raw_labels, verified_labels, items)
+        self.assertEqual(result["raw_observer"]["precision_recall_f1"]["total_candidates"], len(raw_labels))
+        self.assertEqual(result["verified_only"]["precision_recall_f1"]["total_candidates"], len(verified_labels))
+        self.assertLess(len(verified_labels), len(raw_labels))
+
+
 if __name__ == "__main__":
     unittest.main()

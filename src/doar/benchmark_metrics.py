@@ -36,6 +36,13 @@ pipeline) for every "does this label match that label" decision --
 "matched" means the same thing here as it already does everywhere else in
 DOAR, not a new, second definition of matching. No LLM is ever used for
 annotation matching or ground truth.
+
+**RAW Observer vs VERIFIED-only comparison** (`raw_vs_verified_
+comparison`): a verifier "correction" can be GOOD (drops a false
+detection) or BAD (drops a true one) -- a single "correction rate" number
+cannot tell those apart, so this reports precision/recall/F1/salient
+recall/unmatched rate for BOTH conditions against the SAME one
+annotator's items, plus the paired (verified - raw) delta per metric.
 """
 from __future__ import annotations
 
@@ -180,6 +187,70 @@ def primary_and_sensitivity_salient_recall(
         "sensitivity_salient_recall": salient_recall(candidate_labels, salience["core_salient"]),
         "salient_count": len(salience["salient"]),
         "core_salient_count": len(salience["core_salient"]),
+    }
+
+
+def unmatched_candidate_rate(candidate_labels: list[str], items: list[HumanAnnotationItem]) -> dict:
+    """Fraction of `candidate_labels` matching NO item in `items` --
+    "unsupported by this reference". Same computation as
+    `hallucination_rate` but scoped to ONE annotator's own list (not the
+    cross-annotator union `hallucination_rate` is documented to expect)
+    -- the per-condition, per-annotator number `raw_vs_verified_
+    comparison` needs, kept as its own small function so its contract
+    (single reference list, not a union) is unambiguous at the call
+    site."""
+    total = len(candidate_labels)
+    unmatched = sum(1 for c in candidate_labels if not _matches_any(c, items))
+    return {"unmatched_rate": (unmatched / total) if total else None, "unmatched": unmatched, "total": total}
+
+
+def raw_vs_verified_comparison(
+        raw_candidate_labels: list[str], verified_candidate_labels: list[str],
+        items: list[HumanAnnotationItem],
+) -> dict:
+    """Bug 5 fix: an independent-verifier "correction" can go two
+    directions -- removing a false detection (GOOD, raises precision) or
+    rejecting a true/salient detection (BAD, lowers recall) -- and a
+    single "verifier correction rate" number cannot distinguish them.
+    This computes precision/recall/F1/salient recall/unmatched rate for
+    BOTH conditions against the SAME ONE annotator's items (Condition A
+    = `raw_candidate_labels`, the unfiltered Observer output; Condition
+    B = `verified_candidate_labels`, only `case_verification_status ==
+    "verified"` entities), plus the paired delta (B - A) for each metric
+    -- a positive precision delta with a near-zero (or positive) recall
+    delta is the verifier helping; a negative recall delta is the
+    verifier discarding real, human-confirmed content.
+
+    `items` is ONE annotator's own exhaustive item list; call this twice
+    (once per annotator) to keep A1/A2 independent -- never merged into
+    a single reference, consistent with every other function in this
+    module."""
+    raw_pr = visual_precision_recall_f1(raw_candidate_labels, items)
+    verified_pr = visual_precision_recall_f1(verified_candidate_labels, items)
+    salient_reference = salient_items(items)
+    raw_salient = salient_recall(raw_candidate_labels, salient_reference)
+    verified_salient = salient_recall(verified_candidate_labels, salient_reference)
+    raw_unmatched = unmatched_candidate_rate(raw_candidate_labels, items)
+    verified_unmatched = unmatched_candidate_rate(verified_candidate_labels, items)
+
+    def _delta(verified_dict, raw_dict, key):
+        v, r = verified_dict.get(key), raw_dict.get(key)
+        return (v - r) if (v is not None and r is not None) else None
+
+    return {
+        "raw_observer": {
+            "precision_recall_f1": raw_pr, "salient_recall": raw_salient, "unmatched_rate": raw_unmatched,
+        },
+        "verified_only": {
+            "precision_recall_f1": verified_pr, "salient_recall": verified_salient,
+            "unmatched_rate": verified_unmatched,
+        },
+        "delta_verified_minus_raw": {
+            "precision": _delta(verified_pr, raw_pr, "precision"),
+            "recall": _delta(verified_pr, raw_pr, "recall"),
+            "f1": _delta(verified_pr, raw_pr, "f1"),
+            "salient_recall": _delta(verified_salient, raw_salient, "salient_recall"),
+        },
     }
 
 
