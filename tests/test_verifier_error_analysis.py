@@ -124,17 +124,24 @@ class RealCachedDataAnalysisTests(unittest.TestCase):
     """Sanity checks against real cached data -- proves the analysis
     reproduces the two headline findings the report is built on."""
 
-    def test_p2b_0004_is_100_percent_removed_due_to_invalid_bbox(self):
+    def test_p2b_0004_now_has_valid_bboxes_after_the_live_refresh(self):
+        # p2b_0004 was originally found 100% removed because every cached
+        # bbox was out of the valid [0, 1] normalized range (stale,
+        # pre-bbox-schema-fix data). It has since been refreshed through
+        # the current, frozen Observer -> Verifier
+        # (outputs/prototype_cases/development_live_cache/
+        # p2b_0004_verification.json) -- this now proves the FIX, not the
+        # original bug: every cached bbox is valid, and at least one
+        # candidate is no longer stuck at "unreviewed".
         rows, summary = vea.analyze()
         p2b_0004 = next((img for img in summary["images"] if img["image_id"] == "p2b_0004"), None)
         if p2b_0004 is None or p2b_0004["status"] != "ok":
             self.skipTest("p2b_0004 cached data not present in this checkout")
-        counts = p2b_0004["counts_a1"]
-        self.assertEqual(counts["1_true_kept_verified"], 0)
-        self.assertEqual(counts["4_false_kept_verified"], 0)
         p2b_0004_rows = [r for r in rows if r["image_id"] == "p2b_0004"]
-        self.assertTrue(all(r["observer_bbox_valid"] is False for r in p2b_0004_rows),
-                         "every p2b_0004 candidate should have an out-of-range (invalid) cached bbox")
+        self.assertTrue(all(r["observer_bbox_valid"] is True for r in p2b_0004_rows),
+                         "every refreshed p2b_0004 candidate should have a valid normalized bbox")
+        self.assertTrue(any(r["verification_status"] != "unreviewed" for r in p2b_0004_rows),
+                         "the refresh should let the Verifier actually attempt at least one candidate")
 
     def test_p2b_0003_frowning_mouth_is_a_true_removed_salient_case(self):
         rows, _summary = vea.analyze()

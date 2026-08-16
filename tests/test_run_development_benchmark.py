@@ -478,5 +478,81 @@ class RawVsVerifiedIntegrationTests(unittest.TestCase):
         self.assertLess(len(verified_labels), len(raw_labels))
 
 
+class ImageIdAndForceLiveTests(unittest.TestCase):
+    """`--image-id` restricts a run to one image; `--force-live` refetches
+    even when cached data already exists -- the mechanism used to refresh
+    a single stale image (e.g. p2b_0004) without touching the other 14."""
+
+    def test_image_id_restricts_to_one_image_and_force_live_overwrites_cache(self):
+        import shutil
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as live_cache_tmp, tempfile.TemporaryDirectory() as annotations_tmp:
+            live_cache_dir = Path(live_cache_tmp)
+            annotations_dir = Path(annotations_tmp)
+            for aid in ("A1", "A2"):
+                (annotations_dir / aid).mkdir(parents=True)
+
+            stale_rows = [{"drawing_id": "p2b_0004", "observation_id": "p2b_0004_c00",
+                           "observer_candidate": {"label": "stale", "alternative_labels": [], "bbox": [0.0, 0.0, 0.1, 5.0],
+                                                   "confidence": 0.9, "entity_type": "object"},
+                           "verifier_independent_label": None, "verifier_independent_alternative_labels": [],
+                           "verifier_confidence": None, "verification_status": "unreviewed",
+                           "verifier_notes": "stale fixture", "observer_model": "m", "verifier_model": "m",
+                           "verifier_source_note": "", "runtime_seconds": None}]
+            (live_cache_dir / "p2b_0004_verification.json").write_text(json.dumps(stale_rows), encoding="utf-8")
+
+            fresh_rows = [{"drawing_id": "p2b_0004", "observation_id": "p2b_0004_c00",
+                           "observer_candidate": {"label": "fresh sun", "alternative_labels": [], "bbox": [0.1, 0.1, 0.2, 0.2],
+                                                   "confidence": 0.9, "entity_type": "object"},
+                           "verifier_independent_label": "sun", "verifier_independent_alternative_labels": [],
+                           "verifier_confidence": 0.9, "verification_status": "verified",
+                           "verifier_notes": "", "observer_model": "m", "verifier_model": "m",
+                           "verifier_source_note": "", "runtime_seconds": 1.0}]
+
+            def fake_live_call(image_id, image_path, **kwargs):
+                self.assertEqual(image_id, "p2b_0004")
+                return fresh_rows
+
+            output_root = ROOT / "outputs" / "prototype_cases"
+            before_dirs = {p.name for p in output_root.glob("development_benchmark_*")}
+            old_argv = sys.argv
+
+            with _patched(rdb, ANNOTATIONS_DIR=annotations_dir, LIVE_CACHE_DIR=live_cache_dir,
+                          SAVED_VERIFICATION_DIRS=[]):
+                with patch.object(rdb, "run_live_observer_and_verifier", side_effect=fake_live_call) as mock_live:
+                    sys.argv = ["run_development_benchmark.py", "--image-id", "p2b_0004", "--run-live", "--force-live"]
+                    try:
+                        rdb.main()
+                    finally:
+                        sys.argv = old_argv
+                    mock_live.assert_called_once()
+
+            after_dirs = {p.name for p in output_root.glob("development_benchmark_*")}
+            new_dirs = after_dirs - before_dirs
+            self.assertEqual(len(new_dirs), 1)
+            run_dir = output_root / next(iter(new_dirs))
+            try:
+                summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+                # Only the one requested image was processed.
+                self.assertEqual(summary["total_images"], 1)
+                self.assertEqual(summary["per_image"][0]["image_id"], "p2b_0004")
+            finally:
+                shutil.rmtree(run_dir, ignore_errors=True)
+
+            # The live cache file was overwritten with the fresh rows, not the stale ones.
+            saved = json.loads((live_cache_dir / "p2b_0004_verification.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved[0]["observer_candidate"]["label"], "fresh sun")
+
+    def test_unknown_image_id_exits_without_crashing(self):
+        old_argv = sys.argv
+        sys.argv = ["run_development_benchmark.py", "--image-id", "not_a_real_image"]
+        try:
+            rdb.main()  # must return cleanly, not raise
+        finally:
+            sys.argv = old_argv
+
+
 if __name__ == "__main__":
     unittest.main()

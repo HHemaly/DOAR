@@ -34,7 +34,9 @@ this script never writes to any of them.
 
 Usage:
     python scripts/run_development_benchmark.py
-    python scripts/run_development_benchmark.py --run-live   # NOT used this phase
+    python scripts/run_development_benchmark.py --run-live
+    # Refresh one stale/missing image without touching the other 14:
+    python scripts/run_development_benchmark.py --image-id p2b_0004 --run-live --force-live
 """
 from __future__ import annotations
 
@@ -512,12 +514,25 @@ def main() -> None:
     parser.add_argument("--run-live", action="store_true",
                          help="Call the real Gemini Observer+Verifier for images with no saved data. "
                               "NOT used during this phase -- quota conservation.")
+    parser.add_argument("--image-id", default=None,
+                         help="Restrict this run to a single image_id (e.g. p2b_0004) -- so one image "
+                              "can be refreshed without rerunning the other 14.")
+    parser.add_argument("--force-live", action="store_true",
+                         help="Force a live Observer+Verifier call even if cached data already exists "
+                              "for the selected image(s) -- e.g. to replace stale pre-bbox-fix cached "
+                              "data. Only meaningful together with --run-live; intended to be combined "
+                              "with --image-id so its blast radius is one image, not all 15.")
     args = parser.parse_args()
 
     out_root = ROOT / "outputs" / "prototype_cases" / f"development_benchmark_{int(time.time())}"
     out_root.mkdir(parents=True, exist_ok=True)
 
     images = load_development_set()
+    if args.image_id:
+        images = [im for im in images if im["image_id"] == args.image_id]
+        if not images:
+            print(f"Unknown image_id: {args.image_id!r} (not in DEVELOPMENT_SET_15.json)")
+            return
     rule_matrix = rc.load_rule_matrix()
 
     per_image_results = []
@@ -532,7 +547,9 @@ def main() -> None:
         image_out_dir = out_root / image_id
 
         rows, source_path = find_saved_verification_rows(image_id)
-        if rows is None and args.run_live:
+        if args.run_live and (rows is None or args.force_live):
+            if rows is not None:
+                print(f"    --force-live: discarding cached data from {source_path} for {image_id}", flush=True)
             image_path = ROOT / image["relative_path"]
             rows = run_live_observer_and_verifier(image_id, image_path)
             live_path = live_cache_path(image_id)
