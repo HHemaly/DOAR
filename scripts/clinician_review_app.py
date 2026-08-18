@@ -20,14 +20,30 @@ JSON via `run_development_benchmark.find_saved_saved_verification_rows`
 benchmark runner uses).
 
 Three views:
-  A. Clinician view (default) -- drawing + bbox overlay, observations
-     grouped VERIFIED/UNCERTAIN/REJECTED-UNREVIEWED (nothing hidden),
-     evidence/reasoning trace, candidate hypothesis (or the explicit
-     "no hypothesis" message), and feedback controls.
-  B. Parent view preview -- the SAME evidence, parent-safe wording only
-     (`reasoning_chain.build_parent_package`, already code-constrained,
-     no rule IDs/disorder labels/LLM-invented text).
-  C. Technical/audit view -- the full trace, for thesis/debugging.
+  A. Clinician view (default) -- clean drawing by default (optional bbox
+     overlay), observations grouped VERIFIED/UNCERTAIN/REJECTED-UNREVIEWED
+     (nothing hidden), unified evidence sections (Objects/People,
+     Expression/Pose, Colors, Lines/Strokes, Composition, Relationships,
+     Global/Overall Drawing Profile), literature-linked evidence/reasoning
+     trace, an ALWAYS-shown Overall Drawing Synthesis, a separate OPTIONAL
+     candidate hypothesis section, and feedback controls.
+  B. Parent view preview -- the SAME unified evidence, parent-safe wording
+     only. Never empty: even with zero hypotheses it shows what was
+     observed (objects/colours/lines/composition in plain language) and
+     an always-on overall interpretation
+     (`drawing_synthesis.build_overall_synthesis`'s own plain-language
+     summary -- no rule IDs, no internal model details).
+  C. Technical/audit view -- structured `feature | value | source | status
+     | rule eligible` tables first, then the feature -> rule -> evidence
+     family -> concern domain -> output trace; raw JSON only inside
+     optional expanders.
+
+Every new section reuses `drawing_synthesis.synthesize_drawing()` (unified
+multimodal evidence + always-on synthesis, DOAR realignment milestone) and
+`drawing_synthesis.load_or_compute_deterministic_features()` (cached
+colour/line/composition features) -- no live Gemini call, no new reasoning
+logic added here; this file only renders what those modules already
+produce.
 
 Launch:
     streamlit run scripts/clinician_review_app.py
@@ -49,6 +65,7 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from doar import drawing_synthesis as ds  # noqa: E402
 from doar import reasoning_chain as rc  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
@@ -65,13 +82,17 @@ STATUS_COLORS = {"verified": "#1a9850", "uncertain": "#e08214", "rejected": "#d7
 STATUS_GROUP_TITLES = {"verified": "VERIFIED", "uncertain": "UNCERTAIN", "other": "REJECTED / UNREVIEWED"}
 
 CLINICIAN_NO_HYPOTHESIS_MESSAGE = (
-    "No candidate clinical hypothesis was raised from the currently eligible drawing evidence. "
-    "This does not indicate absence of a condition.")
+    "No candidate clinical hypothesis -- current evidence does not meet the required convergence/strength "
+    "threshold. This does not indicate absence of a condition.")
 PARENT_NO_HYPOTHESIS_MESSAGE = (
     "No specific pattern was flagged by this automated review. This does not mean there is nothing "
     "to discuss -- a professional can look at the fuller picture regardless of what an automated "
     "review does or doesn't flag.")
 CLINICIAN_ASSESSMENT_DISCLAIMER = "Candidate for professional assessment -- not a diagnosis."
+PARENT_FOOTER_DISCLAIMER = "This tool supports observation and discussion. It does not provide a diagnosis."
+PARENT_UNCONFIRMED_ELEMENTS_NOTE = "Other possible elements were noticed but could not be independently confirmed."
+PARENT_PAGE_NOT_ASSESSABLE_NOTE = (
+    "The full page boundary could not be confirmed, so page-relative size and placement were not interpreted.")
 
 OBSERVATION_FEEDBACK_OPTIONS = ("(no feedback yet)", "Confirm visually", "Reject", "Cannot determine")
 RELEVANCE_VERDICT_OPTIONS = ("(no feedback yet)", "Agree -- worth investigating", "Disagree", "Insufficient evidence")
@@ -90,7 +111,16 @@ def list_case_ids() -> list[str]:
 def load_case_bundle(image_id: str) -> dict | None:
     """Everything one case needs, purely from cache. Returns None if no
     saved Observer/Verifier data exists for this image_id (never makes a
-    live call to find out more)."""
+    live call to find out more).
+
+    `deterministic_features`/`synthesis` are the unified multimodal
+    evidence + always-on drawing synthesis (`drawing_synthesis.py`,
+    realignment milestone) -- computed here from the SAME cached entities
+    already loaded for `conditions`/`checks`, with deterministic (colour/
+    line/composition) features served from
+    `outputs/prototype_cases/development_deterministic_features_cache`
+    (see `scripts/precompute_deterministic_features.py`) so no per-request
+    image processing is needed once that cache is warm."""
     images = rdb.load_development_set()
     image = next((im for im in images if im["image_id"] == image_id), None)
     if image is None:
@@ -98,12 +128,16 @@ def load_case_bundle(image_id: str) -> dict | None:
     rows, source_path = rdb.find_saved_verification_rows(image_id)
     if rows is None:
         return {"image": image, "rows": None, "source_path": None, "entities": None,
-                "conditions": None, "checks": None}
+                "conditions": None, "checks": None, "deterministic_features": None, "synthesis": None}
     entities = rdb.entities_from_verification_rows(rows)
     conditions = rdb.run_conditions_for_image(image_id, rows)
     checks = rc.check_visual_preconditions(entities)
+    image_path = ROOT / image["relative_path"]
+    deterministic_features = ds.load_or_compute_deterministic_features(image_id, image_path)
+    synthesis = ds.synthesize_drawing(image_id, entities, deterministic_features)
     return {"image": image, "rows": rows, "source_path": source_path, "entities": entities,
-            "conditions": conditions, "checks": checks}
+            "conditions": conditions, "checks": checks, "deterministic_features": deterministic_features,
+            "synthesis": synthesis}
 
 
 def group_rows_by_status(rows: list[dict]) -> dict[str, list[dict]]:
@@ -147,6 +181,378 @@ def build_parent_view_sections(hypotheses: list) -> list[dict]:
     -- no rule IDs, no disorder labels, no LLM-invented wording). Empty
     list means the caller should show PARENT_NO_HYPOTHESIS_MESSAGE."""
     return [rc.build_parent_package(h) for h in hypotheses]
+
+
+# ---------------------------------------------------------------------------
+# Unified-evidence display sections (Clinician View). Purely a UI-layer
+# grouping of `drawing_synthesis.py`'s own `objective_profile` categories
+# -- no new evidence, no new rule logic. `semantic_objects` is split into
+# "Objects / People" vs "Expression / Pose" using each entity's EXISTING
+# `broader_categories` ("body_part" -- see `visual_entity.py`), never a
+# label guess invented here.
+# ---------------------------------------------------------------------------
+
+DISPLAY_SECTION_TITLES = (
+    "Objects / People", "Expression / Pose", "Colors", "Lines / Strokes",
+    "Composition", "Relationships", "Global / Overall Drawing Profile",
+)
+
+_CATEGORY_TO_SECTION = {
+    "colour": "Colors",
+    "strokes_shading_repetition_overwriting": "Lines / Strokes",
+    "global_composition": "Composition",
+    "foreground_page_segmentation": "Composition",
+    "spatial_relationships": "Relationships",
+    "image_page_quality": "Global / Overall Drawing Profile",
+}
+
+
+def build_display_sections(bundle: dict) -> dict[str, list[dict]]:
+    """Regroups `synthesis.objective_profile` (already every measured/
+    observed evidence item, descriptive-or-not) into the 7 sections the
+    realignment task specifies. Every item lands in exactly one section --
+    nothing dropped, nothing duplicated."""
+    sections: dict[str, list[dict]] = {title: [] for title in DISPLAY_SECTION_TITLES}
+    synthesis = bundle["synthesis"]
+    if synthesis is None:
+        return sections
+    entities_by_id = {e.entity_id: e for e in (bundle["entities"] or [])}
+    for category, items in synthesis.objective_profile.items():
+        for entry in items:
+            item = entry["item"]
+            if category == "semantic_objects":
+                entity_id = item["evidence_id"].removeprefix("ev_semantic_")
+                entity = entities_by_id.get(entity_id)
+                is_body_part = bool(entity and "body_part" in entity.broader_categories)
+                section = "Expression / Pose" if is_body_part else "Objects / People"
+            else:
+                section = _CATEGORY_TO_SECTION.get(category, "Global / Overall Drawing Profile")
+            sections[section].append(entry)
+    return sections
+
+
+def build_technical_feature_rows(bundle: dict) -> list[dict]:
+    """One row per unified evidence item: `feature | value | source |
+    status | rule eligible` -- the structured table the Technical View
+    shows BEFORE any raw JSON, per the realignment task's Section 7."""
+    synthesis = bundle["synthesis"]
+    if synthesis is None:
+        return []
+    rows = []
+    for ue in synthesis.unified_evidence:
+        item = ue.item
+        rows.append({
+            "feature": item.feature_id, "value": item.value if item.value is not None else "(unavailable)",
+            "source": item.extractor, "status": item.status,
+            "rule_eligible": "yes" if ue.rule_eligible else "no",
+            "matched_rule_ids": ", ".join(ue.matched_rule_ids) or "-",
+            "category": item.category or "other",
+        })
+    return rows
+
+
+def _natural_join(items: list[str]) -> str:
+    """'a' / 'a and b' / 'a, b and c' -- ordinary prose listing, not a
+    raw comma-separated dump. Purely a text-formatting helper; the items
+    themselves are never altered."""
+    items = list(items)
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + f" and {items[-1]}"
+
+
+# drawing_synthesis.build_overall_synthesis's own `summary` text is
+# clinician/technical-facing -- per the realignment task's Section 1 fix
+# it deliberately embeds the exact supporting rule_id(s)/evidence
+# family(ies) so the Clinician/Technical views can "show the exact
+# supporting rules/families behind every synthesis". That text must NEVER
+# reach the Parent View (no rule IDs, no evidence-family names, no
+# concern-domain identifiers there -- ParentViewSafetyTests, already
+# established). Parent-facing wording is instead selected purely from
+# `level` (+ whether the total family count is exactly one, to distinguish
+# "one detail" from "several scattered details") -- never from which
+# specific rule/family/domain matched.
+_PARENT_NO_PATTERN_TEXT = "No clear psychological pattern was identified from the evidence available in this drawing."
+_PARENT_ONE_ASSOCIATION_TEXT = (
+    "One visual feature has been discussed in some drawing literature, but it is not enough on its own to "
+    "support a broader interpretation.")
+_PARENT_SCATTERED_ASSOCIATIONS_TEXT = (
+    "Several individual features have been discussed in the literature, but they do not point to one "
+    "consistent pattern.")
+_PARENT_CONVERGENT_WORDING = {
+    "convergent_positive_pattern": (
+        "A consistent pattern was identified across several independent features in this drawing, of a kind "
+        "sometimes associated with positive engagement. This is not a diagnosis."),
+    "convergent_concern_pattern": (
+        "A consistent pattern was identified across several independent features in this drawing, of a kind "
+        "sometimes discussed in the drawing literature alongside low mood, worry, or tension. This is not a "
+        "diagnosis."),
+    "mixed_evidence": (
+        "This drawing showed consistent patterns pointing in different directions -- some features of a kind "
+        "linked to positive engagement, and others linked to worry or low mood. Taken together, they don't "
+        "point clearly in one direction. This is not a diagnosis."),
+}
+_PARENT_SAFE_UNCERTAINTY_NOTE = (
+    "Every detail behind this summary is something we could actually see or measure in the drawing -- it is not "
+    "independent confirmation of any feeling or experience. The same detail commonly has other, non-clinical "
+    "explanations too.")
+
+_PARENT_CONVERSATION_QUESTIONS_WITH_CONTENT = (
+    "What is happening in the picture?",
+    "Who are the people (or characters) shown?",
+    "Which part is the most important to you?",
+    "How did you feel while drawing this?",
+    "What do you think would happen next?",
+)
+_PARENT_CONVERSATION_QUESTIONS_NO_CONTENT = (
+    "What is happening in the picture?",
+    "What were you thinking about while drawing this?",
+    "Is there anything you'd like to add to this drawing?",
+)
+
+
+def _parent_evidence_text(overall_synthesis: dict) -> list[str]:
+    """Section C ("What the evidence suggests") -- very direct language,
+    selected purely from `level` (+ total pooled family count for the
+    one-vs-several distinction within `limited_association`). Never
+    describes a pattern confidently unless the level itself is a genuine
+    convergent one; never mentions a rule ID, evidence-family name, or
+    concern-domain identifier.
+
+    A genuine convergent level is described cautiously, alone. Otherwise
+    the framing sentence ("no clear psychological pattern") always leads,
+    followed by whatever individual-association note applies -- matching
+    the acceptance example's own two-line shape (h38: "No clear
+    psychological pattern..." + "One visual feature has been
+    discussed...")."""
+    level = overall_synthesis["level"]
+    if level in _PARENT_CONVERGENT_WORDING:
+        return [_PARENT_CONVERGENT_WORDING[level]]
+    lines = [_PARENT_NO_PATTERN_TEXT]
+    total_families = len(overall_synthesis["positive_evidence_families"]) + len(overall_synthesis["concern_evidence_families"])
+    if total_families == 1:
+        lines.append(_PARENT_ONE_ASSOCIATION_TEXT)
+    elif total_families >= 2:
+        lines.append(_PARENT_SCATTERED_ASSOCIATIONS_TEXT)
+    return lines
+
+
+def build_parent_conversation_questions(bundle: dict) -> list[str]:
+    """Section D -- neutral, drawing-content-grounded CONVERSATION
+    prompts, not diagnostic questions, and never tied to any specific
+    rule/hypothesis (that would leak evidence-family-specific wording
+    into the Parent View). A fixed, deterministic set; the only thing
+    that varies is whether anything was confirmed in the drawing at all,
+    never WHICH rule fired."""
+    entities = bundle["entities"] or []
+    has_verified_entity = any(e.case_verification_status == "verified" for e in entities)
+    return list(_PARENT_CONVERSATION_QUESTIONS_WITH_CONTENT if has_verified_entity
+                else _PARENT_CONVERSATION_QUESTIONS_NO_CONTENT)
+
+
+def build_parent_friendly_profile(bundle: dict) -> dict:
+    """Plain-language, always-populated content for the redesigned Parent
+    View (sections A-E) -- built ENTIRELY from real measured/observed
+    values (deterministic composition/colour/repetition + verified
+    semantic labels) plus a parent-safe phrasing of the overall synthesis
+    LEVEL (never its raw, rule-ID-bearing `summary` string). Non-empty
+    even when zero hypotheses were raised -- Parent View must never be
+    empty. Composition/placement is described ONLY when
+    `page_relative_features_assessable` is True; raw image bounds are
+    NEVER described as "the page" otherwise (page-frame safety, unchanged
+    this round)."""
+    det = bundle["deterministic_features"]
+    synthesis = bundle["synthesis"]
+    entities = bundle["entities"] or []
+    rows = bundle["rows"] or []
+
+    verified_labels = sorted({e.canonical_label for e in entities if e.case_verification_status == "verified"})
+    has_unconfirmed = any(r["verification_status"] != "verified" for r in rows)
+
+    comp = det["composition"]
+    colour = det["colour"]
+    objective_features = det["objective_features"]
+    page_reference = det.get("page_reference") or {}
+
+    # --- B. Visual style -----------------------------------------------
+    colour_note = (
+        f"Bright, varied colours are used, with {colour['dominant_colour'].replace('_', ' ')} particularly "
+        f"noticeable." if colour.get("colour_diversity", 0) and colour.get("colour_diversity", 0) >= 2
+        else (f"The most noticeable colour used is {colour['dominant_colour'].replace('_', ' ')}."
+              if colour.get("dominant_colour") not in (None, "none_or_neutral")
+              else "No single colour stands out strongly in this drawing."))
+
+    intensity_fv = objective_features.get("stroke.intensity_proxy")
+    if intensity_fv is not None and not intensity_fv.missing:
+        if intensity_fv.value >= ds.INTENSITY_PROXY_HEAVY_THRESHOLD:
+            lines_note = "The lines appear relatively heavy/dark."
+        elif intensity_fv.value <= ds.INTENSITY_PROXY_LIGHT_THRESHOLD:
+            lines_note = "The lines appear relatively light."
+        else:
+            lines_note = "The line weight is in a typical range."
+    else:
+        lines_note = "Line-weight information is not available for this drawing."
+
+    repeated_labels = next(
+        (ue.item.value for ue in synthesis.unified_evidence if ue.item.feature_id == "relationships.repeated_labels"), None)
+    repetition_note = (
+        f"Some elements (e.g. {_natural_join(sorted(repeated_labels)[:3])}) appear more than once in the drawing."
+        if repeated_labels else None)
+
+    page_assessable = bool(page_reference.get("page_relative_features_assessable"))
+    if not page_assessable:
+        composition_note = PARENT_PAGE_NOT_ASSESSABLE_NOTE
+    elif comp["bounding_box"] is None:
+        composition_note = "No clear drawing content was detected."
+    else:
+        page_relative_fv = objective_features.get("segmentation.page_relative_bounding_box_coverage")
+        coverage = (page_relative_fv.value if page_relative_fv is not None and not page_relative_fv.missing
+                    else comp["bounding_box_coverage"])
+        placement = (comp["placement"] or "unavailable").replace("_", " ")
+        composition_note = f"The drawing takes up about {coverage * 100:.0f}% of the page, positioned toward the {placement}."
+
+    visual_style_notes = [note for note in (colour_note, lines_note, repetition_note, composition_note) if note]
+
+    return {
+        "objects_seen": _natural_join(verified_labels) if verified_labels else "",
+        "has_unconfirmed_elements": has_unconfirmed,
+        "visual_style_notes": visual_style_notes,
+        "evidence_text": _parent_evidence_text(synthesis.overall_synthesis),
+        "uncertainty_note": _PARENT_SAFE_UNCERTAINTY_NOTE,
+        "questions": build_parent_conversation_questions(bundle),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Clinician View helpers -- a compact case summary + readable association
+# cards, replacing the old debugging-oriented full-dump layout. All pure
+# regrouping/lookup of `synthesis`'s own already-computed fields (plus
+# read-only lookups into the frozen `rc.load_rule_matrix()` for display-
+# only fields like `source_pdf_page_section`) -- no new evidence, no new
+# eligibility/convergence logic.
+# ---------------------------------------------------------------------------
+
+
+def build_clinician_case_summary(bundle: dict) -> dict:
+    """The compact top-of-page numbers a clinician needs before deciding
+    whether to read further: how many entities were detected/confirmed/
+    uncertain, how many literature associations exist, which domain (if
+    any) reached real convergence, and how many candidate hypotheses."""
+    rows = bundle["rows"] or []
+    synthesis = bundle["synthesis"]
+    overall = synthesis.overall_synthesis
+    groups = group_rows_by_status(rows)
+    convergent_domains = [d for d in (overall["convergent_positive_domain"], overall["convergent_concern_domain"]) if d]
+    return {
+        "entities_detected": len(rows),
+        "confirmed": len(groups["verified"]),
+        "uncertain_unreviewed": len(groups["uncertain"]) + len(groups["other"]),
+        "associations": len(synthesis.literature_linked_associations),
+        "synthesis_level": overall["level"],
+        "convergent_domains": convergent_domains,
+        "candidate_hypotheses": len(synthesis.candidate_hypotheses),
+    }
+
+
+def build_entity_table_rows(bundle: dict) -> list[dict]:
+    """Compact `label | verification status | confidence` rows for
+    Clinician View section 1 -- replaces the old per-entity bordered-
+    container layout. Nothing is dropped or reclassified; every row's
+    `status` is copied verbatim from the Verifier's own result."""
+    rows = bundle["rows"] or []
+    return [
+        {"label": r["observer_candidate"]["label"], "status": r["verification_status"],
+         "observer_confidence": r["observer_candidate"].get("confidence"),
+         "verifier_confidence": r.get("verifier_confidence")}
+        for r in rows
+    ]
+
+
+def build_association_cards(bundle: dict) -> list[dict]:
+    """One readable card per literature-linked association (Clinician
+    View section 3) -- `synthesis.literature_linked_associations`'s own
+    fields plus `source_pdf_page_section` looked up read-only from
+    `rc.load_rule_matrix()` (a presentation-only enrichment of an
+    already-frozen matrix column; no new evidence, no new rule)."""
+    synthesis = bundle["synthesis"]
+    if synthesis is None:
+        return []
+    matrix = rc.load_rule_matrix()
+    cards = []
+    for a in synthesis.literature_linked_associations:
+        row = matrix.get(a["rule_id"], {})
+        cards.append({
+            "observation": ", ".join(a["matched_entity_ids"]),
+            "literature_interpretation": a["possible_interpretation"],
+            "evidence_strength": a["evidence_strength"],
+            "domain": a["concern_domain"],
+            "alternative_explanations": a["alternative_explanations"],
+            "source": row.get("source_pdf_page_section") or a["source_claim"],
+            "rule_id": a["rule_id"],
+            "evidence_family": a["evidence_family"],
+        })
+    return cards
+
+
+_CLINICIAN_SHORT_SYNTHESIS_LABEL = {
+    "insufficient_interpretable_evidence": "No interpretable literature-linked evidence.",
+    "descriptive_only": "Descriptive evidence only -- no positive- or concern-associated indicator.",
+    "limited_association": "Individual association(s) present; none reach within-domain convergence.",
+    "convergent_positive_pattern": "Convergent positive-direction pattern (within-domain convergence reached).",
+    "convergent_concern_pattern": "Convergent concern-direction pattern (within-domain convergence reached).",
+    "mixed_evidence": "Independently convergent evidence in both directions.",
+}
+
+
+def build_synthesis_summary_view(bundle: dict) -> dict:
+    """Clinician View section 4 -- a short, scannable synthesis summary
+    (level + supporting families + which domain, if any, converges),
+    with the full machine-generated paragraph available separately for
+    anyone who wants it (never hidden, just not the primary read)."""
+    overall = bundle["synthesis"].overall_synthesis
+    return {
+        "level": overall["level"],
+        "short_label": _CLINICIAN_SHORT_SYNTHESIS_LABEL.get(overall["level"], overall["level"]),
+        "positive_evidence_families": overall["positive_evidence_families"],
+        "concern_evidence_families": overall["concern_evidence_families"],
+        "convergent_positive_domain": overall["convergent_positive_domain"],
+        "convergent_concern_domain": overall["convergent_concern_domain"],
+        "domains_touched": overall["domains_touched"],
+        "full_explanation": overall["summary"],
+    }
+
+
+def build_missing_evidence_notes(bundle: dict) -> list[str]:
+    """Clinician View section 6 -- limitations surfaced prominently
+    rather than buried in a JSON dump. Grounded entirely in fields the
+    pipeline already computes: page-reference assessability, unverified/
+    uncertain entities, and the semantic rule engine's own `blocked_*`
+    reasons (`requires_process_data`/`requires_longitudinal_data`/
+    `requires_absolute_scale_or_context`/`blocked_needs_unbuilt_feature`
+    -- real, frozen RULE_EVIDENCE_MATRIX.csv flags, not invented text)."""
+    notes = []
+    page_reference = (bundle["deterministic_features"] or {}).get("page_reference") or {}
+    if not page_reference.get("page_relative_features_assessable"):
+        notes.append("Page-relative size/placement interpretation: unavailable (the full page boundary could not be confirmed).")
+
+    rows = bundle["rows"] or []
+    unverified = [r["observer_candidate"]["label"] for r in rows if r["verification_status"] != "verified"]
+    if unverified:
+        notes.append(f"Unverified/uncertain candidates (not used as evidence): {', '.join(unverified)}.")
+
+    checks = bundle["checks"] or []
+    blocked_reasons: dict[str, int] = {}
+    for c in checks:
+        if c.status in ("blocked_structural", "blocked_needs_unbuilt_feature"):
+            blocked_reasons[c.reason] = blocked_reasons.get(c.reason, 0) + 1
+    for reason, count in sorted(blocked_reasons.items()):
+        notes.append(f"{count} rule(s) structurally not assessable from this pipeline: {reason}")
+
+    notes.append("This review is based on the image alone -- the child's age, the drawing prompt given, and any "
+                 "verbal context were not captured or used.")
+    return notes
 
 
 def git_commit_sha() -> str:
@@ -253,71 +659,121 @@ def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
         st.image(str(image_path), width='stretch')
         return
 
-    col_left, col_right = st.columns([3, 2])
+    synthesis = bundle["synthesis"]
+    groups = group_rows_by_status(rows)
+    prior_feedback = load_feedback(session_id, case_id) or {}
+    observation_feedback = dict(prior_feedback.get("observation_feedback", {}))
+    hypothesis_feedback = list(prior_feedback.get("hypothesis_feedback", []))
+
+    # --- CASE SUMMARY ---------------------------------------------------
+    summary = build_clinician_case_summary(bundle)
+    st.subheader("Case summary")
+    s1, s2, s3, s4, s5 = st.columns(5)
+    s1.metric("Entities detected", summary["entities_detected"])
+    s2.metric("Confirmed", summary["confirmed"])
+    s3.metric("Uncertain / unreviewed", summary["uncertain_unreviewed"])
+    s4.metric("Associations", summary["associations"])
+    s5.metric("Candidate hypotheses", summary["candidate_hypotheses"])
+    st.caption(
+        f"Synthesis level: `{summary['synthesis_level']}`  |  Convergent domain(s): "
+        f"{', '.join(summary['convergent_domains']) or '(none)'}")
+
+    st.markdown("---")
+    col_left, col_right = st.columns([2, 3])
     with col_left:
-        st.subheader("Drawing (bbox overlay, color-coded by Verifier status)")
-        st.image(draw_annotated_image(image_path, rows), width='stretch')
-        st.caption("🟩 Verified   🟧 Uncertain   🟥 Rejected   ⬜ Unreviewed")
+        st.subheader("Drawing")
+        show_overlay = st.checkbox("Show bbox overlay (color-coded by Verifier status)",
+                                    value=False, key=f"overlay_{session_id}_{case_id}")
+        if show_overlay:
+            st.image(draw_annotated_image(image_path, rows), width='stretch')
+            st.caption("🟩 Verified   🟧 Uncertain   🟥 Rejected   ⬜ Unreviewed")
+        else:
+            st.image(str(image_path), width='stretch')
 
     with col_right:
-        st.subheader("Visual observations")
-        groups = group_rows_by_status(rows)
-        prior_feedback = load_feedback(session_id, case_id) or {}
-        observation_feedback = dict(prior_feedback.get("observation_feedback", {}))
-        for group_key in ("verified", "uncertain", "other"):
-            group_rows = groups[group_key]
-            st.markdown(f"**{STATUS_GROUP_TITLES[group_key]}** ({len(group_rows)})")
-            if not group_rows:
-                st.caption("(none)")
-            for row in group_rows:
-                oc = row["observer_candidate"]
-                with st.container(border=True):
-                    st.markdown(f"`{row['observation_id']}` **{oc['label']}**")
-                    st.caption(
-                        f"bbox: {oc.get('bbox')}  |  observer confidence: {oc.get('confidence')}  |  "
-                        f"verifier status: **{row['verification_status']}**  |  "
-                        f"verifier label: {row.get('verifier_independent_label') or '(none)'}  |  "
-                        f"verifier confidence: {row.get('verifier_confidence')}")
+        st.subheader("1. Visual observations")
+        st.caption("Every candidate is shown -- confirmed, uncertain, or unreviewed. Only VERIFIED evidence can trigger a rule.")
+        st.dataframe(build_entity_table_rows(bundle), width='stretch', hide_index=True)
+        with st.expander("Give feedback on individual observations"):
+            for group_key in ("verified", "uncertain", "other"):
+                for row in groups[group_key]:
+                    oc = row["observer_candidate"]
                     key = f"obs_{session_id}_{case_id}_{row['observation_id']}"
                     current = observation_feedback.get(row["observation_id"], {}).get("verdict", OBSERVATION_FEEDBACK_OPTIONS[0])
+                    st.caption(f"`{row['observation_id']}` **{oc['label']}** -- verifier status: {row['verification_status']}")
                     verdict = st.selectbox("Clinician verdict", OBSERVATION_FEEDBACK_OPTIONS,
                                             index=OBSERVATION_FEEDBACK_OPTIONS.index(current) if current in OBSERVATION_FEEDBACK_OPTIONS else 0,
                                             key=key, label_visibility="collapsed")
                     observation_feedback[row["observation_id"]] = {"observer_label": oc["label"], "verdict": verdict}
 
     st.markdown("---")
-    st.subheader("Evidence / reasoning")
-    conditions = bundle["conditions"]
-    doar = conditions["doar_full_pipeline"]
-    matrix = rc.load_rule_matrix()
-
-    ev_col1, ev_col2 = st.columns(2)
-    with ev_col1:
-        st.markdown("**Eligible verified observations**")
-        st.write(", ".join(doar["verified_labels"]) or "(none)")
-        st.markdown("**Triggered atomic rules**")
-        if doar["eligible_matches"]:
-            for m in doar["eligible_matches"]:
-                st.markdown(f"- `{m.rule_id}` ({m.evidence_family} / {m.concern_domain}) <- {list(m.matched_entity_ids)}")
-                st.caption(f"Source claim: {m.source_claim}  |  Strength: {matrix[m.rule_id]['evidence_strength_as_written']}")
-        else:
-            st.caption("(none triggered)")
-    with ev_col2:
-        st.markdown("**Evidence families represented**")
-        st.write(", ".join(doar["evidence_families"].keys()) or "(none)")
-        st.markdown("**Concern domains touched**")
-        st.write(", ".join(doar["concern_domains"].keys()) or "(none)")
-        st.markdown("**Rejected/uncertain/unreviewed evidence (excluded from rule-firing)**")
-        excluded = groups["uncertain"] + groups["other"]
-        if excluded:
-            st.write(", ".join(f"{r['observer_candidate']['label']} ({r['verification_status']})" for r in excluded))
-        else:
-            st.caption("(none -- every candidate was verified)")
+    st.subheader("2. Objective drawing profile")
+    det = bundle["deterministic_features"]
+    page_reference = det.get("page_reference") or {}
+    repeated_labels = next(
+        (ue.item.value for ue in synthesis.unified_evidence if ue.item.feature_id == "relationships.repeated_labels"), {})
+    p1, p2, p3 = st.columns(3)
+    p1.markdown(f"**Colour**  \n{det['colour']['dominant_colour']}, {det['colour']['colour_diversity']} meaningful colour(s)")
+    intensity_fv = det["objective_features"].get("stroke.intensity_proxy")
+    frag_fv = det["objective_features"].get("stroke.fragmentation")
+    p2.markdown(
+        f"**Lines / strokes**  \nintensity_proxy={intensity_fv.value:.3f}" if intensity_fv and not intensity_fv.missing else "**Lines / strokes**  \n(unavailable)")
+    if frag_fv and not frag_fv.missing:
+        p2.caption(f"fragmentation={frag_fv.value:.3f}")
+    p3.markdown(f"**Relationships**  \n{repeated_labels or '(no repeated elements)'}")
+    if page_reference.get("page_relative_features_assessable"):
+        st.markdown(
+            f"**Composition** -- page-relative: bounding_box_coverage={det['composition']['bounding_box_coverage']:.0%}, "
+            f"placement={det['composition']['placement']}")
+    else:
+        st.markdown("**Composition** -- page-relative interpretation unavailable (page boundary not confirmed).")
+    st.caption(f"page_reference_mode: `{page_reference.get('page_reference_mode')}`  |  "
+               f"page_relative_features_assessable: `{page_reference.get('page_relative_features_assessable')}`")
+    with st.expander("View all measured objective features"):
+        display_sections = build_display_sections(bundle)
+        for section_title in DISPLAY_SECTION_TITLES:
+            items = display_sections[section_title]
+            with st.expander(f"{section_title} ({len(items)})", expanded=False):
+                if not items:
+                    st.caption("(no evidence in this section for this drawing)")
+                    continue
+                for entry in items:
+                    item = entry["item"]
+                    flag = "✅ rule-eligible" if entry["rule_eligible"] else "descriptive only"
+                    value_str = item["value"] if item["value"] is not None else "(unavailable)"
+                    st.write(f"- **{item['feature_id']}** = {value_str}  ·  status: {item['status']}  ·  {flag}")
+                    if item.get("reason"):
+                        st.caption(item["reason"])
 
     st.markdown("---")
-    st.subheader("Candidate hypothesis")
-    hypotheses = doar["hypotheses"]
-    hypothesis_feedback = list(prior_feedback.get("hypothesis_feedback", []))
+    st.subheader("3. Literature-linked associations")
+    cards = build_association_cards(bundle)
+    if not cards:
+        st.caption("(none -- no verified/measured evidence currently satisfies an existing rule's precondition)")
+    for card in cards:
+        with st.container(border=True):
+            st.markdown(f"**{card['observation']}**  ·  {card['domain']}  ·  strength: {card['evidence_strength']}")
+            st.write(card["literature_interpretation"])
+            if card["alternative_explanations"]:
+                st.caption("Alternative explanations: " + "; ".join(card["alternative_explanations"]))
+            st.caption(f"Source: {card['source']}")
+            with st.expander("Rule ID / evidence family (audit reference)"):
+                st.write(f"`{card['rule_id']}`  ·  family: {card['evidence_family']}")
+
+    st.markdown("---")
+    st.subheader("4. Drawing-level synthesis")
+    synth_view = build_synthesis_summary_view(bundle)
+    st.info(f"**{synth_view['short_label']}**")
+    st.write(f"Supporting families -- positive: {', '.join(synth_view['positive_evidence_families']) or '(none)'}; "
+             f"concern: {', '.join(synth_view['concern_evidence_families']) or '(none)'}")
+    convergent = synth_view["convergent_positive_domain"] or synth_view["convergent_concern_domain"]
+    st.write(f"Within-domain convergence: {'yes, in **' + convergent + '**' if convergent else 'no'}")
+    with st.expander("Full synthesis explanation"):
+        st.write(synth_view["full_explanation"])
+
+    st.markdown("---")
+    st.subheader("5. Candidate clinical hypothesis")
+    hypotheses = synthesis.candidate_hypotheses
     if not hypotheses:
         st.info(CLINICIAN_NO_HYPOTHESIS_MESSAGE)
     for i, h in enumerate(hypotheses):
@@ -355,7 +811,18 @@ def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
             hypothesis_feedback.append(new_entry)
 
     st.markdown("---")
-    st.subheader("Clinician feedback")
+    st.subheader("6. Missing / not-assessable evidence")
+    for note in build_missing_evidence_notes(bundle):
+        st.write(f"- {note}")
+
+    st.markdown("---")
+    with st.expander("7. Full evidence and audit details (raw)"):
+        st.caption("See the Technical / Audit View tab for complete traceability (raw Observer/Verifier JSON, "
+                   "deterministic preconditions, blocked rules, candidate-hypothesis packages).")
+        st.json([rdb._entity_to_dict(e) for e in bundle["entities"]])
+
+    st.markdown("---")
+    st.subheader("Reviewer feedback")
     general_comments = st.text_area("General comments", value=prior_feedback.get("general_comments", ""), key=f"gc_{session_id}_{case_id}")
     missing_information = st.text_area("What information is missing?", value=prior_feedback.get("missing_information", ""), key=f"mi_{session_id}_{case_id}")
     what_removed = st.text_area("What should be removed?", value=prior_feedback.get("what_should_be_removed", ""), key=f"wr_{session_id}_{case_id}")
@@ -383,6 +850,13 @@ def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
 
 
 def render_parent_view(bundle: dict) -> None:
+    """Redesigned Parent View -- five short sections (A-E), understandable
+    in under a minute, approximately one screen. Never a simplified
+    Technical View: no rule IDs, no evidence-family names, no concern-
+    domain identifiers, no raw image-bound percentages presented as "the
+    page" unless the page boundary was actually confirmed. Every value
+    shown comes straight from `build_parent_friendly_profile` -- this
+    function only lays it out."""
     image_path = ROOT / bundle["image"]["relative_path"]
     rows = bundle["rows"]
     st.image(str(image_path), width='stretch')
@@ -390,29 +864,30 @@ def render_parent_view(bundle: dict) -> None:
         st.warning("No cached data available for this case.")
         return
 
-    doar = bundle["conditions"]["doar_full_pipeline"]
-    st.subheader("What was visible in the drawing")
-    if doar["verified_labels"]:
-        st.write(", ".join(sorted(set(doar["verified_labels"]))))
-    else:
-        st.caption("(no confidently-identified items)")
+    profile = build_parent_friendly_profile(bundle)
+
+    st.subheader("What we noticed")
+    st.write(profile["objects_seen"] or "Nothing could be confidently identified in this drawing.")
+    if profile["has_unconfirmed_elements"]:
+        st.caption(PARENT_UNCONFIRMED_ELEMENTS_NOTE)
 
     st.markdown("---")
-    sections = build_parent_view_sections(doar["hypotheses"])
-    if not sections:
-        st.info(PARENT_NO_HYPOTHESIS_MESSAGE)
-    for pp in sections:
-        with st.container(border=True):
-            st.markdown(f"**What was observed:** {pp['what_was_observed']}")
-            st.markdown(f"**In simple terms:** {pp['simple_explanation']}")
-            st.markdown(f"**Uncertainty:** {pp['uncertainty']}")
-            if pp["gentle_questions_to_ask"]:
-                st.markdown("**Questions you could ask your child:**")
-                for q in pp["gentle_questions_to_ask"]:
-                    st.write(f"- {q}")
-            st.markdown(f"**What to monitor:** {pp['what_to_monitor']}")
-            st.markdown(f"**When professional review may help:** {pp['when_professional_review_may_help']}")
-    st.warning("This is not a diagnosis.")
+    st.subheader("Visual style")
+    for note in profile["visual_style_notes"]:
+        st.write(note)
+
+    st.markdown("---")
+    st.subheader("What the evidence suggests")
+    st.info("  \n".join(profile["evidence_text"]))
+    st.caption(profile["uncertainty_note"])
+
+    st.markdown("---")
+    st.subheader("Questions to explore")
+    for q in profile["questions"]:
+        st.write(f"- {q}")
+
+    st.markdown("---")
+    st.caption(PARENT_FOOTER_DISCLAIMER)
 
 
 def render_technical_view(bundle: dict, case_id: str) -> None:
@@ -426,20 +901,54 @@ def render_technical_view(bundle: dict, case_id: str) -> None:
     if rows:
         st.write(f"Observer model: `{rows[0].get('observer_model')}`  |  Verifier model: `{rows[0].get('verifier_model')}`")
 
-    st.subheader("Raw Observer candidates -> Verifier result")
-    st.json([
-        {"observation_id": r["observation_id"], "observer_candidate": r["observer_candidate"],
-         "verifier_independent_label": r.get("verifier_independent_label"),
-         "verifier_independent_alternative_labels": r.get("verifier_independent_alternative_labels"),
-         "verifier_confidence": r.get("verifier_confidence"), "verification_status": r["verification_status"],
-         "verifier_notes": r.get("verifier_notes"), "verifier_source_note": r.get("verifier_source_note")}
-        for r in rows
-    ])
+    st.subheader("Unified evidence table (feature | value | source | status | rule eligible)")
+    st.caption(
+        "Every feature the unified pipeline produced for this case -- semantic (Gemini), deterministic "
+        "(colour/line/composition), and relationship evidence, normalized to one shape "
+        "(`evidence_schema.EvidenceItem`). Structured table first, per this view's own convention; raw JSON "
+        "is only in the expanders below.")
+    feature_rows = build_technical_feature_rows(bundle)
+    st.dataframe(feature_rows, width='stretch', hide_index=True)
 
-    st.subheader("Entities (post Observer+Verifier merge)")
-    st.json([rdb._entity_to_dict(e) for e in bundle["entities"]])
+    st.subheader("Feature -> rule -> evidence family -> concern domain -> output trace")
+    synthesis = bundle["synthesis"]
+    associations = synthesis.literature_linked_associations if synthesis else []
+    if associations:
+        trace_rows = [
+            {"matched_entity_ids": ", ".join(a["matched_entity_ids"]), "rule_id": a["rule_id"],
+             "evidence_family": a["evidence_family"], "concern_domain": a["concern_domain"],
+             "allowed_output_level": a["allowed_output_level"], "evidence_strength": a["evidence_strength"]}
+            for a in associations
+        ]
+        st.dataframe(trace_rows, width='stretch', hide_index=True)
+    else:
+        st.caption("(no rule-eligible evidence for this case)")
 
-    st.subheader("Visual precondition results (all 41 rules)")
+    st.subheader("Overall Drawing Synthesis (raw)")
+    if synthesis:
+        with st.expander("overall_synthesis JSON"):
+            st.json(synthesis.overall_synthesis)
+
+    st.markdown("---")
+    st.subheader("Raw traces (JSON)")
+
+    with st.expander("Raw Observer candidates -> Verifier result"):
+        st.json([
+            {"observation_id": r["observation_id"], "observer_candidate": r["observer_candidate"],
+             "verifier_independent_label": r.get("verifier_independent_label"),
+             "verifier_independent_alternative_labels": r.get("verifier_independent_alternative_labels"),
+             "verifier_confidence": r.get("verifier_confidence"), "verification_status": r["verification_status"],
+             "verifier_notes": r.get("verifier_notes"), "verifier_source_note": r.get("verifier_source_note")}
+            for r in rows
+        ])
+
+    with st.expander("Entities (post Observer+Verifier merge)"):
+        st.json([rdb._entity_to_dict(e) for e in bundle["entities"]])
+
+    with st.expander("Unified evidence (full, incl. deterministic + relationship items)"):
+        st.json([ue.to_dict() for ue in synthesis.unified_evidence] if synthesis else [])
+
+    st.subheader("Visual precondition results (semantic rules, from reasoning_chain.py)")
     checks = bundle["checks"]
     by_status: dict[str, list] = {}
     for c in checks:
@@ -449,19 +958,35 @@ def render_technical_view(bundle: dict, case_id: str) -> None:
             st.json([{"rule_id": c.rule_id, "reason": c.reason, "matched_entity_ids": list(c.matched_entity_ids)}
                       for c in group])
 
-    st.subheader("Eligible atomic rule matches")
-    doar = bundle["conditions"]["doar_full_pipeline"]
-    st.json([rdb._match_to_dict(m) for m in doar["eligible_matches"]])
+    if bundle["deterministic_features"] is not None:
+        with st.expander("Deterministic precondition results (10 composition/line rules, from drawing_synthesis.py)"):
+            page_reference = bundle["deterministic_features"].get("page_reference")
+            st.caption(
+                f"page_reference_mode: `{(page_reference or {}).get('page_reference_mode')}`  |  "
+                f"page_relative_features_assessable: `{(page_reference or {}).get('page_relative_features_assessable')}` "
+                "-- page-relative rules (size/placement) report `not_assessable`, never a guess, when this is False.")
+            det_checks = ds.check_deterministic_preconditions(
+                bundle["deterministic_features"]["composition"], bundle["deterministic_features"]["objective_features"],
+                page_reference)
+            st.json([{"rule_id": c.rule_id, "status": c.status, "reason": c.reason,
+                      "matched_entity_ids": list(c.matched_entity_ids)} for c in det_checks])
+
+    with st.expander("Eligible atomic rule matches (semantic only, legacy trace)"):
+        doar = bundle["conditions"]["doar_full_pipeline"]
+        st.json([rdb._match_to_dict(m) for m in doar["eligible_matches"]])
 
     st.subheader("Candidate hypotheses + full packages")
-    for pkg in doar["packages"]:
-        st.json({
-            "hypothesis": rdb._hypothesis_to_dict(pkg["hypothesis"]),
-            "clinician_package": pkg["clinician_package"],
-            "parent_package": pkg["parent_package"],
-        })
-    if not doar["packages"]:
-        st.caption("(no hypotheses)")
+    doar = bundle["conditions"]["doar_full_pipeline"]
+    if doar["packages"]:
+        for pkg in doar["packages"]:
+            with st.expander(rdb._hypothesis_to_dict(pkg["hypothesis"]).get("concern_domain", "hypothesis")):
+                st.json({
+                    "hypothesis": rdb._hypothesis_to_dict(pkg["hypothesis"]),
+                    "clinician_package": pkg["clinician_package"],
+                    "parent_package": pkg["parent_package"],
+                })
+    else:
+        st.caption("(no hypotheses -- zero candidate hypotheses is a valid, accepted outcome)")
 
     st.caption(f"case_id={case_id}  |  git_commit={git_commit_sha()}")
 
