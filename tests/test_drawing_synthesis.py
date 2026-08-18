@@ -458,7 +458,16 @@ class CandidateHypothesisUnchangedTests(unittest.TestCase):
         real dev set (p2b_0001/p2b_0005/p2b_0068 move from convergent_
         concern_pattern to limited_association) but must not change
         candidate_hypotheses at all -- baseline was 0/15 both before and
-        after this fix."""
+        after this fix.
+
+        This is a real-data integration check over the cached development
+        set's Observer/Verifier output -- that cache is optional/generated
+        (never committed; absent on a clean checkout, e.g. CI) and is not
+        meaningfully faked by a small fixture without duplicating the
+        cache's own 15-case richness, so it self-skips when genuinely
+        absent rather than failing a clean runner -- same pattern already
+        used by the single-image tests earlier in this file and by
+        scripts/verifier_error_analysis.py's own real-cached-data tests."""
         seen_any = False
         for image in rdb.load_development_set():
             image_id = image["image_id"]
@@ -470,7 +479,8 @@ class CandidateHypothesisUnchangedTests(unittest.TestCase):
             det = ds.load_or_compute_deterministic_features(image_id, ROOT / image["relative_path"])
             result = ds.synthesize_drawing(image_id, entities, det)
             self.assertEqual(len(result.candidate_hypotheses), 0, f"{image_id}: hypothesis count changed")
-        self.assertTrue(seen_any, "no cached development-set case was found -- cache is empty on this machine")
+        if not seen_any:
+            self.skipTest("no cached development-set Observer/Verifier data present in this checkout")
 
 
 class RealDevelopmentSetEndToEndTests(unittest.TestCase):
@@ -522,7 +532,12 @@ class RealDevelopmentSetEndToEndTests(unittest.TestCase):
 
                 # Zero candidate hypotheses is an accepted, valid outcome.
                 self.assertIsInstance(result.candidate_hypotheses, list)
-        self.assertTrue(seen_any, "no cached development-set case was found -- cache is empty on this machine")
+        if not seen_any:
+            # Real-data integration sweep over the optional, generated
+            # development-set cache (never committed) -- self-skips on a
+            # clean checkout (e.g. CI) rather than failing; still runs the
+            # full sweep whenever the cache exists locally.
+            self.skipTest("no cached development-set Observer/Verifier data present in this checkout")
 
     def test_page_reference_is_present_and_resolved_for_every_real_case(self):
         with tempfile.TemporaryDirectory() as tmp:

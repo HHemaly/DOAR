@@ -17,7 +17,14 @@ jobs:
       - name: Install (mandatory)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[cv,dev]"
+          # ui/phase2c6: the test suite discovers Streamlit-based UI tests
+          # (test_annotate_ui, test_clinician_review_app, test_generate_
+          # synthesis_acceptance_report, test_phase2c6_canvas_compat) via
+          # `unittest discover`; without these two pre-existing extras
+          # installed, those files fail at import time on a clean runner
+          # rather than running (or self-skipping via their own AppTest-
+          # availability guards).
+          pip install -e ".[cv,dev,ui,phase2c6]"
       - name: Lint (ruff, required)
         run: ruff check src tests main.py streamlit_app.py
       - name: Unit tests (torch/sklearn tests self-skip without those deps)
@@ -60,7 +67,10 @@ jobs:
       - name: Install (mandatory) + CPU torch
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[ml,cv,dev]"
+          # ui/phase2c6: same Streamlit-based UI test files this job's
+          # `unittest discover` also collects -- see the core job's own
+          # comment for the full explanation.
+          pip install -e ".[ml,cv,dev,ui,phase2c6]"
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
       - name: Full test suite (torch + sklearn present)
         run: python -m unittest discover -s tests -p "test_*.py" -v

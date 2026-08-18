@@ -153,8 +153,13 @@ class RealCachedDataAnalysisTests(unittest.TestCase):
         self.assertEqual(candidate["a1_salient"], True)
 
     def test_every_row_has_a_verification_status_and_image_id(self):
+        # vea.analyze() sweeps the real, generated development-set cache
+        # (optional, never committed) across all 15 images -- absent on a
+        # clean checkout (e.g. CI), same as the two real-cached-data tests
+        # above in this class, which already self-skip the same way.
         rows, _summary = vea.analyze()
-        self.assertGreater(len(rows), 0)
+        if not rows:
+            self.skipTest("no cached Observer/Verifier data present in this checkout")
         for row in rows:
             self.assertTrue(row["image_id"])
             self.assertTrue(row["verification_status"])

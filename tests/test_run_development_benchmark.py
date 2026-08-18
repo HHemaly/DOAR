@@ -156,17 +156,34 @@ class LiveCacheTests(unittest.TestCase):
                 self.assertTrue(rows is None)
 
     def test_legacy_saved_gemini_data_still_works_when_cache_empty(self):
+        """Portable fallback-SEARCH-ORDER logic (live cache miss -> fall
+        through to the legacy `gemini_verifier_dev_check_*` dirs) --
+        exercised against a small synthetic fixture rather than the real,
+        generated `outputs/prototype_cases/gemini_verifier_dev_check_*`
+        data (optional, never committed, absent on a clean checkout e.g.
+        CI). This tests the SAME branch in `find_saved_verification_rows`
+        the original real-data version did; it is not a weaker test, just
+        a portable one -- `test_live_cache_takes_priority_over_legacy_
+        when_both_exist` below is the fixture-based sibling proving the
+        opposite priority order the same way."""
         import tempfile
 
-        with tempfile.TemporaryDirectory() as empty_live_cache:
-            # Real, already-saved dev-check data (from prior phases) --
-            # SAVED_VERIFICATION_DIRS left at its real, module-computed
-            # value; only the (empty) live cache is substituted.
-            with _patched(rdb, LIVE_CACHE_DIR=Path(empty_live_cache)):
-                self.assertTrue(rdb.SAVED_VERIFICATION_DIRS, "expected at least one real gemini_verifier_dev_check_* dir")
+        with tempfile.TemporaryDirectory() as empty_live_cache, tempfile.TemporaryDirectory() as legacy_root:
+            legacy_dir = Path(legacy_root) / "gemini_verifier_dev_check_19990101_000000"
+            legacy_dir.mkdir()
+            fixture_rows = [{"drawing_id": "h38", "observation_id": "h38_c00",
+                              "observer_candidate": {"label": "sun", "alternative_labels": [], "bbox": None,
+                                                      "confidence": 0.9, "entity_type": "sun"},
+                              "verifier_independent_label": "sun", "verifier_independent_alternative_labels": [],
+                              "verifier_confidence": 0.9, "verification_status": "verified",
+                              "verifier_notes": "", "observer_model": "m", "verifier_model": "m",
+                              "verifier_source_note": "", "runtime_seconds": 1.0}]
+            (legacy_dir / "h38_verification.json").write_text(json.dumps(fixture_rows), encoding="utf-8")
+
+            with _patched(rdb, LIVE_CACHE_DIR=Path(empty_live_cache), SAVED_VERIFICATION_DIRS=[legacy_dir]):
                 rows, source_path = rdb.find_saved_verification_rows("h38")
                 self.assertIsNotNone(rows)
-                self.assertGreater(len(rows), 0)
+                self.assertEqual(rows, fixture_rows)
                 self.assertIn("gemini_verifier_dev_check_", str(source_path))
 
     def test_live_cache_takes_priority_over_legacy_when_both_exist(self):
