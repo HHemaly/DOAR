@@ -36,6 +36,17 @@ phase2c4 = ["transformers>=4.40,<5", "accelerate>=0.30,<1", "einops>=0.7,<1", "u
 # passes the exact previous failure point) -- see
 # PHASE2C6_CANVAS_COMPAT_FIX.md.
 phase2c6 = ["streamlit-drawable-canvas>=0.9,<1"]
+# Human Interaction Layer v1: optional Gemini-backed Ask DOAR answer
+# helper / external-research grounding / semantic Judge
+# (src/doar/human_interaction.py's GeminiAnswerProvider/
+# GeminiGroundedResearchProvider/GeminiJudge). Never required by the
+# scientific core (drawing_synthesis.py/reasoning_chain.py/visual_
+# observer.py's frozen Observer+Verifier have no dependency on this
+# package) and never required by CI -- every one of these classes raises
+# a caught RuntimeError at construction if this package or GEMINI_API_KEY
+# is missing, and human_interaction.py's deterministic answerer/verifier/
+# Judge remain fully functional without it.
+interaction = ["google-genai>=0.3,<2"]
 
 [tool.ruff.lint]
 # Explicit, pinned to ruff's classic default selection (pycodestyle errors +

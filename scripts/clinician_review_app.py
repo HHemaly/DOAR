@@ -66,6 +66,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from doar import drawing_synthesis as ds  # noqa: E402
+from doar import human_interaction as hi  # noqa: E402
 from doar import reasoning_chain as rc  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
@@ -650,6 +651,118 @@ def _new_session_id() -> str:
     return f"anon_{uuid.uuid4().hex[:8]}"
 
 
+@st.cache_resource(show_spinner=False)
+def _cached_answer_provider():
+    """Resolved once per Streamlit process (not per rerun/question) --
+    construction only reads env vars / imports google-genai, it never
+    depends on the case being viewed. Degrades to the deterministic
+    provider automatically when GEMINI_API_KEY/google-genai are absent."""
+    return hi.resolve_default_answer_provider()
+
+
+@st.cache_resource(show_spinner=False)
+def _cached_research_provider():
+    return hi.resolve_default_research_provider()
+
+
+@st.cache_resource(show_spinner=False)
+def _cached_judge():
+    return hi.resolve_default_judge()
+
+
+@st.cache_resource(show_spinner=False)
+def _cached_visual_recheck_provider():
+    return hi.resolve_default_visual_recheck_provider()
+
+
+_ASK_DOAR_GENERIC_ERROR = "Ask DOAR could not complete that request. Please try again."
+
+
+def _recent_conversation_history(turns: list[dict], *, max_turns: int = 8) -> list[dict]:
+    """Last `max_turns` {"role", "content"} pairs only -- never the
+    `structured`/`error_detail` bookkeeping fields, and never more than a
+    bounded window (final-correction-pass Part 9)."""
+    return [{"role": t["role"], "content": t["content"]} for t in turns[-max_turns:]]
+
+
+def render_ask_doar_chat(bundle: dict, case_id: str, session_id: str, *, mode: str) -> None:
+    """Shared 'Ask DOAR' chat panel (Human Interaction Layer v1, Part C).
+    SAME underlying evidence/answer for Parent and Clinician -- both call
+    `human_interaction.answer_question()` with the SAME resolved
+    providers; only `audience` (phrasing style) and the technical-detail
+    expander (clinician only) differ. Every answer has already passed
+    the deterministic verifier + Judge (optionally a real Gemini-backed
+    answer helper/Judge/external-research/visual-recheck provider, each
+    independently falling back to its offline default when
+    GEMINI_API_KEY/google-genai are unavailable) before it reaches here
+    -- this function never renders raw, unchecked model text. ANY
+    exception from the interaction layer is caught here (final-
+    correction-pass Part 12) -- Parent/Clinician never see a raw Python
+    traceback; the sanitized detail is only ever shown, collapsed, in
+    Clinician mode, and the full traceback is printed to the console for
+    development."""
+    st.subheader("Ask DOAR")
+    st.caption("Ask anything about this drawing, the observations, rules, references or interpretation.")
+    history_key = f"chat_history_{mode}_{session_id}_{case_id}"
+    if history_key not in st.session_state:
+        st.session_state[history_key] = []
+
+    for turn in st.session_state[history_key]:
+        with st.chat_message(turn["role"]):
+            st.write(turn["content"])
+            sa = turn.get("structured")
+            error_detail = turn.get("error_detail")
+            if turn["role"] == "assistant" and mode == "clinician" and sa:
+                with st.expander("Technical details"):
+                    st.caption(f"Category: `{sa['category']}`  ·  Judge verdict: `{sa['judge_verdict']}`  ·  "
+                               f"Judge mode: `{sa['judge_mode']}`  ·  Answer provider: `{sa['answer_provider']}`")
+                    if sa.get("answer_provider_error"):
+                        st.caption(f"Answer-provider error (sanitized): {sa['answer_provider_error']}")
+                    if sa["judge_reasons"]:
+                        st.caption("Judge notes: " + "; ".join(sa["judge_reasons"]))
+                    if sa["used_external_research"]:
+                        st.caption("This answer used additional research outside DOAR's frozen corpus -- "
+                                   "labelled separately in the answer text above, not part of the original analysis.")
+                    if sa["used_visual_recheck"]:
+                        st.caption("This answer used an on-demand visual re-check (tagged Q&A_VISUAL_RECHECK), "
+                                   "separate from the original saved analysis.")
+                    for claim in sa["claims"]:
+                        ids = ", ".join(claim.get("evidence_ids", []) + claim.get("rule_ids", []) +
+                                        claim.get("source_ids", []) + claim.get("external_source_ids", []))
+                        st.write(f"- ({claim['claim_type']}) {claim['text']}" + (f"  ·  refs: `{ids}`" if ids else ""))
+                    if sa["provenance"]:
+                        st.caption("Provenance: " + " -> ".join(sa["provenance"]))
+            elif turn["role"] == "assistant" and mode == "clinician" and error_detail:
+                with st.expander("Technical error details"):
+                    st.caption(error_detail)
+
+    question = st.chat_input("Ask DOAR -- ask anything about this drawing, the observations, rules, "
+                              "references or interpretation.", key=f"chat_input_{mode}_{session_id}_{case_id}")
+    if question:
+        history = _recent_conversation_history(st.session_state[history_key])
+        try:
+            answer = hi.answer_question(
+                question, bundle, audience=mode,
+                answer_provider=_cached_answer_provider(),
+                external_research_provider=_cached_research_provider(),
+                judge=_cached_judge(),
+                visual_recheck_provider=_cached_visual_recheck_provider(),
+                conversation_history=history,
+            )
+            st.session_state[history_key].append({"role": "user", "content": question})
+            st.session_state[history_key].append(
+                {"role": "assistant", "content": answer.answer, "structured": answer.to_dict()})
+        except Exception as exc:  # noqa: BLE001 -- last-resort UI boundary, never a raw traceback to the user
+            import traceback
+            traceback.print_exc()  # dev console only
+            st.session_state[history_key].append({"role": "user", "content": question})
+            st.session_state[history_key].append({
+                "role": "assistant", "content": _ASK_DOAR_GENERIC_ERROR, "structured": None,
+                "error_detail": f"{hi.sanitize_error_text(exc)}",
+            })
+        st.rerun()
+
+
 def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
     image_path = ROOT / bundle["image"]["relative_path"]
     rows = bundle["rows"]
@@ -679,19 +792,45 @@ def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
         f"{', '.join(summary['convergent_domains']) or '(none)'}")
 
     st.markdown("---")
-    col_left, col_right = st.columns([2, 3])
-    with col_left:
-        st.subheader("Drawing")
-        show_overlay = st.checkbox("Show bbox overlay (color-coded by Verifier status)",
-                                    value=False, key=f"overlay_{session_id}_{case_id}")
-        if show_overlay:
-            st.image(draw_annotated_image(image_path, rows), width='stretch')
-            st.caption("🟩 Verified   🟧 Uncertain   🟥 Rejected   ⬜ Unreviewed")
-        else:
-            st.image(str(image_path), width='stretch')
+    st.subheader("Drawing")
+    show_overlay = st.checkbox("Show bbox overlay (color-coded by Verifier status)",
+                                value=False, key=f"overlay_{session_id}_{case_id}")
+    if show_overlay:
+        st.image(draw_annotated_image(image_path, rows), width='stretch')
+        st.caption("🟩 Verified   🟧 Uncertain   🟥 Rejected   ⬜ Unreviewed")
+    else:
+        st.image(str(image_path), width='stretch')
 
-    with col_right:
-        st.subheader("1. Visual observations")
+    st.markdown("---")
+    # --- 2. Key observations (default-visible, compact) -------------------
+    # Confirmed / possible-uncertain / not-confirmed, in the SAME plain
+    # grouping Parent View uses (final-correction-pass Part 8) -- the
+    # full per-row table + feedback controls move under a collapsed
+    # expander so the first screen stays scannable in ~1-2 minutes.
+    st.subheader("2. Key observations")
+    obs = hi.observation_bullets(bundle)
+    oc1, oc2, oc3 = st.columns(3)
+    with oc1:
+        st.markdown("**Confirmed**")
+        for line in obs["confirmed"]:
+            st.write(f"- {line}")
+        if not obs["confirmed"]:
+            st.caption("(none)")
+    with oc2:
+        st.markdown("**Possible / uncertain**")
+        for line in obs["possible"]:
+            st.write(f"- {line}")
+        if not obs["possible"]:
+            st.caption("(none)")
+    with oc3:
+        st.markdown("**Not confirmed**")
+        if obs["not_confirmed_labels"]:
+            for label in obs["not_confirmed_labels"]:
+                st.write(f"- {label}")
+        else:
+            st.caption("(none)")
+
+    with st.expander("All visual observations (full detail)"):
         st.caption("Every candidate is shown -- confirmed, uncertain, or unreviewed. Only VERIFIED evidence can trigger a rule.")
         st.dataframe(build_entity_table_rows(bundle), width='stretch', hide_index=True)
         with st.expander("Give feedback on individual observations"):
@@ -706,62 +845,71 @@ def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
                                             key=key, label_visibility="collapsed")
                     observation_feedback[row["observation_id"]] = {"observer_label": oc["label"], "verdict": verdict}
 
-    st.markdown("---")
-    st.subheader("2. Objective drawing profile")
-    det = bundle["deterministic_features"]
-    page_reference = det.get("page_reference") or {}
-    repeated_labels = next(
-        (ue.item.value for ue in synthesis.unified_evidence if ue.item.feature_id == "relationships.repeated_labels"), {})
-    p1, p2, p3 = st.columns(3)
-    p1.markdown(f"**Colour**  \n{det['colour']['dominant_colour']}, {det['colour']['colour_diversity']} meaningful colour(s)")
-    intensity_fv = det["objective_features"].get("stroke.intensity_proxy")
-    frag_fv = det["objective_features"].get("stroke.fragmentation")
-    p2.markdown(
-        f"**Lines / strokes**  \nintensity_proxy={intensity_fv.value:.3f}" if intensity_fv and not intensity_fv.missing else "**Lines / strokes**  \n(unavailable)")
-    if frag_fv and not frag_fv.missing:
-        p2.caption(f"fragmentation={frag_fv.value:.3f}")
-    p3.markdown(f"**Relationships**  \n{repeated_labels or '(no repeated elements)'}")
-    if page_reference.get("page_relative_features_assessable"):
-        st.markdown(
-            f"**Composition** -- page-relative: bounding_box_coverage={det['composition']['bounding_box_coverage']:.0%}, "
-            f"placement={det['composition']['placement']}")
-    else:
-        st.markdown("**Composition** -- page-relative interpretation unavailable (page boundary not confirmed).")
-    st.caption(f"page_reference_mode: `{page_reference.get('page_reference_mode')}`  |  "
-               f"page_relative_features_assessable: `{page_reference.get('page_relative_features_assessable')}`")
-    with st.expander("View all measured objective features"):
-        display_sections = build_display_sections(bundle)
-        for section_title in DISPLAY_SECTION_TITLES:
-            items = display_sections[section_title]
-            with st.expander(f"{section_title} ({len(items)})", expanded=False):
-                if not items:
-                    st.caption("(no evidence in this section for this drawing)")
-                    continue
-                for entry in items:
-                    item = entry["item"]
-                    flag = "✅ rule-eligible" if entry["rule_eligible"] else "descriptive only"
-                    value_str = item["value"] if item["value"] is not None else "(unavailable)"
-                    st.write(f"- **{item['feature_id']}** = {value_str}  ·  status: {item['status']}  ·  {flag}")
-                    if item.get("reason"):
-                        st.caption(item["reason"])
+    with st.expander("Detailed objective measurements"):
+        det = bundle["deterministic_features"]
+        page_reference = det.get("page_reference") or {}
+        repeated_labels = next(
+            (ue.item.value for ue in synthesis.unified_evidence if ue.item.feature_id == "relationships.repeated_labels"), {})
+        p1, p2, p3 = st.columns(3)
+        p1.markdown(f"**Colour**  \n{det['colour']['dominant_colour']}, {det['colour']['colour_diversity']} meaningful colour(s)")
+        intensity_fv = det["objective_features"].get("stroke.intensity_proxy")
+        frag_fv = det["objective_features"].get("stroke.fragmentation")
+        p2.markdown(
+            f"**Lines / strokes**  \nintensity_proxy={intensity_fv.value:.3f}" if intensity_fv and not intensity_fv.missing else "**Lines / strokes**  \n(unavailable)")
+        if frag_fv and not frag_fv.missing:
+            p2.caption(f"fragmentation={frag_fv.value:.3f}")
+        p3.markdown(f"**Relationships**  \n{repeated_labels or '(no repeated elements)'}")
+        if page_reference.get("page_relative_features_assessable"):
+            st.markdown(
+                f"**Composition** -- page-relative: bounding_box_coverage={det['composition']['bounding_box_coverage']:.0%}, "
+                f"placement={det['composition']['placement']}")
+        else:
+            st.markdown("**Composition** -- page-relative interpretation unavailable (page boundary not confirmed).")
+        st.caption(f"page_reference_mode: `{page_reference.get('page_reference_mode')}`  |  "
+                   f"page_relative_features_assessable: `{page_reference.get('page_relative_features_assessable')}`")
+        with st.expander("View all measured objective features"):
+            display_sections = build_display_sections(bundle)
+            for section_title in DISPLAY_SECTION_TITLES:
+                items = display_sections[section_title]
+                with st.expander(f"{section_title} ({len(items)})", expanded=False):
+                    if not items:
+                        st.caption("(no evidence in this section for this drawing)")
+                        continue
+                    for entry in items:
+                        item = entry["item"]
+                        flag = "✅ rule-eligible" if entry["rule_eligible"] else "descriptive only"
+                        value_str = item["value"] if item["value"] is not None else "(unavailable)"
+                        st.write(f"- **{item['feature_id']}** = {value_str}  ·  status: {item['status']}  ·  {flag}")
+                        if item.get("reason"):
+                            st.caption(item["reason"])
 
     st.markdown("---")
-    st.subheader("3. Literature-linked associations")
-    cards = build_association_cards(bundle)
-    if not cards:
-        st.caption("(none -- no verified/measured evidence currently satisfies an existing rule's precondition)")
-    for card in cards:
-        with st.container(border=True):
-            st.markdown(f"**{card['observation']}**  ·  {card['domain']}  ·  strength: {card['evidence_strength']}")
-            st.write(card["literature_interpretation"])
-            if card["alternative_explanations"]:
-                st.caption("Alternative explanations: " + "; ".join(card["alternative_explanations"]))
-            st.caption(f"Source: {card['source']}")
-            with st.expander("Rule ID / evidence family (audit reference)"):
-                st.write(f"`{card['rule_id']}`  ·  family: {card['evidence_family']}")
+    st.subheader("3. Evidence -> rule -> association")
+    st.caption("Each chain is readable without any internal ID -- IDs are still available in the expanders below.")
+    chains = hi.build_evidence_chains(bundle)
+    if not chains:
+        st.caption("(no literature-linked chains for this drawing)")
+    for c in chains:
+        domain_label = c["concern"]["label"]
+        st.write(f"**{c['evidence_family_display']}**  ↓  {c['rule_display_name']} rule  ↓  "
+                 f"{domain_label} association  (strength: {c['evidence_strength']})")
+
+    with st.expander("Full evidence/rule details"):
+        cards = build_association_cards(bundle)
+        if not cards:
+            st.caption("(none -- no verified/measured evidence currently satisfies an existing rule's precondition)")
+        for card in cards:
+            with st.container(border=True):
+                st.markdown(f"**{card['observation']}**  ·  {card['domain']}  ·  strength: {card['evidence_strength']}")
+                st.write(card["literature_interpretation"])
+                if card["alternative_explanations"]:
+                    st.caption("Alternative explanations: " + "; ".join(card["alternative_explanations"]))
+                st.caption(f"Source: {card['source']}")
+                with st.expander("Rule ID / evidence family (audit reference)"):
+                    st.write(f"`{card['rule_id']}`  ·  family: {card['evidence_family']}")
 
     st.markdown("---")
-    st.subheader("4. Drawing-level synthesis")
+    st.subheader("4. Overall synthesis")
     synth_view = build_synthesis_summary_view(bundle)
     st.info(f"**{synth_view['short_label']}**")
     st.write(f"Supporting families -- positive: {', '.join(synth_view['positive_evidence_families']) or '(none)'}; "
@@ -811,12 +959,33 @@ def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
             hypothesis_feedback.append(new_entry)
 
     st.markdown("---")
-    st.subheader("6. Missing / not-assessable evidence")
-    for note in build_missing_evidence_notes(bundle):
-        st.write(f"- {note}")
+    st.subheader("6. References")
+    if not chains:
+        st.caption("(no literature-linked rules contributed to this drawing's interpretation)")
+    for c in chains:
+        src = c["source"]
+        if src["citation_title"]:
+            citation = src["citation_title"] + (f" ({src['doi_or_pmid']})" if src["doi_or_pmid"] else "")
+        elif src["source_pdf_page_section"]:
+            citation = (f"Primary literature reference not yet recorded in the DOAR source registry. "
+                        f"Internal source on file: {src['source_pdf_page_section']}")
+        else:
+            citation = "No source currently recorded."
+        st.write(f"- **{c['rule_display_name']}**  ·  family: {c['evidence_family_display']}  ·  "
+                 f"domain: `{c['concern_domain']}`  ·  literature support: "
+                 f"{src['literature_support_status'] or 'not recorded'}")
+        st.caption(citation)
+        with st.expander(f"`{c['rule_id']}` (audit reference)"):
+            st.write(f"Evidence family: `{c['evidence_family']}`  ·  Allowed output level: `{c['allowed_output_level']}`")
 
     st.markdown("---")
-    with st.expander("7. Full evidence and audit details (raw)"):
+    render_ask_doar_chat(bundle, case_id, session_id, mode="clinician")
+
+    st.markdown("---")
+    with st.expander("Full technical/audit trace"):
+        st.markdown("**Missing / not-assessable evidence**")
+        for note in build_missing_evidence_notes(bundle):
+            st.write(f"- {note}")
         st.caption("See the Technical / Audit View tab for complete traceability (raw Observer/Verifier JSON, "
                    "deterministic preconditions, blocked rules, candidate-hypothesis packages).")
         st.json([rdb._entity_to_dict(e) for e in bundle["entities"]])
@@ -849,14 +1018,17 @@ def render_clinician_view(bundle: dict, case_id: str, session_id: str) -> None:
         st.success(f"Saved -> {path}")
 
 
-def render_parent_view(bundle: dict) -> None:
-    """Redesigned Parent View -- five short sections (A-E), understandable
-    in under a minute, approximately one screen. Never a simplified
-    Technical View: no rule IDs, no evidence-family names, no concern-
-    domain identifiers, no raw image-bound percentages presented as "the
-    page" unless the page boundary was actually confirmed. Every value
-    shown comes straight from `build_parent_friendly_profile` -- this
-    function only lays it out."""
+def render_parent_view(bundle: dict, case_id: str, session_id: str) -> None:
+    """Redesigned Parent View (Human Interaction Layer v1, Part A) -- six
+    short, case-specific sections, understandable without any rule ID:
+    (1) What we noticed, (2) What these features may suggest -- one card
+    per literature-linked feature plus unmatched-but-verified
+    observations shown explicitly (never hidden), (3) Overall
+    interpretation, (4) Sources and rules, (5) Suggested questions to ask
+    the child, (6) one footer disclaimer. Every value comes from
+    `human_interaction.py`'s read-only, case-specific builders (which in
+    turn read only `bundle["synthesis"]`/`bundle["entities"]` -- no new
+    evidence, no new rule matching, nothing invented for this drawing)."""
     image_path = ROOT / bundle["image"]["relative_path"]
     rows = bundle["rows"]
     st.image(str(image_path), width='stretch')
@@ -865,29 +1037,91 @@ def render_parent_view(bundle: dict) -> None:
         return
 
     profile = build_parent_friendly_profile(bundle)
+    obs = hi.observation_bullets(bundle)
+    chains = hi.build_evidence_chains(bundle)
+    unmatched_labels = hi.grouped_unmatched_observation_labels(bundle)
 
+    # --- 1. What we noticed ---------------------------------------------
     st.subheader("What we noticed")
-    st.write(profile["objects_seen"] or "Nothing could be confidently identified in this drawing.")
-    if profile["has_unconfirmed_elements"]:
-        st.caption(PARENT_UNCONFIRMED_ELEMENTS_NOTE)
-
-    st.markdown("---")
-    st.subheader("Visual style")
+    for line in obs["confirmed"]:
+        st.write(f"- {line}")
+    for line in obs["possible"]:
+        st.write(f"- {line}")
     for note in profile["visual_style_notes"]:
-        st.write(note)
+        st.write(f"- {note}")
+    if not obs["confirmed"] and not obs["possible"] and not profile["visual_style_notes"]:
+        st.write("Nothing could be confidently identified in this drawing.")
+    if obs["not_confirmed_note"]:
+        st.caption(obs["not_confirmed_note"])
 
     st.markdown("---")
-    st.subheader("What the evidence suggests")
-    st.info("  \n".join(profile["evidence_text"]))
-    st.caption(profile["uncertainty_note"])
+    # --- 2. What these features may suggest ------------------------------
+    # Individual cards ONLY for matched/eligible rules (final-correction-
+    # pass Part 5) -- observations with no current rule are grouped into
+    # ONE compact, deduplicated section below instead of one large card
+    # each (the prior design repeated e.g. 5 separate "butterfly" cards).
+    st.subheader("What these features may suggest")
+    if not chains and not unmatched_labels:
+        st.caption("No literature-linked features were found for this drawing.")
+    for c in chains:
+        with st.container(border=True):
+            st.markdown(f"**{c['rule_display_name']}**")
+            st.write(c["rule_suggests"])
+            st.caption(f"Why it applies here: {c['why_it_applies']}.")
+            with st.expander("View reference"):
+                src = c["source"]
+                if src["citation_title"]:
+                    st.markdown(f"**{src['citation_title']}**")
+                    if src["doi_or_pmid"]:
+                        st.caption(f"DOI/PMID: {src['doi_or_pmid']}")
+                    st.caption(src["authors_and_year_note"])
+                elif src["source_pdf_page_section"]:
+                    st.caption("Primary literature reference not yet recorded in the DOAR source registry. "
+                               "Internal source on file:")
+                    st.write(src["source_pdf_page_section"])
+                else:
+                    st.caption("No source is currently recorded for this rule.")
+            with st.expander("Technical details"):
+                st.caption(f"Rule ID: `{c['rule_id']}`  ·  Evidence family: {c['evidence_family_display']}  ·  "
+                           f"Concern domain: `{c['concern_domain']}`")
+    if unmatched_labels:
+        st.markdown("**Other things noticed without a current psychological rule**")
+        for label in unmatched_labels:
+            st.write(f"- {label}")
 
     st.markdown("---")
-    st.subheader("Questions to explore")
-    for q in profile["questions"]:
+    # --- 3. Overall interpretation ---------------------------------------
+    st.subheader("Overall interpretation")
+    st.info(hi.overall_interpretation_text(bundle))
+
+    st.markdown("---")
+    # --- 4. Sources and rules --------------------------------------------
+    st.subheader("Sources and rules")
+    if not chains:
+        st.caption("(no literature-linked rules contributed to this drawing's interpretation)")
+    for c in chains:
+        src = c["source"]
+        if src["citation_title"]:
+            citation = src["citation_title"]
+        elif src["source_pdf_page_section"]:
+            citation = (f"Primary literature reference not yet recorded in the DOAR source registry. "
+                        f"Internal source on file: {src['source_pdf_page_section']}")
+        else:
+            citation = "No source currently recorded."
+        st.write(f"- **{c['rule_display_name']}** -- matched: {c['why_it_applies']}; concern area: {c['concern']['label']}")
+        st.caption(citation + (f"  ·  DOI/PMID: {src['doi_or_pmid']}" if src["doi_or_pmid"] else ""))
+
+    st.markdown("---")
+    # --- 5. Suggested questions to ask the child -------------------------
+    st.subheader("Suggested questions to ask the child")
+    for q in hi.case_specific_questions(bundle):
         st.write(f"- {q}")
 
     st.markdown("---")
-    st.caption(PARENT_FOOTER_DISCLAIMER)
+    render_ask_doar_chat(bundle, case_id, session_id, mode="parent")
+
+    st.markdown("---")
+    st.caption(hi.FOOTER_DISCLAIMER)
 
 
 def render_technical_view(bundle: dict, case_id: str) -> None:
@@ -1017,7 +1251,7 @@ def main() -> None:
     with tab_clinician:
         render_clinician_view(bundle, case_id, session_id)
     with tab_parent:
-        render_parent_view(bundle)
+        render_parent_view(bundle, case_id, session_id)
     with tab_technical:
         render_technical_view(bundle, case_id)
 
