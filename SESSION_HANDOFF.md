@@ -1206,15 +1206,74 @@ stops after verification for the user's review.
 
 ---
 
-## 11. Exact recommended prompt for the next session
+## 11. T0 Automated Conservative Partition (2026-08-20, dataset-integrity foundation, not a numbered Phase)
+
+**Trigger**: the Phase 7B human-review workflow (§9/§10 above) remained at
+0/225 decisions recorded, and rather than wait indefinitely, the task
+explicitly asked for a SEPARATE, fully automated, evidence-only
+conservative partition methodology, without fabricating any human-review
+decision.
+
+**What was done**: read `PHASE7B_DUPLICATE_POLICY.md`'s own already-
+published blinded precision audit (§14) and structural comparison (§25);
+recomputed the full-dataset duplicate structure at dHash thresholds 2 and
+3 using the real, already-hashed 3,688-image manifest reconstructed during
+the Phase 2C1 annotation-provenance audit (no raw image re-access needed —
+the manifest already carried real `sha256`/`phash`/`dhash` columns); chose
+dHash ≤2 (statistically indistinguishable precision from ≤3, same
+zero-chaining structure, strictly more conservative); built the partition
+via the existing, unmodified `src/doar/partition.py::run_partition_design`
+(same algorithm Phase 7A/7B already used); added a new, separate
+`dataset_gate.check_automated_conservative_gate()` function (methodology
+ID `T0_AUTOMATED_CONSERVATIVE_V1`) that verifies this manifest
+independently of, and without touching, the existing Phase 7B human-review
+gate (`check_clean_split_gate()`, left completely unmodified).
+
+**Result**: 3,395/3,688 images included (92.06%); Train 2,599 / Valid 284 /
+Test 512; 293 images (7.94%) excluded as cross-label conflicts; 0
+duplicate groups cross a split (verified two independent ways); 0 exposed
+images in valid/test. Gate **PASSES**. Full detail:
+`T0_AUTOMATED_CONSERVATIVE_PARTITION.md`, `T0_THRESHOLD_SENSITIVITY.md`,
+`T0_THESIS_SYNC_BLOCK.md`. Manifest (gitignored, local-only, per
+established convention): `outputs/t0_automated/final_partition/
+partition_manifest.csv`, SHA-256
+`4631ce8bddde64755ba44758827310703f1b332bcb28f72b55f22b3b19b92c9d`.
+
+**Explicitly disclosed limitation**: near-duplicate groups are
+algorithmically defined (dHash ≤2), not human-adjudicated — no independent
+human ground truth exists for this threshold's precision claim, only the
+same AI-preliminary blinded audit Phase 7B already disclosed as such.
+Physical file existence on whichever machine actually trains E1/E2 has not
+been re-verified in this session (raw dataset not accessible here).
+
+**Relationship to Phase 7B**: independent and parallel, not a completion or
+replacement — `check_clean_split_gate()` remains available and may
+supersede this methodology if the human review is ever completed.
+
+**Next step**: E1 representation screening, reusing this frozen manifest
+unchanged. E6 was not touched. `annotations/A1`/`A2` were not touched. No
+model was trained.
+
+---
+
+## 12. Exact recommended prompt for the next session
 
 Six reasonable next steps exist; pick based on current priority. Use
-whichever prompt matches. **Note:** as of the Phase 7B continuation
-(2026-08-03), no near-dup threshold or clustering policy is approved and
-`outputs/phase7b/final_partition/` (built at dHash threshold 6) must NOT be
-treated as usable — a same-phase re-audit found it likely too permissive.
-The human-review package must be resolved and a partition regenerated
-before any option below that depends on "the split" can actually run. A
+whichever prompt matches. **Note (superseded in part by §11 above,
+2026-08-20):** a second, independent, fully-automated conservative
+partition (`T0_AUTOMATED_CONSERVATIVE_V1`, dHash ≤2) now exists and PASSES
+its own gate (`dataset_gate.check_automated_conservative_gate()`) — E1/E2
+may reuse `outputs/t0_automated/final_partition/` today without waiting on
+the still-incomplete Phase 7B human review. The paragraph below describing
+the Phase 7B gate as blocking everything predates that addition; it
+remains accurate ONLY for `check_clean_split_gate()` / `outputs/phase7b/
+final_partition/` specifically, not for dataset readiness overall. As of
+the Phase 7B continuation (2026-08-03), no near-dup threshold or
+clustering policy is approved and `outputs/phase7b/final_partition/`
+(built at dHash threshold 6) must NOT be treated as usable — a same-phase
+re-audit found it likely too permissive. The human-review package must be
+resolved and a partition regenerated before any option below that depends
+on "the Phase 7B split" specifically can actually run. A
 seventh option — completing the dual-view prototype's remaining gaps (a
 real object detector, wiring a real LLM behind the `ChatProvider`
 interface with the full claim-verification pipeline implemented, or fixing
