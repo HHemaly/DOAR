@@ -1,0 +1,59 @@
+experiment_id: E6_rule_aggregation_expanded
+title: Rule / Evidence Aggregation Ablation -- Expanded, Corrected
+supersedes: experiments/E6_rule_aggregation (E6-PILOT, provisional, preserved unmodified)
+checkpoint_base: checkpoint/human-interaction-v1
+
+cohort:
+  source_pool: outputs/phase2c1/private_images (80 images)
+  provenance_record: outputs/phase2c1/private_pilot_mapping.csv
+  e6_pilot_original_15: 15   # DEVELOPMENT_SET_15.json, unmodified, read-only
+  locked_benchmark_reserved: 6   # original_split=="test", never used in E6-PILOT, never processed by E6
+  new_candidates_targeted: 59
+  frozen_before_comparison: true
+  manifest: raw/cohort_manifest.csv
+
+eligibility_fix:
+  governance_defect_found: true
+  description: >
+    Production drawing_synthesis.build_overall_synthesis does not filter
+    matched rules by allowed_output_level anywhere in the pipeline --
+    disabled rules (31/41) can and do contribute. Reported, not silently
+    fixed in production. E6's own re-aggregation layer applies the
+    correct filter (see eligible_output_level below).
+  eligible_output_level: individual_heuristic_only
+  production_files_left_unmodified:
+    - src/doar/reasoning_chain.py
+    - src/doar/drawing_synthesis.py
+    - RULE_EVIDENCE_MATRIX.csv
+
+parameters:
+  min_evidence: 2               # concerns.py's own frozen MIN_EVIDENCE, reused verbatim
+  r5_ratio_threshold: 0.5
+  assessable_statuses: [satisfied, not_satisfied]
+
+statistics:
+  bootstrap_reps: 10000
+  random_seed: 20260820
+  multiple_comparison_correction: holm
+  ci_method: wilson
+  paired_diff_ci_method: bootstrap_case_resampling
+
+figures:
+  jitter_seeds_fixed_not_hash: true   # Section B.6 fix
+
+strategies:
+  primary: [R1, R2, R3, R4, R5]
+  secondary_stress_test: [R1_broad, R2_broad]
+  # R6 (weighted aggregation) intentionally not implemented -- rule-strength
+  # fields (confidence_ceiling, evidence_strength_as_written) are not
+  # consistently/numerically defined for 44% of rules.
+
+no_scientific_files_modified:
+  - RULE_EVIDENCE_MATRIX.csv
+  - RULE_RELATIONSHIP_GRAPH.json
+  - CONCERN_DOMAIN_MAP.json
+  - src/doar/concerns.py
+  - src/doar/reasoning_chain.py
+  - src/doar/drawing_synthesis.py
+  - src/doar/visual_observer.py
+  - DEVELOPMENT_SET_15.json

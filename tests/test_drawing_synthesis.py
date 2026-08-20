@@ -646,5 +646,60 @@ class ValidationInvariantRegressionTests(unittest.TestCase):
         self.assertFalse(association_rule_ids.issubset(buggy_all_rule_ids))
 
 
+class EligibilityGateEndToEndRegressionTests(unittest.TestCase):
+    """E6-EXPANDED registry feasibility audit found no allowed_output_level
+    filter anywhere in the synthesis pipeline -- disabled rules could
+    reach literature_linked_associations and, in principle, candidate
+    hypotheses. Fixed at the ONE choke point each match-builder has
+    (reasoning_chain.build_eligible_matches,
+    drawing_synthesis.build_deterministic_eligible_matches). These tests
+    prove the fix holds end to end, through synthesize_drawing, on the
+    real cached development-set evidence."""
+
+    def test_no_literature_linked_association_is_ever_a_disabled_rule(self):
+        matrix = rc.load_rule_matrix()
+        seen_any = False
+        for image in rdb.load_development_set():
+            image_id = image["image_id"]
+            rows, _ = rdb.find_saved_verification_rows(image_id)
+            if rows is None:
+                continue
+            seen_any = True
+            entities = rdb.entities_from_verification_rows(rows)
+            det = ds.load_or_compute_deterministic_features(image_id, ROOT / image["relative_path"])
+            result = ds.synthesize_drawing(image_id, entities, det)
+            for assoc in result.literature_linked_associations:
+                self.assertEqual(
+                    matrix[assoc["rule_id"]]["allowed_output_level"], "individual_heuristic_only",
+                    f"{image_id}: disabled rule {assoc['rule_id']} appeared in literature_linked_associations")
+        if not seen_any:
+            self.skipTest("no cached development-set Observer/Verifier data present in this checkout")
+
+    def test_disabled_rule_precondition_checks_remain_traceable_via_check_visual_preconditions(self):
+        # Preserve-traceability requirement: the raw per-rule check list
+        # (what the Technical/debug view reads, via
+        # clinician_review_app.py's own bundle["checks"]) must still
+        # report "satisfied" for a disabled rule whose precondition
+        # genuinely matched -- only PROMOTION into an EligibleAtomicRule
+        # Match is gated, never the underlying precondition check itself.
+        entities = [_entity("e1", "lion")]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "PSY_AR_ANIMAL_LION_007")
+        self.assertEqual(check.status, "satisfied")
+        matches = rc.build_eligible_matches(entities)
+        self.assertNotIn("PSY_AR_ANIMAL_LION_007", {m.rule_id for m in matches})
+
+    def test_deterministic_gate_is_currently_a_no_op_but_present(self):
+        # DETERMINISTIC_RULE_IDS today equals exactly the enabled-rule set,
+        # so build_deterministic_eligible_matches' own gate never actually
+        # excludes anything right now -- proven here so a future registry
+        # change that disables one of these 10 rules without also updating
+        # DETERMINISTIC_RULE_IDS is caught by this gate, not silently
+        # promoted.
+        matrix = rc.load_rule_matrix()
+        for rule_id in ds.DETERMINISTIC_RULE_IDS:
+            self.assertEqual(matrix[rule_id]["allowed_output_level"], "individual_heuristic_only")
+
+
 if __name__ == "__main__":
     unittest.main()

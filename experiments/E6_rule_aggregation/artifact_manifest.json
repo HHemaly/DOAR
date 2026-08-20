@@ -1,0 +1,43 @@
+{
+  "experiment_id": "E6_rule_aggregation",
+  "generating_scripts": [
+    "scripts/run_e6.py",
+    "scripts/compute_stats.py",
+    "scripts/make_figures.py"
+  ],
+  "artifacts": [
+    {"path": "raw/input_atomic_evidence.csv", "generated_by": "scripts/run_e6.py", "rows": 24},
+    {"path": "raw/aggregation_per_domain.csv", "generated_by": "scripts/run_e6.py", "rows": 110},
+    {"path": "raw/aggregation_per_case.csv", "generated_by": "scripts/run_e6.py", "rows": 75},
+    {"path": "statistics/confidence_intervals.csv", "generated_by": "scripts/compute_stats.py"},
+    {"path": "statistics/statistical_tests.csv", "generated_by": "scripts/compute_stats.py"},
+    {"path": "statistics/effect_sizes.csv", "generated_by": "scripts/compute_stats.py"},
+    {"path": "tables/E6_T1_strategy_comparison.csv", "generated_by": "scripts/compute_stats.py"},
+    {"path": "tables/E6_T1_strategy_comparison.tex", "generated_by": "scripts/compute_stats.py"},
+    {"path": "tables/E6_T2_case_comparison.csv", "generated_by": "scripts/compute_stats.py"},
+    {"path": "tables/E6_T3_domain_comparison.csv", "generated_by": "scripts/compute_stats.py"},
+    {"path": "tables/E6_T4_failure_cases.csv", "generated_by": "scripts/compute_stats.py", "rows": 41},
+    {"path": "tables/E6_T5_pairwise_effects.csv", "generated_by": "scripts/compute_stats.py"},
+    {"path": "figures/E6_F1_coverage_vs_overclaiming.png", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F1_coverage_vs_overclaiming.csv"},
+    {"path": "figures/E6_F1_coverage_vs_overclaiming.pdf", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F1_coverage_vs_overclaiming.csv"},
+    {"path": "figures/E6_F2_trigger_abstention.png", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F2_trigger_abstention.csv"},
+    {"path": "figures/E6_F2_trigger_abstention.pdf", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F2_trigger_abstention.csv"},
+    {"path": "figures/E6_F3_duplicate_inflation.png", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F3_duplicate_inflation.csv"},
+    {"path": "figures/E6_F3_duplicate_inflation.pdf", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F3_duplicate_inflation.csv"},
+    {"path": "figures/E6_F4_cross_domain_convergence.png", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F4_cross_domain_convergence.csv"},
+    {"path": "figures/E6_F4_cross_domain_convergence.pdf", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F4_cross_domain_convergence.csv"},
+    {"path": "figures/E6_F5_rules_vs_families.png", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F5_rules_vs_families.csv"},
+    {"path": "figures/E6_F5_rules_vs_families.pdf", "generated_by": "scripts/make_figures.py", "source_csv": "figures/E6_F5_rules_vs_families.csv"},
+    {"path": "figures/E6_F6_case_strategy_heatmap.png", "generated_by": "scripts/make_figures.py", "source_csv": "tables/E6_T2_case_comparison.csv"},
+    {"path": "figures/E6_F6_case_strategy_heatmap.pdf", "generated_by": "scripts/make_figures.py", "source_csv": "tables/E6_T2_case_comparison.csv"},
+    {"path": "error_analysis/disagreement_cases.csv", "generated_by": "manual analysis script (see PROTOCOL.md), derived from raw/aggregation_per_case.csv"},
+    {"path": "error_analysis/failure_cases.csv", "generated_by": "manual analysis script (see PROTOCOL.md), derived from raw/aggregation_per_domain.csv"},
+    {"path": "error_analysis/error_summary.md", "generated_by": "hand-authored, citing the two CSVs above"},
+    {"path": "thesis/THESIS_SYNC_BLOCK.md", "generated_by": "hand-authored, citing tables/ and statistics/"},
+    {"path": "thesis/RESULTS_PARAGRAPH_DRAFT.md", "generated_by": "hand-authored, citing tables/ and statistics/"},
+    {"path": "thesis/DISCUSSION_POINTS.md", "generated_by": "hand-authored"},
+    {"path": "thesis/CAPTION_DRAFTS.md", "generated_by": "hand-authored"},
+    {"path": "paper/PAPER_SYNC_BLOCK.md", "generated_by": "hand-authored"}
+  ],
+  "reproducibility": "Re-running scripts/run_e6.py then scripts/compute_stats.py then scripts/make_figures.py against the same repository state (same cached development-set JSON, same frozen RULE_EVIDENCE_MATRIX.csv/RULE_RELATIONSHIP_GRAPH.json/CONCERN_DOMAIN_MAP.json) reproduces every CSV byte-for-byte and every figure pixel-for-pixel (matplotlib Agg backend, fixed dpi, fixed bootstrap seed 20260819)."
+}

@@ -1,0 +1,1 @@
+F9 was not generated: 0 cases in this cohort reach R4's own same-domain, >=2-independent-family trigger condition. See tables/E6X_T2_cohort_diagnostics.csv ('cases_with_ge2_independent_families_SAME_domain') and KNOWN_LIMITATIONS.md.

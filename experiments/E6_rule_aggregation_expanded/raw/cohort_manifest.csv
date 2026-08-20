@@ -1,0 +1,81 @@
+image_id,relative_path,cohort_role,original_split,already_exposed_to_observer_verifier_before_e6,has_cached_evidence,excluded_reason
+h38,outputs/prototype_cases/h38_1786305027/h38.jpg,e6_pilot_original_15,not_applicable_h38_anchor,True,True,
+p2b_0001,outputs/phase2c1/private_images/p2b_0001.jpg,e6_pilot_original_15,train,True,True,
+p2b_0002,outputs/phase2c1/private_images/p2b_0002.jpg,e6_pilot_original_15,train,True,True,
+p2b_0003,outputs/phase2c1/private_images/p2b_0003.jpeg,e6_pilot_original_15,train,True,True,
+p2b_0004,outputs/phase2c1/private_images/p2b_0004.jpg,e6_pilot_original_15,train,True,True,
+p2b_0005,outputs/phase2c1/private_images/p2b_0005.jpeg,e6_pilot_original_15,train,False,True,
+p2b_0012,outputs/phase2c1/private_images/p2b_0012.jpeg,e6_pilot_original_15,train,False,True,
+p2b_0019,outputs/phase2c1/private_images/p2b_0019.jpg,e6_pilot_original_15,train,False,True,
+p2b_0026,outputs/phase2c1/private_images/p2b_0026.jpg,e6_pilot_original_15,train,False,True,
+p2b_0033,outputs/phase2c1/private_images/p2b_0033.jpg,e6_pilot_original_15,train,False,True,
+p2b_0040,outputs/phase2c1/private_images/p2b_0040.jpg,e6_pilot_original_15,train,False,True,
+p2b_0047,outputs/phase2c1/private_images/p2b_0047.jpg,e6_pilot_original_15,train,False,True,
+p2b_0054,outputs/phase2c1/private_images/p2b_0054.jpg,e6_pilot_original_15,train,False,True,
+p2b_0061,outputs/phase2c1/private_images/p2b_0061.jpg,e6_pilot_original_15,test,False,True,
+p2b_0068,outputs/phase2c1/private_images/p2b_0068.jpg,e6_pilot_original_15,valid,False,True,
+p2b_0006,outputs/phase2c1/private_images/p2b_0006.jpg,e6_expanded_new,train,False,True,
+p2b_0007,outputs/phase2c1/private_images/p2b_0007.jpg,e6_expanded_new,train,False,True,
+p2b_0008,outputs/phase2c1/private_images/p2b_0008.jpg,e6_expanded_new,train,False,True,
+p2b_0009,outputs/phase2c1/private_images/p2b_0009.jpg,e6_expanded_new,train,False,True,
+p2b_0010,outputs/phase2c1/private_images/p2b_0010.jpeg,e6_expanded_new,train,False,True,
+p2b_0011,outputs/phase2c1/private_images/p2b_0011.jpg,e6_expanded_new,train,False,True,
+p2b_0014,outputs/phase2c1/private_images/p2b_0014.jpg,e6_expanded_new,train,False,True,
+p2b_0016,outputs/phase2c1/private_images/p2b_0016.jpg,e6_expanded_new,train,False,True,
+p2b_0017,outputs/phase2c1/private_images/p2b_0017.jpg,e6_expanded_new,valid,False,True,
+p2b_0018,outputs/phase2c1/private_images/p2b_0018.jpg,e6_expanded_new,train,False,True,
+p2b_0020,outputs/phase2c1/private_images/p2b_0020.jpg,e6_expanded_new,train,False,True,
+p2b_0021,outputs/phase2c1/private_images/p2b_0021.jpeg,e6_expanded_new,train,False,True,
+p2b_0022,outputs/phase2c1/private_images/p2b_0022.jpg,e6_expanded_new,train,False,True,
+p2b_0023,outputs/phase2c1/private_images/p2b_0023.jpg,e6_expanded_new,valid,False,True,
+p2b_0024,outputs/phase2c1/private_images/p2b_0024.webp,e6_expanded_new,train,False,True,
+p2b_0025,outputs/phase2c1/private_images/p2b_0025.jpg,e6_expanded_new,train,False,True,
+p2b_0027,outputs/phase2c1/private_images/p2b_0027.jpeg,e6_expanded_new,train,False,True,
+p2b_0028,outputs/phase2c1/private_images/p2b_0028.jpg,e6_expanded_new,valid,False,True,
+p2b_0029,outputs/phase2c1/private_images/p2b_0029.jpg,e6_expanded_new,train,False,True,
+p2b_0030,outputs/phase2c1/private_images/p2b_0030.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0031,outputs/phase2c1/private_images/p2b_0031.jpeg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0032,outputs/phase2c1/private_images/p2b_0032.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0034,outputs/phase2c1/private_images/p2b_0034.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0035,outputs/phase2c1/private_images/p2b_0035.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0036,outputs/phase2c1/private_images/p2b_0036.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0037,outputs/phase2c1/private_images/p2b_0037.jpg,e6_expanded_new,valid,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0038,outputs/phase2c1/private_images/p2b_0038.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0039,outputs/phase2c1/private_images/p2b_0039.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0041,outputs/phase2c1/private_images/p2b_0041.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0042,outputs/phase2c1/private_images/p2b_0042.jpg,e6_expanded_new,valid,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0043,outputs/phase2c1/private_images/p2b_0043.jpeg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0044,outputs/phase2c1/private_images/p2b_0044.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0045,outputs/phase2c1/private_images/p2b_0045.jpeg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0046,outputs/phase2c1/private_images/p2b_0046.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0049,outputs/phase2c1/private_images/p2b_0049.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0050,outputs/phase2c1/private_images/p2b_0050.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0051,outputs/phase2c1/private_images/p2b_0051.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0052,outputs/phase2c1/private_images/p2b_0052.jpg,e6_expanded_new,valid,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0053,outputs/phase2c1/private_images/p2b_0053.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0055,outputs/phase2c1/private_images/p2b_0055.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0056,outputs/phase2c1/private_images/p2b_0056.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0058,outputs/phase2c1/private_images/p2b_0058.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0059,outputs/phase2c1/private_images/p2b_0059.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0060,outputs/phase2c1/private_images/p2b_0060.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0062,outputs/phase2c1/private_images/p2b_0062.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0063,outputs/phase2c1/private_images/p2b_0063.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0065,outputs/phase2c1/private_images/p2b_0065.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0066,outputs/phase2c1/private_images/p2b_0066.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0067,outputs/phase2c1/private_images/p2b_0067.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0069,outputs/phase2c1/private_images/p2b_0069.jpeg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0070,outputs/phase2c1/private_images/p2b_0070.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0071,outputs/phase2c1/private_images/p2b_0071.jpg,e6_expanded_new,valid,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0072,outputs/phase2c1/private_images/p2b_0072.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0074,outputs/phase2c1/private_images/p2b_0074.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0075,outputs/phase2c1/private_images/p2b_0075.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0076,outputs/phase2c1/private_images/p2b_0076.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0077,outputs/phase2c1/private_images/p2b_0077.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0078,outputs/phase2c1/private_images/p2b_0078.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0079,outputs/phase2c1/private_images/p2b_0079.jpg,e6_expanded_new,train,False,False,no cached Observer/Verifier evidence yet (live perception run pending/failed for this image)
+p2b_0013,outputs/phase2c1/private_images/p2b_0013.jpg,locked_benchmark_reserved_do_not_process,test,False,False,"reserved as locked independent benchmark (original_split=='test' in private_pilot_mapping.csv, never used in E6-PILOT) -- not processed, not inspected, per explicit instruction to preserve a genuinely blind set"
+p2b_0015,outputs/phase2c1/private_images/p2b_0015.jpg,locked_benchmark_reserved_do_not_process,test,False,False,"reserved as locked independent benchmark (original_split=='test' in private_pilot_mapping.csv, never used in E6-PILOT) -- not processed, not inspected, per explicit instruction to preserve a genuinely blind set"
+p2b_0048,outputs/phase2c1/private_images/p2b_0048.jpg,locked_benchmark_reserved_do_not_process,test,False,False,"reserved as locked independent benchmark (original_split=='test' in private_pilot_mapping.csv, never used in E6-PILOT) -- not processed, not inspected, per explicit instruction to preserve a genuinely blind set"
+p2b_0057,outputs/phase2c1/private_images/p2b_0057.jpeg,locked_benchmark_reserved_do_not_process,test,False,False,"reserved as locked independent benchmark (original_split=='test' in private_pilot_mapping.csv, never used in E6-PILOT) -- not processed, not inspected, per explicit instruction to preserve a genuinely blind set"
+p2b_0064,outputs/phase2c1/private_images/p2b_0064.jpg,locked_benchmark_reserved_do_not_process,test,False,False,"reserved as locked independent benchmark (original_split=='test' in private_pilot_mapping.csv, never used in E6-PILOT) -- not processed, not inspected, per explicit instruction to preserve a genuinely blind set"
+p2b_0073,outputs/phase2c1/private_images/p2b_0073.jpg,locked_benchmark_reserved_do_not_process,test,False,False,"reserved as locked independent benchmark (original_split=='test' in private_pilot_mapping.csv, never used in E6-PILOT) -- not processed, not inspected, per explicit instruction to preserve a genuinely blind set"

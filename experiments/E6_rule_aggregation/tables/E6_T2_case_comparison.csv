@@ -1,0 +1,16 @@
+case_id,R1,R2,R3,R4,R5
+h38,True,False,False,False,True
+p2b_0001,True,False,True,False,True
+p2b_0002,True,False,False,False,False
+p2b_0003,True,False,False,False,True
+p2b_0004,True,False,False,False,True
+p2b_0005,True,False,True,False,True
+p2b_0012,True,False,False,False,False
+p2b_0019,True,False,False,False,True
+p2b_0026,True,False,False,False,True
+p2b_0033,True,False,False,False,True
+p2b_0040,False,False,False,False,False
+p2b_0047,False,False,False,False,False
+p2b_0054,True,False,False,False,True
+p2b_0061,True,False,False,False,True
+p2b_0068,True,True,True,False,True

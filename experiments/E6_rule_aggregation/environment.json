@@ -1,0 +1,15 @@
+{
+  "git_commit": "5f8c149cf7742fbbf868840319ef026f400e6c94",
+  "git_branch": "feature/doar-phase2c-annotation-expansion",
+  "checkpoint_base": "checkpoint/human-interaction-v1",
+  "python_version": "3.11.5 (tags/v3.11.5:cce6ba9, Aug 24 2023, 14:38:34) [MSC v.1936 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "packages": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.5",
+    "scipy": "1.17.1",
+    "matplotlib": "3.11.1"
+  },
+  "live_model_calls_made": false,
+  "note": "No live Gemini/model calls were made anywhere in this experiment. All data comes from the already-cached Observer/Verifier development-set JSON plus the frozen RULE_EVIDENCE_MATRIX.csv / RULE_RELATIONSHIP_GRAPH.json / CONCERN_DOMAIN_MAP.json."
+}

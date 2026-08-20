@@ -1,0 +1,9 @@
+BEFORE FIX -- build_eligible_matches output (semantic path):
+  PSY_AR_EYES_STERN_002: allowed_output_level=disabled
+  PSY_AR_ANIMAL_TIGER_WOLF_004: allowed_output_level=disabled
+  PSY_AR_ANIMAL_LION_007: allowed_output_level=disabled
+  EN_COMPILED_FACE_EXPRESSION_021: allowed_output_level=disabled
+  EN_COMPILED_ANIMAL_CHOICE_GENERAL_022: allowed_output_level=disabled
+  EN_COMPILED_HOUSE_023: allowed_output_level=disabled
+  EN_COMPILED_TREE_024: allowed_output_level=disabled
+Total matches: 7, disabled: 7, enabled: 0

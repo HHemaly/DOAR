@@ -1,0 +1,42 @@
+case_id,concern_domain,strategy,matched_rule_count,unique_family_count,duplicate_inflation,cross_domain_convergence,insufficient_independent_evidence,inappropriate_unverified_use,ignored_contradiction,reason_for_trigger
+h38,anxiety_or_stress_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+h38,anxiety_or_stress_related,R5,1,1,False,False,True,False,True,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0001,developmental_or_attention_related,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0001,developmental_or_attention_related,R3,1,1,False,True,False,False,False,"pooled concern direction reached 2 independent families across domains ['anxiety_or_stress_related', 'developmental_or_attention_related'] (>=MIN_EVIDENCE=2); this domain's own share attributed"
+p2b_0001,developmental_or_attention_related,R5,1,1,False,False,True,False,False,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0001,neutral_descriptive_only_no_construct_proposed,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0001,anxiety_or_stress_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0001,anxiety_or_stress_related,R3,1,1,False,True,False,False,True,"pooled concern direction reached 2 independent families across domains ['anxiety_or_stress_related', 'developmental_or_attention_related'] (>=MIN_EVIDENCE=2); this domain's own share attributed"
+p2b_0001,anxiety_or_stress_related,R5,1,1,False,False,True,False,True,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0002,neutral_descriptive_only_no_construct_proposed,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0003,depressive_or_low_mood_related,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0003,depressive_or_low_mood_related,R5,1,1,False,False,True,False,False,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0004,anxiety_or_stress_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0004,anxiety_or_stress_related,R5,1,1,False,False,True,False,True,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0005,developmental_or_attention_related,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0005,developmental_or_attention_related,R3,1,1,False,True,False,False,False,"pooled concern direction reached 2 independent families across domains ['aggression_or_threat_related', 'developmental_or_attention_related'] (>=MIN_EVIDENCE=2); this domain's own share attributed"
+p2b_0005,developmental_or_attention_related,R5,1,1,False,False,True,False,False,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0005,aggression_or_threat_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0005,aggression_or_threat_related,R3,1,1,False,True,False,False,True,"pooled concern direction reached 2 independent families across domains ['aggression_or_threat_related', 'developmental_or_attention_related'] (>=MIN_EVIDENCE=2); this domain's own share attributed"
+p2b_0012,neutral_descriptive_only_no_construct_proposed,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0012,aggression_or_threat_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0019,social_withdrawal_related,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0019,social_withdrawal_related,R5,1,1,False,False,True,False,False,support_ratio=1.00 >= 0.5 (1/1 assessable families matched)
+p2b_0019,neutral_descriptive_only_no_construct_proposed,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0026,anxiety_or_stress_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0026,anxiety_or_stress_related,R5,1,1,False,False,True,False,True,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0033,depressive_or_low_mood_related,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0033,depressive_or_low_mood_related,R5,1,1,False,False,True,False,False,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0054,anxiety_or_stress_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0054,anxiety_or_stress_related,R5,1,1,False,False,True,False,True,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0061,developmental_or_attention_related,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0061,developmental_or_attention_related,R5,1,1,False,False,True,False,False,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0061,neutral_descriptive_only_no_construct_proposed,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0061,neutral_descriptive_only,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0068,developmental_or_attention_related,R1,1,1,False,False,True,False,False,at least one eligible rule matched in this domain
+p2b_0068,developmental_or_attention_related,R3,1,1,False,True,False,False,False,"pooled concern direction reached 2 independent families across domains ['anxiety_or_stress_related', 'developmental_or_attention_related'] (>=MIN_EVIDENCE=2); this domain's own share attributed"
+p2b_0068,developmental_or_attention_related,R5,1,1,False,False,True,False,False,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)
+p2b_0068,neutral_descriptive_only_no_construct_proposed,R2,3,2,True,False,False,False,False,3 raw matched rules (no family dedup) >= MIN_EVIDENCE=2
+p2b_0068,anxiety_or_stress_related,R1,1,1,False,False,True,False,True,at least one eligible rule matched in this domain
+p2b_0068,anxiety_or_stress_related,R3,1,1,False,True,False,False,True,"pooled concern direction reached 2 independent families across domains ['anxiety_or_stress_related', 'developmental_or_attention_related'] (>=MIN_EVIDENCE=2); this domain's own share attributed"
+p2b_0068,anxiety_or_stress_related,R5,1,1,False,False,True,False,True,support_ratio=0.50 >= 0.5 (1/2 assessable families matched)

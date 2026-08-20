@@ -1,0 +1,7 @@
+case_id,concern_domain,strategy,matched_rule_count,unique_family_count,duplicate_inflation,cross_domain_convergence,ineligible_evidence_used,inappropriate_unverified_use,ignored_true_contradiction,disabled_rules_present_but_excluded
+p2b_0006,developmental_or_attention_related,R3,1,1,False,True,False,False,False,
+p2b_0006,aggression_or_threat_related,R3,1,1,False,True,False,False,False,
+p2b_0009,developmental_or_attention_related,R3,1,1,False,True,False,False,False,
+p2b_0009,aggression_or_threat_related,R3,1,1,False,True,False,False,False,
+p2b_0017,developmental_or_attention_related,R3,1,1,False,True,False,False,False,
+p2b_0017,anxiety_or_stress_related,R3,1,1,False,True,False,False,False,

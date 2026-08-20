@@ -82,6 +82,16 @@ RULE_EVIDENCE_MATRIX_PATH = ROOT / "RULE_EVIDENCE_MATRIX.csv"
 RULE_RELATIONSHIP_GRAPH_PATH = ROOT / "RULE_RELATIONSHIP_GRAPH.json"
 CONCERN_DOMAIN_MAP_PATH = ROOT / "CONCERN_DOMAIN_MAP.json"
 
+# The only allowed_output_level value a rule may carry to become usable
+# scientific evidence (an EligibleAtomicRuleMatch). "disabled" (31 of 41
+# rules today) means the rule's own detector is documented as unbuilt/
+# unvalidated -- governance eligibility gate, added after a registry audit
+# found that a satisfied visual precondition alone (with no check on this
+# field) was enough to promote a disabled rule into synthesis; see
+# RULE_ELIGIBILITY_GATE_FIX.md. Reused verbatim by drawing_synthesis.py's
+# deterministic match builder so there is exactly one gate definition.
+ELIGIBLE_OUTPUT_LEVEL = "individual_heuristic_only"
+
 DISCLAIMER = (
     "This is a decision-support hypothesis, not a final diagnosis. Visual verification "
     "confirms that something was drawn -- it does not validate any psychological "
@@ -476,7 +486,22 @@ def build_eligible_matches(entities: list["VisualEntity"]) -> list[EligibleAtomi
     """The ONLY function in this module that turns a satisfied visual
     precondition into a rule-level object. Every field is copied verbatim
     from the frozen RULE_EVIDENCE_MATRIX.csv row -- this function invents
-    nothing, promotes nothing beyond what that row already says."""
+    nothing, promotes nothing beyond what that row already says.
+
+    ELIGIBILITY GATE: a satisfied precondition is necessary but not
+    sufficient -- the rule's own allowed_output_level must also equal
+    ELIGIBLE_OUTPUT_LEVEL. A `disabled` rule (its detector is documented
+    as unbuilt/unvalidated) can visually satisfy its precondition text
+    exactly like an enabled rule can (the precondition check has no
+    concept of allowed_output_level), but must never be promoted here --
+    this is the ONLY choke point that turns a check into evidence, so
+    gating here is sufficient to keep disabled rules out of every
+    downstream consumer (literature associations, overall synthesis,
+    candidate hypotheses). `check_visual_preconditions` itself is
+    UNCHANGED and still reports `satisfied` for a disabled rule's matched
+    precondition -- traceability for the Technical/debug view (which reads
+    those raw checks directly, e.g. clinician_review_app.py's
+    bundle["checks"]) is unaffected by this gate."""
     matrix = load_rule_matrix()
     checks = check_visual_preconditions(entities)
     matches = []
@@ -484,6 +509,8 @@ def build_eligible_matches(entities: list["VisualEntity"]) -> list[EligibleAtomi
         if check.status != "satisfied":
             continue
         row = matrix[check.rule_id]
+        if row["allowed_output_level"] != ELIGIBLE_OUTPUT_LEVEL:
+            continue
         matches.append(EligibleAtomicRuleMatch(
             rule_id=check.rule_id,
             evidence_family=row["evidence_family"],

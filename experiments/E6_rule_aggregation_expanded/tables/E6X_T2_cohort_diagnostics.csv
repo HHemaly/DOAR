@@ -1,0 +1,14 @@
+metric,count,pct_of_N
+N_usable_cases,34,
+cases_with_0_eligible_rules,12,35.294117647058826
+cases_with_ge1_eligible_rule,22,64.70588235294117
+cases_with_ge2_eligible_rules,5,14.705882352941176
+cases_with_ge2_independent_families_overall_any_domain,5,14.705882352941176
+cases_with_ge2_independent_families_SAME_domain,0,0.0
+cases_with_duplicate_family_rule_pairs,0,0.0
+cases_with_evidence_spanning_ge2_concern_domains,5,14.705882352941176
+cases_with_true_literature_contradiction,0,0.0
+cases_with_contextual_cultural_limitation,21,61.76470588235294
+cases_using_unverified_uncertain_evidence,0,0.0
+cases_with_page_assessable,3,8.823529411764707
+cases_with_page_NOT_assessable,31,91.17647058823529

@@ -1,0 +1,9 @@
+concern_domain,R1,R2,R3,R4,R5
+aggression_or_threat_related,1.0,0.0,0.4,0.0,0.0
+anxiety_or_stress_related,1.0,0.0,0.1,0.0,1.0
+depressive_or_low_mood_related,0.0,0.0,0.0,0.0,0.0
+developmental_or_attention_related,0.5333333333333333,0.0,0.2,0.0,0.5333333333333333
+neutral_descriptive_only,0.0,0.0,0.0,0.0,0.0
+neutral_descriptive_only_no_construct_proposed,0.0,0.0,0.0,0.0,0.0
+positive_affect_or_social_engagement,0.0,0.0,0.0,0.0,0.0
+social_withdrawal_related,0.0,0.0,0.0,0.0,0.0

@@ -1,0 +1,12 @@
+comparison,test,n_discordant,R1_only_triggers,R2_only_triggers,p_value_raw,note,p_value_holm_adjusted,R3_only_triggers,R4_only_triggers,R5_only_triggers
+R1_vs_R2,exact_mcnemar_sign_test,12.0,12.0,0.0,0.00048828125,degenerate: one side has 0 discordant cases,0.00439453125,,,
+R1_vs_R3,exact_mcnemar_sign_test,10.0,10.0,,0.001953125,degenerate: one side has 0 discordant cases,0.013671875,0.0,,
+R1_vs_R4,exact_mcnemar_sign_test,13.0,13.0,,0.000244140625,degenerate: one side has 0 discordant cases,0.00244140625,,0.0,
+R1_vs_R5,exact_mcnemar_sign_test,2.0,2.0,,0.5,degenerate: one side has 0 discordant cases,1.0,,,0.0
+R2_vs_R3,exact_mcnemar_sign_test,2.0,,0.0,0.5,degenerate: one side has 0 discordant cases,1.0,2.0,,
+R2_vs_R4,exact_mcnemar_sign_test,1.0,,1.0,1.0,degenerate: one side has 0 discordant cases,1.0,,0.0,
+R2_vs_R5,exact_mcnemar_sign_test,10.0,,0.0,0.001953125,degenerate: one side has 0 discordant cases,0.013671875,,,10.0
+R3_vs_R4,exact_mcnemar_sign_test,3.0,,,0.25,degenerate: one side has 0 discordant cases,1.0,3.0,0.0,
+R3_vs_R5,exact_mcnemar_sign_test,8.0,,,0.0078125,degenerate: one side has 0 discordant cases,0.0390625,0.0,,8.0
+R4_vs_R5,exact_mcnemar_sign_test,11.0,,,0.0009765625,degenerate: one side has 0 discordant cases,0.0078125,,0.0,11.0
+cochrans_q_R1_R2_R3_R5,cochrans_q,,,,3.0465557504522067e-06,"Q=28.364, df=3; R4 excluded (constant zero vector, degenerate for Cochran's Q); omnibus test of whether R1/R2/R3/R5 trigger rates differ across the same 15 cases",3.0465557504522067e-06,,,

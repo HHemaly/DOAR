@@ -348,7 +348,16 @@ def build_deterministic_eligible_matches(
     matches`: every field copied verbatim from the frozen matrix row --
     invents nothing, promotes nothing. Only `satisfied` checks become
     matches -- `not_assessable` (page not confirmed) is excluded exactly
-    like `not_satisfied`, never treated as a match."""
+    like `not_satisfied`, never treated as a match.
+
+    ELIGIBILITY GATE: same `rc.ELIGIBLE_OUTPUT_LEVEL` check
+    `build_eligible_matches` applies, reused verbatim here for the same
+    reason -- `DETERMINISTIC_RULE_IDS` happens to equal today's enabled-
+    rule set, so this gate is currently a no-op in practice, but nothing
+    in this module's own logic enforces that coincidence; the explicit
+    check makes it a real invariant rather than an accident of the
+    registry's current state, defended against a future registry/
+    DETERMINISTIC_RULE_IDS drift."""
     matrix = rc.load_rule_matrix()
     checks = check_deterministic_preconditions(composition, objective_features, page_reference)
     matches = []
@@ -356,6 +365,8 @@ def build_deterministic_eligible_matches(
         if check.status != "satisfied":
             continue
         row = matrix[check.rule_id]
+        if row["allowed_output_level"] != rc.ELIGIBLE_OUTPUT_LEVEL:
+            continue
         matches.append(rc.EligibleAtomicRuleMatch(
             rule_id=check.rule_id, evidence_family=row["evidence_family"], concern_domain=row["concern_domain"],
             allowed_output_level=row["allowed_output_level"], source_claim=row["source_claim"],

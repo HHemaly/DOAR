@@ -1,0 +1,31 @@
+experiment_id,arm,N,metric,value,ci_low,ci_high,ci_method,vs_baseline_arm,abs_diff_vs_baseline,notes
+E6-PILOT,R1,15,triggered_pct,86.667,62.1,96.3,wilson,R4,86.667,any eligible rule; domain-agnostic baseline
+E6-PILOT,R1,15,supported_coverage_pct,0.0,,,,R4,0.0,0/13 triggers structurally clean
+E6-PILOT,R1,15,structurally_unsupported_pct,86.667,,,,R4,86.667,100% of own triggers violated (insufficient independent evidence)
+E6-PILOT,R2,15,triggered_pct,6.667,1.2,29.8,wilson,R4,6.667,raw rule-count convergence no family dedup
+E6-PILOT,R2,15,supported_coverage_pct,0.0,,,,R4,0.0,0/1 triggers structurally clean
+E6-PILOT,R2,15,structurally_unsupported_pct,6.667,,,,R4,6.667,100% of own trigger violated (duplicate-family inflation)
+E6-PILOT,R3,15,triggered_pct,20.0,7.0,45.2,wilson,R4,20.0,pooled cross-domain evidence-family convergence
+E6-PILOT,R3,15,supported_coverage_pct,0.0,,,,R4,0.0,0/3 triggers structurally clean
+E6-PILOT,R3,15,structurally_unsupported_pct,20.0,,,,R4,20.0,100% of own triggers violated (cross-domain convergence)
+E6-PILOT,R4,15,triggered_pct,0.0,0.0,20.4,wilson,R4,0.0,current DOAR (build_overall_synthesis unchanged)
+E6-PILOT,R4,15,supported_coverage_pct,0.0,,,,R4,0.0,never triggers on this cohort
+E6-PILOT,R4,15,structurally_unsupported_pct,0.0,,,,R4,0.0,never over-claims on this cohort
+E6-PILOT,R5,15,triggered_pct,73.333,48.0,89.1,wilson,R4,73.333,support ratio matched/assessable independent families
+E6-PILOT,R5,15,supported_coverage_pct,0.0,,,,R4,0.0,0/11 triggers structurally clean
+E6-PILOT,R5,15,structurally_unsupported_pct,73.333,,,,R4,73.333,100% of own triggers violated (insufficient independent evidence)
+E6-EXPANDED,R1,34,triggered_pct,58.824,42.2,73.6,wilson,R4,58.824,any eligible rule; domain-scoped primary (corrected)
+E6-EXPANDED,R1,34,supported_coverage_pct,58.824,,,,R4,58.824,non-circular: 20/20 triggers structurally clean
+E6-EXPANDED,R1,34,structurally_unsupported_pct,0.0,,,,R4,0.0,0% -- corrected from E6-PILOT's circular 86.7%
+E6-EXPANDED,R2,34,triggered_pct,0.0,0.0,10.2,wilson,R4,0.0,raw rule-count; domain-scoped primary (corrected) -- ties R4 exactly
+E6-EXPANDED,R2,34,supported_coverage_pct,0.0,,,,R4,0.0,never triggers on this cohort
+E6-EXPANDED,R2,34,structurally_unsupported_pct,0.0,,,,R4,0.0,never triggers; 0/34 cases have any duplicate-family pair
+E6-EXPANDED,R3,34,triggered_pct,8.824,3.0,23.0,wilson,R4,8.824,pooled cross-domain evidence-family convergence
+E6-EXPANDED,R3,34,supported_coverage_pct,0.0,,,,R4,0.0,0/3 triggers structurally clean
+E6-EXPANDED,R3,34,structurally_unsupported_pct,8.824,,,,R4,8.824,100% of own triggers violated (cross-domain convergence) -- replicated exactly from E6-PILOT
+E6-EXPANDED,R4,34,triggered_pct,0.0,0.0,10.2,wilson,R4,0.0,current DOAR (build_overall_synthesis unchanged); still 0/34
+E6-EXPANDED,R4,34,supported_coverage_pct,0.0,,,,R4,0.0,never triggers on this cohort even after cohort expansion
+E6-EXPANDED,R4,34,structurally_unsupported_pct,0.0,,,,R4,0.0,never over-claims on this cohort
+E6-EXPANDED,R5,34,triggered_pct,50.0,34.1,65.9,wilson,R4,50.0,support ratio matched/assessable independent families
+E6-EXPANDED,R5,34,supported_coverage_pct,50.0,,,,R4,50.0,non-circular: 17/17 triggers structurally clean
+E6-EXPANDED,R5,34,structurally_unsupported_pct,0.0,,,,R4,0.0,0% -- corrected from E6-PILOT's circular 73.3%

@@ -347,20 +347,89 @@ class RealCachedEvidenceRegressionTests(unittest.TestCase):
         self.assertNotIn("PSY_AR_CIRCLES_011", rule_ids)
 
 
+class EligibilityGateRegressionTests(unittest.TestCase):
+    """E6-EXPANDED registry feasibility audit found that a rule's own
+    allowed_output_level=="disabled" did NOT stop it from becoming an
+    EligibleAtomicRuleMatch: `build_eligible_matches` promoted every
+    `satisfied` precondition check regardless of the matrix row's own
+    allowed_output_level. Concrete measured impact: 13 of E6-PILOT's own
+    24 matched associations (54%) were `disabled` rules; a fresh check of
+    this exact fixture set shows 7/7 semantic-path matches disabled, 0
+    enabled (see eligibility_fix/BEFORE_STATE_defect_demonstration.txt).
+    These tests pin the CORRECT behavior -- they fail against the
+    unfixed code and must pass once the eligibility gate is added."""
+
+    def test_a_disabled_rule_whose_precondition_is_satisfied_never_becomes_an_eligible_match(self):
+        matrix = rc.load_rule_matrix()
+        self.assertEqual(matrix["PSY_AR_ANIMAL_LION_007"]["allowed_output_level"], "disabled")
+        entities = [_entity("e1", "lion")]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "PSY_AR_ANIMAL_LION_007")
+        self.assertEqual(check.status, "satisfied", "fixture must actually satisfy the precondition")
+        matches = rc.build_eligible_matches(entities)
+        self.assertNotIn("PSY_AR_ANIMAL_LION_007", {m.rule_id for m in matches},
+                          "a disabled rule must never be promoted to an EligibleAtomicRuleMatch")
+
+    def test_no_eligible_match_ever_carries_a_disabled_allowed_output_level(self):
+        matrix = rc.load_rule_matrix()
+        entities = [_entity("e1", "lion"), _entity("e2", "wolf"),
+                    _entity("e3", "stern eyes", aliases_en=("eye",)),
+                    _entity("e4", "wide eyes", aliases_en=("eye",)),
+                    _entity("e5", "sad face"), _entity("e6", "house"), _entity("e7", "tree")]
+        matches = rc.build_eligible_matches(entities)
+        for m in matches:
+            self.assertEqual(matrix[m.rule_id]["allowed_output_level"], "individual_heuristic_only",
+                              f"{m.rule_id} is disabled and must never appear in build_eligible_matches output")
+
+    def test_disabled_rule_precondition_checks_remain_traceable_for_technical_view(self):
+        # Preserve-traceability requirement: check_visual_preconditions
+        # (the function clinician_review_app.py's Technical/debug view
+        # reads directly via bundle["checks"], independent of
+        # build_eligible_matches) must still report "satisfied" for a
+        # disabled rule whose precondition genuinely matched -- only
+        # PROMOTION into an EligibleAtomicRuleMatch is gated, never the
+        # underlying precondition check itself.
+        entities = [_entity("e1", "lion")]
+        checks = rc.check_visual_preconditions(entities)
+        check = next(c for c in checks if c.rule_id == "PSY_AR_ANIMAL_LION_007")
+        self.assertEqual(check.status, "satisfied")
+
+
 class EligibleMatchTests(unittest.TestCase):
-    def test_only_satisfied_checks_become_matches(self):
+    def test_only_satisfied_enabled_checks_become_matches(self):
+        # PSY_AR_ANIMAL_LION_007 is allowed_output_level=="disabled" in the
+        # frozen registry -- its precondition is satisfied by "lion" but it
+        # must not be promoted (EligibilityGateRegressionTests covers this
+        # directly); this test now uses hand-constructed matches for the
+        # enabled-rule construction-fidelity check below instead.
         entities = [_entity("e1", "lion")]
         matches = rc.build_eligible_matches(entities)
         rule_ids = {m.rule_id for m in matches}
-        self.assertIn("PSY_AR_ANIMAL_LION_007", rule_ids)
-        self.assertLessEqual(len(matches), 3)  # lion + animal_choice_general only, roughly
+        self.assertNotIn("PSY_AR_ANIMAL_LION_007", rule_ids)
 
     def test_match_fields_are_copied_verbatim_from_frozen_matrix(self):
-        matrix = rc.load_rule_matrix()
-        entities = [_entity("e1", "lion")]
-        match = next(m for m in rc.build_eligible_matches(entities) if m.rule_id == "PSY_AR_ANIMAL_LION_007")
-        row = matrix["PSY_AR_ANIMAL_LION_007"]
-        self.assertEqual(match.allowed_output_level, row["allowed_output_level"])
+        # No semantic (VisualEntity-presence) rule in the current registry
+        # is allowed_output_level=="individual_heuristic_only" -- all 10
+        # enabled rules are Tier-1 composition/line rules evaluated via
+        # drawing_synthesis.check_deterministic_preconditions instead (see
+        # reasoning_chain.check_visual_preconditions' own final branch), so
+        # this exercises build_eligible_matches' real construction path
+        # end-to-end by monkeypatching load_rule_matrix's returned dict to
+        # temporarily mark PSY_AR_ANIMAL_LION_007 enabled -- RULE_EVIDENCE_
+        # MATRIX.csv on disk is never touched.
+        real_matrix = rc.load_rule_matrix()
+        patched_matrix = dict(real_matrix)
+        patched_matrix["PSY_AR_ANIMAL_LION_007"] = dict(
+            real_matrix["PSY_AR_ANIMAL_LION_007"], allowed_output_level="individual_heuristic_only")
+        original_loader = rc.load_rule_matrix
+        rc.load_rule_matrix = lambda: patched_matrix
+        try:
+            entities = [_entity("e1", "lion")]
+            match = next(m for m in rc.build_eligible_matches(entities) if m.rule_id == "PSY_AR_ANIMAL_LION_007")
+        finally:
+            rc.load_rule_matrix = original_loader
+        row = real_matrix["PSY_AR_ANIMAL_LION_007"]
+        self.assertEqual(match.allowed_output_level, "individual_heuristic_only")
         self.assertEqual(match.evidence_direction, row["evidence_direction"])
         self.assertEqual(match.source_claim, row["source_claim"])
 
@@ -368,22 +437,37 @@ class EligibleMatchTests(unittest.TestCase):
         self.assertEqual(rc.build_eligible_matches([]), [])
 
 
+def _match(rule_id, concern_domain, evidence_family, *, matched_entity_ids=("e1",)):
+    """Hand-constructs an EligibleAtomicRuleMatch directly, bypassing
+    build_eligible_matches' own precondition-satisfaction + (now gated)
+    eligibility machinery -- used by tests below that exercise DOWNSTREAM
+    dedup/aggregation/hypothesis/package logic, which operates on any list
+    of EligibleAtomicRuleMatch objects regardless of how they were built.
+    No semantic (VisualEntity-presence) rule in the current registry is
+    allowed_output_level=="individual_heuristic_only" (the 10 enabled
+    rules are all Tier-1 composition/line rules evaluated via a different
+    module -- see reasoning_chain.check_visual_preconditions' own final
+    branch), so building real matches for THESE downstream tests via
+    build_eligible_matches is no longer possible post-fix; EligibilityGate
+    RegressionTests above covers the gate itself directly."""
+    return rc.EligibleAtomicRuleMatch(
+        rule_id=rule_id, evidence_family=evidence_family, concern_domain=concern_domain,
+        allowed_output_level="individual_heuristic_only", source_claim="test source claim",
+        possible_interpretation="test interpretation", alternative_explanations=(),
+        matched_entity_ids=matched_entity_ids, evidence_direction="concern",
+        context_transfer_justification="test")
+
+
 class DeduplicationAndAggregationTests(unittest.TestCase):
     def test_same_family_rules_grouped_together(self):
-        # Two DIFFERENT entities, each with an explicit style qualifier
-        # (Bug 1 fix: generic "eye"/"eyes" alone no longer satisfies any
-        # style rule) -- both land in facial_feature_style, so grouping
-        # by evidence family still works across genuinely distinct matches.
-        entities = [_entity("e1", "wide eyes", aliases_en=("eye",)),
-                    _entity("e2", "stern eyes", aliases_en=("eye",))]
-        matches = rc.build_eligible_matches(entities)
+        matches = [_match("PSY_AR_EYES_WIDE_001", "neutral_descriptive_only_no_construct_proposed", "facial_feature_style"),
+                   _match("PSY_AR_EYES_STERN_002", "aggression_or_threat_related", "facial_feature_style")]
         families = rc.deduplicate_by_evidence_family(matches)
         self.assertIn("facial_feature_style", families)
         self.assertGreaterEqual(len(families["facial_feature_style"]), 2)
 
     def test_domain_aggregation_groups_by_concern_domain(self):
-        entities = [_entity("e1", "lion")]
-        matches = rc.build_eligible_matches(entities)
+        matches = [_match("PSY_AR_ANIMAL_LION_007", "neutral_descriptive_only_no_construct_proposed", "animal_symbolism")]
         domains = rc.aggregate_by_concern_domain(matches)
         self.assertTrue(all(m.concern_domain == d for d, ms in domains.items() for m in ms))
 
@@ -392,24 +476,18 @@ class CandidateHypothesisSafetyTests(unittest.TestCase):
     """The core 'VISUALLY VERIFIED != PSYCHOLOGICALLY VALIDATED' proof."""
 
     def test_single_rule_match_is_insufficient_never_a_hypothesis(self):
-        # Only PSY_AR_EYES_STERN_002 (aggression_or_threat_related) fires alone here.
-        entities = [_entity("e1", "stern eyes", aliases_en=("eye",))]
-        matches = [m for m in rc.build_eligible_matches(entities) if m.rule_id == "PSY_AR_EYES_STERN_002"]
+        matches = [_match("PSY_AR_EYES_STERN_002", "aggression_or_threat_related", "facial_feature_style")]
         hyps = rc.build_candidate_hypotheses(matches)
         self.assertEqual(hyps, [])
 
     def test_two_verified_rules_same_domain_cap_at_weak_hypothesis(self):
         # stern_eyes (facial_feature_style) + tiger_wolf (animal_symbolism) both
         # map to aggression_or_threat_related -- two DIFFERENT evidence families, two
-        # DIFFERENT rules, both visually verified (stern_eyes with its Bug-1-fix
-        # explicit style qualifier) -- but still ONE source type
-        # (clinician_symbolic). Must stay WEAK_HYPOTHESIS, never higher.
-        entities = [_entity("e1", "stern eyes", aliases_en=("eye",)),
-                    _entity("e2", "wolf")]
-        matches = rc.build_eligible_matches(entities)
-        domain_matches = [m for m in matches if m.concern_domain == "aggression_or_threat_related"]
-        self.assertGreaterEqual(len(domain_matches), 2)
-        hyps = rc.build_candidate_hypotheses(domain_matches)
+        # DIFFERENT rules -- but still ONE source type (clinician_symbolic).
+        # Must stay WEAK_HYPOTHESIS, never higher.
+        matches = [_match("PSY_AR_EYES_STERN_002", "aggression_or_threat_related", "facial_feature_style"),
+                   _match("PSY_AR_ANIMAL_TIGER_WOLF_004", "aggression_or_threat_related", "animal_symbolism")]
+        hyps = rc.build_candidate_hypotheses(matches)
         self.assertEqual(len(hyps), 1)
         self.assertEqual(hyps[0].support_level, "WEAK_HYPOTHESIS")
 
@@ -418,27 +496,22 @@ class CandidateHypothesisSafetyTests(unittest.TestCase):
             evidence_id = "ev_emotion_test"
             confidence = 0.6
 
-        entities = [_entity("e1", "sad face", aliases_en=("face",)),
-                    _entity("e2", "girl", aliases_en=("person",))]
-        matches = rc.build_eligible_matches(entities)
-        domain_matches = [m for m in matches if m.concern_domain == "depressive_or_low_mood_related"]
-        hyps = rc.build_candidate_hypotheses(domain_matches, model_evidence=[_FakeEvidence()])
+        matches = [_match("EN_COMPILED_FACE_EXPRESSION_021", "depressive_or_low_mood_related", "facial_feature_style")]
+        hyps = rc.build_candidate_hypotheses(matches, model_evidence=[_FakeEvidence()])
         self.assertEqual(hyps[0].support_level, "POSSIBLE_FOR_EXPLORATION")
 
     def test_neutral_and_maltreatment_domains_never_produce_a_hypothesis(self):
         # Many rules land in neutral_descriptive_only_no_construct_proposed --
         # even with strong convergence, this domain must never produce a
         # "hypothesis" (it has no clinical construct at all, per its own definition).
-        entities = [_entity("e1", "lion"), _entity("e2", "wide eyes", aliases_en=("eye",))]
-        matches = rc.build_eligible_matches(entities)
-        neutral_matches = [m for m in matches if m.concern_domain == "neutral_descriptive_only_no_construct_proposed"]
-        self.assertGreaterEqual(len(neutral_matches), 2)
-        hyps = rc.build_candidate_hypotheses(neutral_matches)
+        matches = [_match("PSY_AR_ANIMAL_LION_007", "neutral_descriptive_only_no_construct_proposed", "animal_symbolism"),
+                   _match("PSY_AR_EYES_WIDE_001", "neutral_descriptive_only_no_construct_proposed", "facial_feature_style")]
+        hyps = rc.build_candidate_hypotheses(matches)
         self.assertEqual(hyps, [])
 
     def test_disclaimer_present_on_every_hypothesis(self):
-        entities = [_entity("e1", "stern eyes", aliases_en=("eye",)), _entity("e2", "wolf")]
-        matches = rc.build_eligible_matches(entities)
+        matches = [_match("PSY_AR_EYES_STERN_002", "aggression_or_threat_related", "facial_feature_style"),
+                   _match("PSY_AR_ANIMAL_TIGER_WOLF_004", "aggression_or_threat_related", "animal_symbolism")]
         hyps = rc.build_candidate_hypotheses(matches)
         self.assertTrue(hyps, "fixture must actually produce a hypothesis for this test to check anything")
         for h in hyps:
@@ -447,8 +520,8 @@ class CandidateHypothesisSafetyTests(unittest.TestCase):
 
 class PackageBuilderTests(unittest.TestCase):
     def _one_hypothesis(self):
-        entities = [_entity("e1", "stern eyes", aliases_en=("eye",)), _entity("e2", "wolf")]
-        matches = rc.build_eligible_matches(entities)
+        matches = [_match("PSY_AR_EYES_STERN_002", "aggression_or_threat_related", "facial_feature_style"),
+                   _match("PSY_AR_ANIMAL_TIGER_WOLF_004", "aggression_or_threat_related", "animal_symbolism")]
         return rc.build_candidate_hypotheses(matches)[0]
 
     def test_clinician_package_has_traceable_evidence(self):

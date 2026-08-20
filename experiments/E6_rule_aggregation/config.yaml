@@ -1,0 +1,39 @@
+experiment_id: E6_rule_aggregation
+title: Rule / Evidence Aggregation Ablation
+checkpoint_base: checkpoint/human-interaction-v1
+
+cohort:
+  source: DEVELOPMENT_SET_15.json
+  n_cases: 15
+  n_excluded: 0
+  frozen_before_comparison: true
+
+parameters:
+  min_evidence: 2               # concerns.py's own frozen MIN_EVIDENCE, reused verbatim, never redefined
+  r5_ratio_threshold: 0.5        # documented, chosen before running comparisons -- see PROTOCOL.md Section 3
+  assessable_statuses: [satisfied, not_satisfied]  # excludes blocked_structural / blocked_needs_unbuilt_feature
+                                                    # / not_applicable_to_this_module / not_assessable
+
+statistics:
+  bootstrap_reps: 10000
+  random_seed: 20260819          # fixed -- date this experiment was first run; never changed between reruns
+  multiple_comparison_correction: holm
+  ci_method: wilson              # for single proportions
+  paired_diff_ci_method: bootstrap_case_resampling
+
+strategies:
+  - R1
+  - R2
+  - R3
+  - R4  # current DOAR, drawing_synthesis.build_overall_synthesis unchanged
+  - R5
+  # R6 (weighted aggregation) intentionally not implemented -- see PROTOCOL.md
+  # Section 1: confidence_ceiling not_set_pending_review for 18/41 rules (44%).
+
+no_scientific_files_modified:
+  - RULE_EVIDENCE_MATRIX.csv
+  - RULE_RELATIONSHIP_GRAPH.json
+  - CONCERN_DOMAIN_MAP.json
+  - src/doar/concerns.py
+  - src/doar/reasoning_chain.py
+  - src/doar/drawing_synthesis.py

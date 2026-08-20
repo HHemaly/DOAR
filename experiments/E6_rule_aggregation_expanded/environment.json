@@ -1,0 +1,30 @@
+{
+  "git_commit": "5f8c149cf7742fbbf868840319ef026f400e6c94",
+  "git_branch": "feature/doar-phase2c-annotation-expansion",
+  "checkpoint_base": "checkpoint/human-interaction-v1",
+  "python_version": "3.11.5 (tags/v3.11.5:cce6ba9, Aug 24 2023, 14:38:34) [MSC v.1936 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "packages": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.5",
+    "scipy": "1.17.1",
+    "matplotlib": "3.11.1"
+  },
+  "live_perception_calls": {
+    "purpose": "Populating development_live_cache with new Observer+Verifier evidence for cohort expansion -- NOT used for aggregation-strategy tuning (R1-R5's logic was fixed before any of this data was seen).",
+    "frozen_models_used": {"observer": "gemini-3.6-flash", "verifier": "gemini-3.5-flash-lite"},
+    "images_targeted": 59,
+    "images_successfully_processed": 19,
+    "images_failed_quota_exhausted": 40,
+    "estimated_calls_per_image_avg": 9.87,
+    "estimated_total_calls_planned": 582,
+    "actual_calls_completed_estimate": "~190 (19 images at the same 15-case average of ~9.87 calls/image; exact per-image row counts in outputs/human_interaction_v1/e6_expand_progress.jsonl)",
+    "failure_mode": "HTTP 429 Too Many Requests (VisualObserverRequestError) starting at image 20/59; confirmed persistent on an immediate resume attempt (0 new successes, fast-failed in 14s) -- consistent with a daily quota cap, not a transient per-minute limit",
+    "run_log": "outputs/human_interaction_v1/e6_expand_run.log, e6_expand_run2.log",
+    "progress_detail": "outputs/human_interaction_v1/e6_expand_progress.jsonl"
+  },
+  "aggregation_analysis_calls": {
+    "live_model_calls_made": false,
+    "note": "R1-R5 computation, statistics, and figures involve ZERO live Gemini calls -- pure re-aggregation of already-cached evidence."
+  }
+}

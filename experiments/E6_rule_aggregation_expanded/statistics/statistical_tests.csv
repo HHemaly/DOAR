@@ -1,0 +1,12 @@
+comparison,test,n_discordant,R1_only_triggers,R2_only_triggers,p_value_raw,note,p_value_holm_adjusted,R3_only_triggers,R4_only_triggers,R5_only_triggers
+R1_vs_R2,exact_mcnemar_sign_test,20.0,20.0,0.0,1.9073486328125e-06,degenerate: one side has 0 discordant cases,1.9073486328125e-05,,,
+R1_vs_R3,exact_mcnemar_sign_test,17.0,17.0,,1.52587890625e-05,degenerate: one side has 0 discordant cases,0.0001220703125,0.0,,
+R1_vs_R4,exact_mcnemar_sign_test,20.0,20.0,,1.9073486328125e-06,degenerate: one side has 0 discordant cases,1.9073486328125e-05,,0.0,
+R1_vs_R5,exact_mcnemar_sign_test,3.0,3.0,,0.25,degenerate: one side has 0 discordant cases,1.0,,,0.0
+R2_vs_R3,exact_mcnemar_sign_test,3.0,,0.0,0.25,degenerate: one side has 0 discordant cases,1.0,3.0,,
+R2_vs_R4,exact_mcnemar_sign_test,0.0,,0.0,1.0,no discordant pairs,1.0,,0.0,
+R2_vs_R5,exact_mcnemar_sign_test,17.0,,0.0,1.52587890625e-05,degenerate: one side has 0 discordant cases,0.0001220703125,,,17.0
+R3_vs_R4,exact_mcnemar_sign_test,3.0,,,0.25,degenerate: one side has 0 discordant cases,1.0,3.0,0.0,
+R3_vs_R5,exact_mcnemar_sign_test,14.0,,,0.0001220703125,degenerate: one side has 0 discordant cases,0.0006103515625,0.0,,14.0
+R4_vs_R5,exact_mcnemar_sign_test,17.0,,,1.52587890625e-05,degenerate: one side has 0 discordant cases,0.0001220703125,,0.0,17.0
+cochrans_q_R1_R2_R3_R5,cochrans_q,,,,1.8165724480212475e-10,"Q=48.324, df=3; R4 excluded",1.8165724480212475e-10,,,
