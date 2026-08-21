@@ -1,0 +1,10 @@
+model,experiment,status,best_epoch,val_macro_f1,params,trainable_params,training_seconds,latency_ms,peak_vram
+mobilenet_v3_small,E1-A1_transfer_head_dev_screening,complete,11,0.748,1521956,594948,1268.0,19.836768748973554,n/a_cpu_only
+resnet18,E1-A1_transfer_head_dev_screening,complete,21,0.6381,11178564,2052,5934.3,90.37855625047087,n/a_cpu_only
+efficientnet_b0,E1-A1_transfer_head_dev_screening,complete,8,0.6366,4012672,5124,3133.4,59.055637498204305,n/a_cpu_only
+densenet121,E1-A1_transfer_head_dev_screening,complete,12,0.6604,6957956,4100,39142.4,2942.152418747355,n/a_cpu_only
+convnext_tiny,E1-A1_transfer_head_dev_screening,complete,12,0.7134,27823204,4612,17743.6,601.6608874988378,n/a_cpu_only
+vit_b_16,E1-A1_transfer_head_dev_screening,unfinished_or_omitted,,,,,,,
+clip_vit_b32,E1-A1_transfer_head_dev_screening,complete,29,0.7244,2052,2052,12.6,0.13429333048406988,n/a_cpu_only
+dinov2_vits14,E1-A1_transfer_head_dev_screening,complete,9,0.64,1540,1540,2.2,0.07097999963055676,n/a_cpu_only
+siglip2_vit_b16,E1-A1_transfer_head_dev_screening,unfinished_or_omitted,,,,,,,

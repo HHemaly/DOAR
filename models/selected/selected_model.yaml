@@ -1,0 +1,34 @@
+# DOAR selected-model bundle -- TEMPLATE ONLY. No winner has been chosen.
+#
+# This is how a Colab/GPU-trained model will eventually be loaded by local
+# DOAR WITHOUT retraining. Populated only after E1-B (adaptation-strategy
+# screening) and E1-C (finalist confirmation on the locked Test set) are
+# both complete and a final decision has been made -- not before.
+#
+# Do NOT fill this in from E1-A screening results alone: E1-A identifies
+# the strongest REPRESENTATION under a frozen-backbone linear probe; it
+# does not select a final adaptation strategy or confirm generalization on
+# held-out data.
+
+status: NOT_POPULATED_NO_WINNER_SELECTED_YET
+
+architecture: null          # e.g. "resnet18", "clip_vit_b32"
+checkpoint: null            # relative path to best.pt in this same directory
+classes: ["Angry", "Fear", "Happy", "Sad"]   # DOAR CLASSES ordering, frozen
+preprocessing:
+  family: null               # e.g. "torchvision", "openclip", "dinov2"
+  weights_id: null
+  preprocessing_hash: null
+  resize: null
+  crop: null
+  mean: null
+  std: null
+  interpolation: null
+image_size: null
+adaptation_strategy: null   # one of: frozen_linear_probe | partial_fine_tune | full_fine_tune | peft_lora
+best_epoch: null
+training_seed: null
+t0_manifest_sha256: 4631ce8bddde64755ba44758827310703f1b332bcb28f72b55f22b3b19b92c9d
+selection_basis: null       # which experiment (E1-A/E1-B/E1-C) and metric justified this choice
+selected_at: null
+selected_by: null

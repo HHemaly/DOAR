@@ -13,3 +13,14 @@ outputs/
 # encoder) -- large binaries, never source, always re-downloadable.
 /weights/
 *.pt
+
+# E1 (visual representation screening): large generated artifacts never
+# belong in git, whether produced locally or via the Colab GPU runner --
+# code/config/docs stay in git, everything below is regenerable from them.
+experiments/E1_visual_representation/embeddings/
+experiments/E1_visual_representation/checkpoints/
+experiments/E1_visual_representation/_smoke_output/
+experiments/E1_visual_representation/logs/
+**/Combined_Drawing/
+**/Combined_Drawing-*/
+models/selected/*.pt

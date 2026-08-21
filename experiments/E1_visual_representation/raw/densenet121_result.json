@@ -1,0 +1,47 @@
+{
+  "model_key": "densenet121",
+  "status": "ok",
+  "seed": 42,
+  "best_epoch": 12,
+  "epochs_completed": 18,
+  "best_valid_macro_f1": 0.6603881683575498,
+  "training_seconds": 39142.40180559999,
+  "seconds_per_epoch": 2174.5778780888886,
+  "latency_ms_per_image": 2942.152418747355,
+  "meta": {
+    "resolved_weights_id": "DenseNet121_Weights.IMAGENET1K_V1",
+    "preprocessing_spec": {
+      "family": "torchvision",
+      "model_name": "densenet121",
+      "weights_id": "IMAGENET1K_V1",
+      "revision": "torchvision_weights_transform",
+      "preprocessing_version": "torchvision_weights_derived",
+      "resize": 256,
+      "crop": 224,
+      "mean": [
+        0.485,
+        0.456,
+        0.406
+      ],
+      "std": [
+        0.229,
+        0.224,
+        0.225
+      ],
+      "interpolation": "bilinear",
+      "transform_source": "torchvision_weights.transforms()"
+    },
+    "n_params": 6957956,
+    "n_trainable": 4100,
+    "image_size": 224
+  },
+  "max_epochs": 30,
+  "patience": 5,
+  "head_lr": 0.0003,
+  "weight_decay": 0.0001,
+  "batch_size": 16,
+  "augmentation": "conservative",
+  "device": "cpu",
+  "hardware": "Intel64 Family 6 Model 142 Stepping 12, GenuineIntel",
+  "timestamp": "2026-08-20T23:47:42Z"
+}

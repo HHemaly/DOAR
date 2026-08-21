@@ -1,0 +1,29 @@
+{
+  "status": "NOT_POPULATED_NO_WINNER_SELECTED_YET",
+  "note": "Template only. See selected_model.yaml in this same directory for the schema this will eventually satisfy. Populated only after E1-B and E1-C both complete -- never from E1-A screening results alone.",
+  "architecture": null,
+  "task": "four_class_drawing_emotion_classification",
+  "classes": ["Angry", "Fear", "Happy", "Sad"],
+  "training_data": {
+    "t0_manifest_sha256": "4631ce8bddde64755ba44758827310703f1b332bcb28f72b55f22b3b19b92c9d",
+    "train_n": 2599,
+    "valid_n": 284,
+    "test_n_locked_unused_until_e1c": 512
+  },
+  "performance": {
+    "validation_macro_f1": null,
+    "test_macro_f1_locked_until_e1c": null,
+    "note": "Do not populate test performance before E1-C's single, final, locked-Test evaluation."
+  },
+  "scientific_claim_limits": [
+    "No psychological or clinical validity is established by this model.",
+    "No diagnostic claim is made or supported.",
+    "This model evaluates visual/emotion representation performance for the four-class classification task only."
+  ],
+  "provenance": {
+    "checkpoint_sha256": null,
+    "selected_at": null,
+    "selected_by": null,
+    "selection_experiment": null
+  }
+}

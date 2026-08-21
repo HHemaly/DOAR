@@ -1,0 +1,16 @@
+# E1 (visual representation screening) dependencies.
+# Do NOT pin torch/torchvision to a CPU-only build here -- on Colab, the
+# preinstalled CUDA-enabled PyTorch must be used as-is. Only install torch/
+# torchvision explicitly if they are missing; never force-reinstall over
+# Colab's own build.
+torch>=2.2
+torchvision>=0.17
+timm>=1.0
+open_clip_torch>=2.32
+transformers>=4.55
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.5
+matplotlib>=3.8
+Pillow>=10.0
+PyYAML>=6.0

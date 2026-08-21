@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "elapsed_seconds": 44.050120499989134,
+  "seconds_per_image": 0.9177108437497736,
+  "meta": {
+    "resolved_weights_id": {
+      "family": "openclip",
+      "model_name": "ViT-B-32-quickgelu",
+      "pretrained": "openai"
+    },
+    "embedding_dimension": 512,
+    "n_params": 2052,
+    "n_trainable": 2052,
+    "image_size": null,
+    "embedding_extraction_seconds": 0.2652086000016425,
+    "embedding_cache_mb": 0.098304
+  }
+}

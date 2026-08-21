@@ -1,0 +1,17 @@
+{
+  "status": "ok",
+  "elapsed_seconds": 21.49186439999903,
+  "seconds_per_image": 0.4477471749999798,
+  "meta": {
+    "resolved_weights_id": {
+      "family": "dinov2",
+      "hub_name": "dinov2_vits14"
+    },
+    "embedding_dimension": 384,
+    "n_params": 1540,
+    "n_trainable": 1540,
+    "image_size": null,
+    "embedding_extraction_seconds": 0.1511709000042174,
+    "embedding_cache_mb": 0.073728
+  }
+}

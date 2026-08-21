@@ -1,0 +1,40 @@
+# E1-A Controlled Architecture Screening -- exact configuration
+seed: 42
+dataset:
+  t0_manifest: outputs/t0_automated/final_partition/partition_manifest.csv
+  t0_manifest_sha256: 4631ce8bddde64755ba44758827310703f1b332bcb28f72b55f22b3b19b92c9d
+  train_n: 2599
+  valid_n: 284
+  test_n: 512
+  test_used: false
+training:
+  max_epochs: 30
+  early_stopping_patience: 5
+  early_stopping_metric: val_macro_f1
+  optimizer: adamw
+  head_learning_rate: 3.0e-4
+  weight_decay: 1.0e-4
+  loss: cross_entropy
+  label_smoothing: 0.05
+  class_weighting: inverse_frequency
+  scheduler: none
+  batch_size_image_models: 16
+  batch_size_embedding_models: 64
+  augmentation_profile: conservative   # image models only
+  image_size: 224
+  device: cpu   # no CUDA available this session
+candidates:
+  cnn_vit:
+    - mobilenet_v3_small
+    - resnet18
+    - efficientnet_b0
+    - densenet121
+    - convnext_tiny
+    - vit_b_16
+  foundation:
+    - clip_vit_b32       # open_clip ViT-B-32-quickgelu, pretrained=openai
+    - dinov2_vits14       # torch.hub facebookresearch/dinov2
+    - siglip2_vit_b16     # open_clip ViT-B-16-SigLIP2, pretrained=webli
+policy:
+  backbone: frozen_throughout   # never unfrozen in E1-A -- that is E1-B
+  head: single_trainable_linear_layer_replacing_final_classifier

@@ -1,0 +1,32 @@
+{
+  "status": "ok",
+  "elapsed_seconds": 99.29561089999333,
+  "seconds_per_image": 2.068658560416528,
+  "meta": {
+    "resolved_weights_id": "DenseNet121_Weights.IMAGENET1K_V1",
+    "preprocessing_spec": {
+      "family": "torchvision",
+      "model_name": "densenet121",
+      "weights_id": "IMAGENET1K_V1",
+      "revision": "torchvision_weights_transform",
+      "preprocessing_version": "torchvision_weights_derived",
+      "resize": 256,
+      "crop": 224,
+      "mean": [
+        0.485,
+        0.456,
+        0.406
+      ],
+      "std": [
+        0.229,
+        0.224,
+        0.225
+      ],
+      "interpolation": "bilinear",
+      "transform_source": "torchvision_weights.transforms()"
+    },
+    "n_params": 6957956,
+    "n_trainable": 4100,
+    "image_size": 224
+  }
+}

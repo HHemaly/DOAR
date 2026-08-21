@@ -1,0 +1,62 @@
+{
+  "mobilenet_v3_small": {
+    "status": "ok",
+    "build_seconds": 7.412278600000718,
+    "steady_epoch_seconds_200img": 10.21689139999944,
+    "per_image_seconds": 0.0340563046666648,
+    "projected_full_epoch_seconds": 98.18432635399462,
+    "projected_full_epoch_minutes": 1.6364054392332437,
+    "n_params": 1521956,
+    "n_trainable": 594948
+  },
+  "resnet18": {
+    "status": "ok",
+    "build_seconds": 0.4383746000021347,
+    "steady_epoch_seconds_200img": 31.390842399996473,
+    "per_image_seconds": 0.10463614133332158,
+    "projected_full_epoch_seconds": 301.6659954639661,
+    "projected_full_epoch_minutes": 5.027766591066102,
+    "n_params": 11178564,
+    "n_trainable": 2052
+  },
+  "efficientnet_b0": {
+    "status": "ok",
+    "build_seconds": 13.913126200000988,
+    "steady_epoch_seconds_200img": 22.567094500001986,
+    "per_image_seconds": 0.07522364833333996,
+    "projected_full_epoch_seconds": 216.8697781450191,
+    "projected_full_epoch_minutes": 3.614496302416985,
+    "n_params": 4012672,
+    "n_trainable": 5124
+  },
+  "densenet121": {
+    "status": "ok",
+    "build_seconds": 12.704659499999252,
+    "steady_epoch_seconds_200img": 58.89717340000789,
+    "per_image_seconds": 0.19632391133335964,
+    "projected_full_epoch_seconds": 566.0018363740759,
+    "projected_full_epoch_minutes": 9.433363939567931,
+    "n_params": 6957956,
+    "n_trainable": 4100
+  },
+  "convnext_tiny": {
+    "status": "ok",
+    "build_seconds": 403.6340842000063,
+    "steady_epoch_seconds_200img": 46.707509600004414,
+    "per_image_seconds": 0.1556916986666814,
+    "projected_full_epoch_seconds": 448.85916725604244,
+    "projected_full_epoch_minutes": 7.48098612093404,
+    "n_params": 27823204,
+    "n_trainable": 4612
+  },
+  "vit_b_16": {
+    "status": "ok",
+    "build_seconds": 125.14154860000417,
+    "steady_epoch_seconds_200img": 204.55708120000781,
+    "per_image_seconds": 0.6818569373333594,
+    "projected_full_epoch_seconds": 1965.793550332075,
+    "projected_full_epoch_minutes": 32.76322583886792,
+    "n_params": 85801732,
+    "n_trainable": 3076
+  }
+}
