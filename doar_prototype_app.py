@@ -228,12 +228,21 @@ def _render_ask_doar(*, audience: str, chat_key: str, widget_prefix: str, is_ar:
                     provenance.append("external research (clearly separate from DOAR's own case evidence)")
                 turn_meta = {"judge_verdict": answer.judge_verdict, "judge_mode": answer.judge_mode,
                              "answer_provider": answer.answer_provider, "judge_details": answer.judge_details}
+                # AI Assistant status indicator (sidebar, Supervisor Demo):
+                # the ONLY place this session-wide flag is set, and only from
+                # a REAL answer_provider label reflecting what actually
+                # produced the text just shown ("gemini:<model>" only when
+                # Gemini genuinely generated it -- see _describe_answer_
+                # provider's own succeeded= contract) -- never from mere
+                # GEMINI_API_KEY presence.
+                st.session_state["_sd_last_answer_provider"] = answer.answer_provider
             except Exception as exc:  # noqa: BLE001 -- never leak a raw traceback/key to the user
                 answer_text = (
                     "محادثة الذكاء الاصطناعي غير متاحة مؤقتاً. يبقى تحليل DOAR المُعَدّ مسبقاً متاحاً." if is_ar else
                     "AI conversation is temporarily unavailable. The prepared DOAR analysis remains available.")
                 provenance = []
                 turn_meta = {"judge_verdict": "error", "judge_mode": "n/a", "answer_provider": "n/a", "judge_details": {}}
+                st.session_state["_sd_last_answer_provider"] = "error"
                 st.error(hi.sanitize_error_text(exc))
         st.session_state[chat_key].append({"role": "user", "content": question})
         st.session_state[chat_key].append(
@@ -262,28 +271,49 @@ def _render_ask_doar(*, audience: str, chat_key: str, widget_prefix: str, is_ar:
 # tabs remain fully intact and reachable via the sidebar "View" switch.
 # ===========================================================================
 SUPERVISOR_DEMO_CASES: dict[str, dict] = {
+    # Re-audited (DOAR-TRACE Ask DOAR / rule-display fix session): a103 was
+    # dropped -- its VALIDATED/"verified" semantic findings (person, face,
+    # hand, tree, house) do not correspond to what the image actually shows
+    # (a stylized, colourful drawing of a rocket-like creature; none of
+    # those five objects are present), and zero governed rules matched it.
+    # Visually confirmed by direct inspection of a103.jpeg against
+    # detections.json, not assumed from "VALIDATED" status alone. h38 and
+    # a111 were kept (both already correctly presented, per this same
+    # audit) but reordered; a new case (e2e_check_1786239075) was added to
+    # give a real multi-rule matched-evidence example. Every case_id below
+    # was checked against experiments/E1_visual_representation/raw/
+    # e1a_test_paths_LOCKED_DO_NOT_USE.csv (by image basename) and confirmed
+    # NOT part of the Locked Test split.
     "case1": {
-        "case_id": "a103_1787479142", "role": "complete",
+        "case_id": "h38_1786305027", "role": "complete",
         "title": {"en": "Example Drawing 1", "ar": "رسمة توضيحية ١"},
         "purpose": {
-            "en": "The main example: DOAR's full pipeline on one drawing, from observation to governed synthesis.",
-            "ar": "المثال الرئيسي: خط أنابيب DOAR الكامل على رسمة واحدة، من الملاحظة إلى التوليف المحكوم.",
+            "en": "The main example: DOAR's full pipeline on one drawing, from observation to governed synthesis "
+                  "-- correct semantic detections (person, face) and one real matched governed rule.",
+            "ar": "المثال الرئيسي: خط أنابيب DOAR الكامل على رسمة واحدة، من الملاحظة إلى التوليف المحكوم — "
+                  "اكتشافات دلالية صحيحة (شخص، وجه) وقاعدة محكومة واحدة مطابقة فعلياً.",
         },
     },
     "case2": {
-        "case_id": "a111_1787479358", "role": "contrast",
+        "case_id": "e2e_check_1786239075", "role": "governed_rules",
         "title": {"en": "Example Drawing 2", "ar": "رسمة توضيحية ٢"},
         "purpose": {
-            "en": "A visually different drawing: different colours, detected content and expressive profile.",
-            "ar": "رسمة مختلفة بصرياً: ألوان ومحتوى مكتشف وملف تعبيري مختلف.",
+            "en": "The clearest governed-rule example currently available: two independently matched rules "
+                  "(line pressure and line fragmentation), from a real child's drawing with a correctly "
+                  "detected person and face.",
+            "ar": "أوضح مثال متاح حالياً للقواعد المحكومة: قاعدتان مطابقتان بشكل مستقل (ضغط الخط وتشتته)، من "
+                  "رسمة طفل حقيقية بها شخص ووجه مكتشفان بشكل صحيح.",
         },
     },
     "case3": {
-        "case_id": "h38_1786305027", "role": "governance",
+        "case_id": "a111_1787479358", "role": "governance",
         "title": {"en": "Example Drawing 3", "ar": "رسمة توضيحية ٣"},
         "purpose": {
-            "en": "Why verification matters: weak, contradicted or missing evidence, handled cautiously.",
-            "ar": "لماذا يهم التحقق: أدلة ضعيفة أو متعارضة أو ناقصة، تُعالَج بحذر.",
+            "en": "Why verification matters: an abstract drawing with no governed rule match, handled "
+                  "cautiously (\"No currently enabled governed rules matched this drawing\") rather than "
+                  "forced.",
+            "ar": "لماذا يهم التحقق: رسمة تجريدية بلا أي قاعدة محكومة مطابقة، تُعالَج بحذر (\"لا توجد قواعد "
+                  "محكومة مفعّلة حالياً طابقت هذه الرسمة\") بدلاً من فرض نتيجة.",
         },
     },
 }
@@ -375,6 +405,19 @@ def _sd_normalized_image(docs: dict) -> str | None:
 
 
 def _sd_case_metrics(docs: dict) -> dict:
+    """`status` vocabulary (rule_engine_v2.py / rules.py, both governed by
+    rules_registry_v2.json's `allowed_output_level`): "weak_support" means
+    the rule's trigger condition was actually observed for THIS drawing --
+    i.e. MATCHED -- "not_matched" means it was evaluated (checked) but the
+    pattern was NOT observed. Both are real, governed, enabled rules (a
+    disabled rule never reaches either status -- rule_engine_v2.py's own
+    governance gate keeps it at "missing_detector" instead); the
+    difference between them is match outcome, not eligibility. Only
+    "weak_support" rows are actual usable evidence -- "not_matched" rows
+    must never be counted or shown as if they were supporting evidence
+    (P0 fix: they previously were, badged "NOT MATCHED" inside the same
+    "Applicable governed rules" list/counter, which conflated "evaluated"
+    with "applied")."""
     analysis = docs.get("analysis") or {}
     det = docs.get("detections") or {}
     findings = det.get("findings", []) if det.get("status") == "available" else []
@@ -383,13 +426,14 @@ def _sd_case_metrics(docs: dict) -> dict:
     n_measurements = (sum(1 for v in ff_doc.get("features", {}).values() if not v.get("missing"))
                        if ff_doc else 0)
     rules = analysis.get("rule_evaluations", [])
-    applicable = [r for r in rules if r.get("status") in ("weak_support", "not_matched")]
+    matched_rules = [r for r in rules if r.get("status") == "weak_support"]
+    evaluated_not_matched = [r for r in rules if r.get("status") == "not_matched"]
     reg = _sd_rules_registry_index()
-    families = {reg[r["rule_id"]]["evidence_family"] for r in applicable
+    families = {reg[r["rule_id"]]["evidence_family"] for r in matched_rules
                 if r["rule_id"] in reg and reg[r["rule_id"]].get("evidence_family")}
     return {"n_verified": n_verified, "n_measurements": n_measurements,
-            "n_applicable_rules": len(applicable), "n_families": len(families),
-            "applicable_rules": applicable}
+            "n_matched_rules": len(matched_rules), "n_families": len(families),
+            "matched_rules": matched_rules, "evaluated_not_matched": evaluated_not_matched}
 
 
 def _sd_inject_css() -> None:
@@ -578,8 +622,8 @@ def _sd_drawing_analysis(language: str, case_key: str) -> None:
             st.write(f"{'الملاحظات المتحقق منها' if ar else 'Verified observations'}: {metrics['n_verified']}")
             if metrics["n_measurements"]:
                 st.write(f"{'القياسات الموضوعية' if ar else 'Objective measurements'}: {metrics['n_measurements']}")
-            st.write(f"{'القواعد المحكومة القابلة للتطبيق' if ar else 'Applicable governed rules'}: "
-                     f"{metrics['n_applicable_rules']}")
+            st.write(f"{'القواعد المحكومة المطابقة' if ar else 'Matched governed rules'}: "
+                     f"{metrics['n_matched_rules']}")
             if metrics["n_families"]:
                 st.write(f"{'أسر الأدلة' if ar else 'Evidence families'}: {metrics['n_families']}")
 
@@ -684,37 +728,33 @@ def _sd_drawing_analysis(language: str, case_key: str) -> None:
         st.caption("لا تتوفر قياسات موضوعية لهذه الحالة." if ar else
                    "No objective measurements are available for this case.")
 
-    st.markdown("#### " + ("٤. الأدلة/القواعد المحكومة القابلة للتطبيق" if ar else
-                            "4. APPLICABLE GOVERNED EVIDENCE / RULES"))
+    st.markdown("#### " + ("٤. الأدلة/القواعد المحكومة المطابقة" if ar else
+                            "4. MATCHED GOVERNED EVIDENCE"))
     st.markdown(
         '<div class="doar-note">' +
-        ("يعرض هذا القسم فقط القواعد المحكومة المؤهلة فعلياً لهذه الرسمة من السجل النشط (النواة الأصلية "
+        ("يعرض هذا القسم فقط القواعد المحكومة التي طابقت فعلياً هذه الرسمة (من السجل النشط: النواة الأصلية "
          "المكونة من 41 قاعدة، منها 10 مفعّلة أساساً) — وليس سجل الأبحاث الكامل (225 إدخال مصدر/206 متغير "
-         "قابل للملاحظة/21 أسرة أدلة، وهو تنظيم بحثي وليس 225 قاعدة نفسية مفعّلة)." if ar else
-         "This section shows only the governed rules actually eligible (evaluated) for THIS drawing, from "
-         "the active governed rule set (the original 41-rule corpus, 10 enabled at baseline) -- never the "
-         "full research registry (225 source entries / 206 canonical observables / 21 evidence families is "
-         "a research organization, not 225 active psychological rules).") + '</div>', unsafe_allow_html=True)
+         "قابل للملاحظة/21 أسرة أدلة، وهو تنظيم بحثي وليس 225 قاعدة نفسية مفعّلة). القواعد المُقيَّمة ولكن غير "
+         "المطابقة تبقى مرئية في الأثر التقني فقط، وليست دليلاً داعماً هنا." if ar else
+         "This section shows ONLY the governed rules that actually MATCHED this drawing, from the active "
+         "governed rule set (the original 41-rule corpus, 10 enabled at baseline) -- never the full research "
+         "registry (225 source entries / 206 canonical observables / 21 evidence families is a research "
+         "organization, not 225 active psychological rules). Rules that were evaluated but did NOT match "
+         "remain visible in Technical Trace only -- they are never shown here as supporting evidence.") +
+        '</div>', unsafe_allow_html=True)
     reg = _sd_rules_registry_index()
-    applicable = metrics["applicable_rules"]
-    if applicable:
-        for r in applicable:
+    matched_rules = metrics["matched_rules"]
+    if matched_rules:
+        for r in matched_rules:
             reg_row = reg.get(r["rule_id"], {})
-            status_kind = "verified" if r["status"] == "weak_support" else "rejected"
             with st.container(border=True):
                 head_cols = st.columns([4, 1.4])
                 obs_label = cpres.observation_label(reg_row.get("observable", r["rule_id"]), language)
                 head_cols[0].markdown(f"**{obs_label}**")
-                status_txt = (("مطابق" if ar else "MATCHED") if r["status"] == "weak_support" else
-                              ("غير مطابق" if ar else "NOT MATCHED"))
-                _sd_status_badge(head_cols[1], status_txt, status_kind)
-                why_txt = (
-                    ("تم التقييم: لوحظ هذا النمط." if ar else "Evaluated: this pattern WAS observed.")
-                    if r["status"] == "weak_support" else
-                    ("تم التقييم: تم فحص هذا النمط ولم يُلاحظ." if ar else
-                     "Evaluated: this pattern was checked and was NOT observed.")
-                )
-                st.caption(("سبب الأهلية: " if ar else "Why eligible: ") + why_txt)
+                _sd_status_badge(head_cols[1], "مطابق" if ar else "MATCHED", "verified")
+                st.caption(("سبب المطابقة: " if ar else "Why matched: ") +
+                           ("تم التقييم: لوحظ هذا النمط في هذه الرسمة." if ar else
+                            "Evaluated: this pattern WAS observed in this drawing."))
                 fam = reg_row.get("evidence_family")
                 fam_cols = st.columns(3)
                 fam_cols[0].write(("أسرة الأدلة: " if ar else "Evidence family: ") +
@@ -723,19 +763,15 @@ def _sd_drawing_analysis(language: str, case_key: str) -> None:
                                   (reg_row.get("allowed_output_level") or "n/a"))
                 src, page = reg_row.get("source_document"), reg_row.get("source_page")
                 fam_cols[2].write(("المصدر: " if ar else "Source: ") + (f"{src} (p.{page})" if src else "n/a"))
-                cautious = (
+                st.caption(
+                    ("تفسير حذر: " if ar else "Cautious interpretation: ") +
                     ("ملاحظة رصدية محتملة بثقة منخفضة، وليست حقيقة أو تشخيصاً." if ar else
-                     "A possible, low-confidence observational pattern -- not a fact or a diagnosis.")
-                    if r["status"] == "weak_support" else
-                    ("غياب هذا النمط هنا ليس بحد ذاته دليلاً ذا دلالة." if ar else
-                     "The absence of this pattern here is not itself meaningful evidence of anything.")
-                )
-                st.caption(("تفسير حذر: " if ar else "Cautious interpretation: ") + cautious)
+                     "A possible, low-confidence observational pattern -- not a fact or a diagnosis."))
                 with st.expander(("عرض أثر الدليل" if ar else "View evidence trace"), expanded=False):
                     _sd_render_evidence_trace(docs, r, reg_row, language)
     else:
-        st.caption("لا توجد قاعدة محكومة قابلة للتطبيق لهذه الحالة." if ar else
-                   "No governed rule was applicable (evaluated) for this case.")
+        st.info("لا توجد قواعد محكومة مفعّلة حالياً طابقت هذه الرسمة." if ar else
+                "No currently enabled governed rules matched this drawing.")
 
     st.markdown("#### " + ("٥. الاتفاق وعدم اليقين" if ar else "5. AGREEMENT & UNCERTAINTY"))
     a_cols = st.columns(4)
@@ -943,9 +979,22 @@ def render_supervisor_demo() -> None:
         if st.session_state["supervisor_active_case"]:
             st.caption(("الحالة النشطة: " if ar else "Active case: ") +
                        SUPERVISOR_DEMO_CASES[st.session_state["supervisor_active_case"]]["title"][language])
-        gemini_ready = bool(os.environ.get("GEMINI_API_KEY"))
-        st.caption("Gemini: " + (("جاهز" if ar else "READY") if gemini_ready else
-                                  ("غير مُهيّأ" if ar else "NOT CONFIGURED")))
+        # P0 fix: this must NOT report "READY"/"Connected" merely because
+        # GEMINI_API_KEY is set as an env var -- an env var proves nothing
+        # about whether Gemini is actually reachable. "Connected" is shown
+        # ONLY after a real Ask DOAR call in THIS session actually returned
+        # Gemini-generated text (_sd_last_answer_provider == "gemini:...",
+        # set in _render_ask_doar from the real answer_provider label, never
+        # from key presence alone). Provider/model technical detail (which
+        # Gemini model, whether the key exists) stays in Technical Trace.
+        last_provider = st.session_state.get("_sd_last_answer_provider")
+        if last_provider and str(last_provider).startswith("gemini:"):
+            ai_status = "متصل" if ar else "Connected"
+        elif os.environ.get("GEMINI_API_KEY"):
+            ai_status = "النسخة الاحتياطية متاحة" if ar else "Fallback available"
+        else:
+            ai_status = "غير متاح" if ar else "Unavailable"
+        st.caption(("مساعد الذكاء الاصطناعي: " if ar else "AI Assistant: ") + ai_status)
         st.divider()
         st.caption("DOAR نموذج بحثي ودعم مهني غير تشخيصي." if ar else
                    "DOAR is a non-diagnostic research and professional-support prototype.")

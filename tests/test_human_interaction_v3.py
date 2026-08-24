@@ -154,6 +154,60 @@ class ProviderFailureHandlingTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Part 2b -- P0 Ask DOAR fix regression tests (rule-display/routing fix
+# session): a question routed to "case" must ground "which rules matched"
+# in the SAME matched-only chains Section 4 of the main UI uses (never an
+# unmatched rule), and a Gemini failure must still produce a real,
+# grounded, case-factual fallback -- never a traceback, never the bare
+# generic apology now that routing/grounding are fixed.
+# ---------------------------------------------------------------------------
+
+
+@unittest.skipUnless(_APP_AVAILABLE, "streamlit not available")
+class AskDoarRuleGroundingFixTests(unittest.TestCase):
+    def setUp(self):
+        # h38's real saved analysis.json has BOTH a matched rule (light line
+        # pressure, EN_COMPILED_LINE_LIGHT_PRESSURE_031) AND two evaluated-
+        # but-NOT-matched rules from the same mutually-exclusive family
+        # (heavy line pressure / shaky-broken lines) -- the strongest real
+        # case for proving the unmatched ones are excluded, not just absent.
+        self.bundle = _h38_bundle()
+
+    def test_e_unmatched_rule_never_reported_as_supporting_evidence(self):
+        chains = hi.build_evidence_chains(self.bundle)
+        rule_ids = {c["rule_id"] for c in chains}
+        self.assertNotIn("EN_COMPILED_LINE_HEAVY_PRESSURE_030", rule_ids)
+        self.assertNotIn("EN_COMPILED_LINE_SHAKY_BROKEN_032", rule_ids)
+        self.assertIn("EN_COMPILED_LINE_LIGHT_PRESSURE_031", rule_ids)
+
+        answer = hi.answer_question("Which governed rules actually matched this drawing?", self.bundle)
+        self.assertIn("Light line pressure", answer.answer)
+        self.assertNotIn("Heavy line pressure", answer.answer)
+        self.assertNotIn("Shaky or broken", answer.answer)
+
+    def test_f_gemini_failure_falls_back_to_grounded_case_answer_no_traceback(self):
+        """Simulates a Gemini answer_provider outage (raises on every call,
+        exactly like a real network/API failure) -- the deterministic
+        case-question path (fixed this session) must still produce a real,
+        evidence-grounded answer, and the raw exception must never reach
+        the returned text."""
+        class _FailingAnswerProvider:
+            def generate(self, **kwargs):
+                raise RuntimeError("simulated Gemini outage")
+
+        answer = hi.answer_question("What did DOAR notice?", self.bundle,
+                                     answer_provider=_FailingAnswerProvider())
+        self.assertIsInstance(answer, hi.StructuredAnswer)
+        self.assertNotIn("Traceback", answer.answer)
+        self.assertNotIn("RuntimeError", answer.answer)
+        self.assertNotIn("simulated Gemini outage", answer.answer)
+        # Grounded in this case's real objective measurements, not the bare
+        # pre-fix "couldn't verify a reliable answer" non-answer.
+        self.assertIn("noticed", answer.answer.lower())
+        self.assertNotIn("I couldn't verify a reliable answer", answer.answer)
+
+
+# ---------------------------------------------------------------------------
 # Part 3 -- accurate answer_provider / judge_mode provenance.
 # ---------------------------------------------------------------------------
 

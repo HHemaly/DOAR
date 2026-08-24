@@ -24,10 +24,15 @@ sys.path.insert(0, str(ROOT / "src"))
 CASES_DIR = ROOT / "outputs" / "prototype_cases"
 
 # Keep in sync with SUPERVISOR_DEMO_CASES in doar_prototype_app.py.
+# Re-audited (DOAR-TRACE Ask DOAR / rule-display fix session): a103 was
+# dropped -- its VALIDATED semantic findings did not correspond to what the
+# image actually shows, and zero governed rules matched it. See
+# SUPERVISOR_DEMO_CASES's own comment in doar_prototype_app.py for the full
+# reasoning.
 DEMO_CASES = [
-    ("Case 1", "a103_1787479142"),
-    ("Case 2", "a111_1787479358"),
-    ("Case 3", "h38_1786305027"),
+    ("Case 1", "h38_1786305027"),
+    ("Case 2", "e2e_check_1786239075"),
+    ("Case 3", "a111_1787479358"),
 ]
 
 

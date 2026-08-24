@@ -409,9 +409,27 @@ _VISUAL_QUESTION_MARKERS = (
     "in the drawing", "in the picture", "does the drawing show", "does the drawing have",
 )
 _CASE_MARKERS = (
-    "why did you", "why do you", "why does doar", "is my child", "is the child",
+    "why did you", "why do you", "why does doar", "why did doar", "is my child", "is the child",
     "does this drawing", "does the drawing suggest", "in this drawing", "this case",
     "overall", "convergence", "hypothesis", "what did you find", "what does this mean",
+    # Added for the Home/Drawing Analysis "Ask DOAR" suggestion chips and the
+    # DOAR-TRACE Ask DOAR fix questions -- these are all case-factual questions
+    # answerable from THIS case's own saved evidence, but none of the original
+    # markers above happened to match their exact phrasing, so they were
+    # silently misrouted to the "general"/external-research path (which has no
+    # access to this case's observations) -- see human_interaction.py's
+    # _answer_case_question for the grounded, deterministic answers this now
+    # routes to.
+    "what did doar notice", "what did doar observe", "what did doar see",
+    "does not notice", "did doar notice",
+    "doar reach", "doar's conclusion", "current conclusion", "reach its conclusion",
+    "which rule", "which governed rule", "rules actually", "rules applied", "rules matched",
+    "what rules", "governed evidence",
+    "cannot conclude", "can doar not conclude", "not conclude", "cannot currently conclude",
+    "evidence supports", "supports this interpretation",
+    "which observations", "observations were verified", "observations were uncertain",
+    "observations were rejected",
+    "what might a psychologist", "psychologist ask next",
 )
 _CONCERN_KEYWORDS = (
     "stress", "anxi", "worry", "depress", "low mood", "sad", "aggress", "anger", "angry",
@@ -482,10 +500,156 @@ def _chains_for_domain(chains: list[dict], domain: str) -> list[dict]:
     return [c for c in chains if c["concern_domain"] == domain]
 
 
+# "What did DOAR notice?" and its paraphrases must be answerable purely from
+# this case's own verified/uncertain observations and objective measurements
+# -- NOT from the literature-linked-rule synthesis text, which says nothing
+# useful when zero rules matched (a correct, common outcome, not an error).
+_NOTICE_MARKERS = ("notice", "observe", "did doar see", "did you see", "what did doar find")
+# "Which governed rules actually matched this drawing?" must answer from the
+# SAME matched-rule chains (build_evidence_chains -- already matched-only,
+# already governance-filtered) Section 4 of the main UI uses, with the exact
+# required wording when none matched -- never a generic literature summary.
+_RULES_MATCHED_MARKERS = ("which rule", "which governed rule", "rules actually", "rules applied",
+                           "rules matched", "what rules")
+# "What can DOAR not conclude from this drawing?" must clearly explain limits
+# -- built from this case's own missing_information/unmatched-observation
+# data, never a generic non-answer.
+_NOT_CONCLUDE_MARKERS = ("not conclude", "cannot conclude", "can doar not conclude")
+# "Which observations were verified/uncertain/rejected?" -- answered from
+# the same observation_bullets() grouping Section 2 of the main UI uses.
+_OBSERVATIONS_STATUS_MARKERS = ("which observations", "observations were verified",
+                                 "observations were uncertain", "observations were rejected")
+# "What might a psychologist ask next?" -- answered from
+# case_specific_questions(), an existing helper built for exactly this.
+_NEXT_QUESTIONS_MARKERS = ("psychologist ask", "what might a psychologist", "ask next")
+
+
+def _answer_notice_question(bundle: dict) -> dict:
+    """Grounded ONLY in this case's own observation_bullets (verified/
+    possible entities) and _compact_objective_feature_summary (objective
+    measurements) -- both already-computed, already-used-elsewhere helpers.
+    Deliberately says nothing about rule matches/psychological meaning: a
+    'what did DOAR notice' question is about observation, not synthesis."""
+    bullets = observation_bullets(bundle)
+    feats = _compact_objective_feature_summary(bundle)
+    parts = ["Here is what DOAR noticed in this drawing:"]
+    if bullets["confirmed"]:
+        parts.append("DOAR confirmed the following in this drawing: " + "; ".join(bullets["confirmed"]) + ".")
+    if bullets["possible"]:
+        parts.append("It also noticed, but could not confirm: " + "; ".join(bullets["possible"]) + ".")
+    measurement_bits = []
+    if feats.get("dominant_colour"):
+        measurement_bits.append(f"the dominant colour is {feats['dominant_colour']}")
+    if feats.get("composition_bounding_box_coverage") is not None:
+        measurement_bits.append(f"the drawn content covers about {feats['composition_bounding_box_coverage']:.0%} of the page")
+    if feats.get("line_intensity_proxy") is not None:
+        measurement_bits.append(f"line intensity measured at {feats['line_intensity_proxy']}")
+    if feats.get("line_fragmentation_proxy") is not None:
+        measurement_bits.append(f"line fragmentation measured at {feats['line_fragmentation_proxy']}")
+    if measurement_bits:
+        parts.append("Objective measurements: " + ", ".join(measurement_bits) + ".")
+    if len(parts) == 1:
+        parts.append("DOAR did not confirm any specific object or objective measurement for this drawing.")
+    return {"answer": " ".join(parts), "category": "case", "chains": [],
+            "evidence_ids": [], "rule_ids": [], "source_ids": [],
+            "used_external_research": False, "used_visual_recheck": False}
+
+
+def _answer_rules_matched_question(bundle: dict) -> dict:
+    """Uses build_evidence_chains -- the SAME matched-only, governance-
+    filtered rule list the main UI's 'MATCHED GOVERNED EVIDENCE' section
+    (doar_prototype_app.py) is built from -- never a separate/looser rule
+    list, so Ask DOAR can never report an unmatched rule as evidence."""
+    chains = build_evidence_chains(bundle)
+    if not chains:
+        answer = "No currently enabled governed rules matched this drawing."
+    else:
+        names = sorted({c["rule_display_name"] for c in chains})
+        answer = ("The governed rules that actually matched and applied to this drawing are: "
+                   + "; ".join(names) + ".")
+    return {
+        "answer": answer, "category": "case", "chains": chains,
+        "evidence_ids": sorted({eid for c in chains for eid in c["matched_entity_ids"]}),
+        "rule_ids": sorted({c["rule_id"] for c in chains}), "source_ids": sorted({c["rule_id"] for c in chains}),
+        "used_external_research": False, "used_visual_recheck": False,
+    }
+
+
+def _answer_not_conclude_question(bundle: dict) -> dict:
+    """Grounded in interp.missing_information (the same list Section 6's
+    'What remains uncertain' already shows) plus observations that have no
+    approved rule attached -- never a generic disclaimer alone."""
+    interp = ci.build_case_interpretation(bundle)
+    parts = ["DOAR does not provide a clinical diagnosis from this drawing -- these findings support "
+             "professional review and do not replace it."]
+    if interp.missing_information:
+        # Joined as separate sentences (". ", each forced to end with its own
+        # period) rather than "; " -- these are long, independently-sourced
+        # descriptor strings; run them together on one "sentence" and an
+        # unrelated pair (a hedge word from one item, an entity label from
+        # another) can trip _narrator_upgrades_uncertain_evidence's per-
+        # sentence certainty-language scan on a false cross-item match.
+        items = [m.rstrip(".") + "." for m in interp.missing_information[:5]]
+        parts.append("Specifically, it cannot currently assess the following: " + " ".join(items))
+    unmatched = grouped_unmatched_observation_labels(bundle)
+    if unmatched:
+        parts.append("It also has no approved psychological interpretation for: " + ", ".join(unmatched) + ".")
+    return {"answer": " ".join(parts), "category": "case", "chains": [],
+            "evidence_ids": [], "rule_ids": [], "source_ids": [],
+            "used_external_research": False, "used_visual_recheck": False}
+
+
+def _answer_observations_status_question(bundle: dict) -> dict:
+    """Grounded in observation_bullets() -- the SAME confirmed/possible/
+    not_confirmed grouping Section 2 ("What DOAR observed") of the main UI
+    is built from."""
+    bullets = observation_bullets(bundle)
+    # Deliberately says "verified"/"observations" (not "verification") in the
+    # lead sentence -- "verification" contains "cat" as a substring
+    # ("verifi-CAT-ion"), which previously produced a false positive from
+    # _narrator_upgrades_uncertain_evidence's per-sentence label scan on any
+    # case whose uncertain/rejected entities happen to include "cat".
+    parts = ["Here is which observations were verified for this drawing:"]
+    parts.append("Verified: " + ("; ".join(bullets["confirmed"]) if bullets["confirmed"] else "none.") +
+                  ("" if not bullets["confirmed"] else "."))
+    parts.append("Uncertain or rejected: " +
+                  (", ".join(bullets["not_confirmed_labels"]) if bullets["not_confirmed_labels"] else "none.") +
+                  ("" if not bullets["not_confirmed_labels"] else "."))
+    return {"answer": " ".join(parts), "category": "case", "chains": [],
+            "evidence_ids": [], "rule_ids": [], "source_ids": [],
+            "used_external_research": False, "used_visual_recheck": False}
+
+
+def _answer_next_questions_question(bundle: dict) -> dict:
+    """Uses case_specific_questions() -- an existing helper already built
+    for exactly this purpose (non-leading conversation starters grounded
+    only in this drawing's own noticed content)."""
+    suggestions = case_specific_questions(bundle)
+    answer = ("A psychologist reviewing this drawing might ask next: " + " ".join(suggestions)
+              if suggestions else
+              "DOAR does not have enough case-specific content to suggest a specific next question for this drawing.")
+    return {"answer": answer, "category": "case", "chains": [],
+            "evidence_ids": [], "rule_ids": [], "source_ids": [],
+            "used_external_research": False, "used_visual_recheck": False}
+
+
 def _answer_case_question(question: str, bundle: dict) -> dict:
     synthesis = bundle["synthesis"]
     overall = synthesis.overall_synthesis
     chains = build_evidence_chains(bundle)
+    q = (question or "").casefold()
+
+    if any(m in q for m in _RULES_MATCHED_MARKERS):
+        return _answer_rules_matched_question(bundle)
+    if any(m in q for m in _NOT_CONCLUDE_MARKERS):
+        return _answer_not_conclude_question(bundle)
+    if any(m in q for m in _NOTICE_MARKERS):
+        return _answer_notice_question(bundle)
+    if any(m in q for m in _OBSERVATIONS_STATUS_MARKERS):
+        return _answer_observations_status_question(bundle)
+    if any(m in q for m in _NEXT_QUESTIONS_MARKERS):
+        return _answer_next_questions_question(bundle)
+
     condition_kw = _extract_condition_keyword(question)
 
     if condition_kw:
@@ -509,9 +673,15 @@ def _answer_case_question(question: str, bundle: dict) -> dict:
         relevant_chains = domain_chains
     else:
         # "why did you mention X" without a recognized condition keyword,
-        # or a general "what did you find" case question -- summarize
-        # using the already-computed overall synthesis.
-        answer = overall["summary"]
+        # or a general "what did you find"/"why did DOAR reach its
+        # conclusion" case question -- summarize using the already-computed
+        # overall synthesis. The short "DOAR's synthesis..." lead-in is
+        # presentation only (overall["summary"]'s own wording is untouched
+        # after the colon) -- it exists so _answers_the_question's coarse
+        # question-word-overlap relevance check reliably recognizes this as
+        # addressing a "...DOAR..." question regardless of how that
+        # particular case's synthesis sentence happens to be phrased.
+        answer = "DOAR's synthesis for this drawing: " + overall["summary"]
         relevant_chains = chains
 
     return {

@@ -154,5 +154,78 @@ class SupervisorDemoSmokeTests(unittest.TestCase):
         self.assertTrue(len(chat_markdown) > 0)
 
 
+@unittest.skipUnless(_STREAMLIT_TESTING_AVAILABLE, "streamlit.testing.v1.AppTest not available")
+class RuleDisplayFixTests(unittest.TestCase):
+    """Targeted regression tests for the P0 rule-display fix (Section 4,
+    "MATCHED GOVERNED EVIDENCE"): an evaluated-but-unmatched rule must
+    never render as if it were supporting evidence, the summary counter
+    must count matches only, and the empty state must use the exact
+    required wording. case1 (h38) and case2 (e2e_check) each have >=1
+    real matched rule; case3 (a111) has zero -- both real outcomes are
+    exercised against the live case bundles, not synthetic fixtures."""
+
+    def setUp(self):
+        self._old_key = os.environ.pop("GEMINI_API_KEY", None)
+        self.addCleanup(self._restore_key)
+
+    def _restore_key(self):
+        if self._old_key is not None:
+            os.environ["GEMINI_API_KEY"] = self._old_key
+
+    def _open_case(self, case_key: str):
+        at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
+        at.session_state["supervisor_active_case"] = case_key
+        at.session_state["supervisor_section"] = "Drawing Analysis"
+        at.run(timeout=120)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        return at
+
+    def test_a_unmatched_rule_not_rendered_in_main_matched_evidence_section(self):
+        """case1 (h38) has both a matched rule (light line pressure) AND at
+        least one evaluated-but-not-matched rule (heavy line pressure /
+        shaky-broken lines, mutually exclusive with the match) in its real
+        saved analysis.json -- confirm the NOT-MATCHED ones never render as
+        a badge/card anywhere on the Drawing Analysis page."""
+        at = self._open_case("case1")
+        page_text = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
+        self.assertNotIn("NOT MATCHED", page_text)
+        self.assertNotIn("غير مطابق", page_text)
+
+    def test_b_matched_rule_counter_equals_real_matched_count(self):
+        """case1 (h38) has exactly 1 real weak_support rule
+        (EN_COMPILED_LINE_LIGHT_PRESSURE_031) in outputs/prototype_cases/
+        h38_1786305027/analysis.json; case2 (e2e_check) has exactly 2."""
+        at1 = self._open_case("case1")
+        summary1 = " ".join(m.value for m in at1.markdown if "Matched governed rules" in m.value)
+        self.assertIn("Matched governed rules: 1", summary1)
+
+        at2 = self._open_case("case2")
+        summary2 = " ".join(m.value for m in at2.markdown if "Matched governed rules" in m.value)
+        self.assertIn("Matched governed rules: 2", summary2)
+
+    def test_c_no_match_shows_exact_required_message(self):
+        """case3 (a111) has zero weak_support rows in its real saved
+        analysis.json -- the main UI must show the exact required
+        sentence, never a silently empty section."""
+        at = self._open_case("case3")
+        summary = " ".join(m.value for m in at.markdown if "Matched governed rules" in m.value)
+        self.assertIn("Matched governed rules: 0", summary)
+        info_text = " ".join(i.value for i in at.info)
+        self.assertIn("No currently enabled governed rules matched this drawing.", info_text)
+
+    def test_d_ask_doar_answers_what_did_doar_notice_from_case_evidence(self):
+        """Grounded-fallback path, exercised deterministically (no
+        GEMINI_API_KEY in this process) -- must cite this case's own real
+        objective measurements, never the old generic non-answer."""
+        at = self._open_case("case1")
+        at.text_input(key="sd_case1_chat_q").input("What did DOAR notice?")
+        at.button(key="sd_case1_chat_send").click()
+        at.run(timeout=90)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        answer = " ".join(m.value for m in at.markdown if m.value.startswith("**Answer"))
+        self.assertNotIn("I couldn't verify a reliable answer", answer)
+        self.assertIn("noticed", answer.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
