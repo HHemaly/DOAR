@@ -39,22 +39,34 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from doar import human_interaction as hi  # noqa: E402
+from doar import case_interpretation as ci  # noqa: E402
+from doar import case_presentation as cpres  # noqa: E402
+from doar import formal_features as ff  # noqa: E402
+from doar.formal_feature_review import (  # noqa: E402
+    CLINICALLY_RELEVANT_VALUES, EXPERT_RULE_DECISION_VALUES, EXPERT_SUPPORT_LEVEL_VALUES,
+    OBSERVATION_CORRECT_VALUES, OVERALL_SYNTHESIS_AGREEMENT_VALUES, load_formal_feature_review,
+    submit_formal_feature_review,
+)
 from doar.case_artifacts import resolve_analysis_artifacts, resolve_artifact_path  # noqa: E402
 from doar.case_output import write_versioned  # noqa: E402
-from doar.chat import respond_to_chat  # noqa: E402
 from doar.expert_review import REVIEW_ACTIONS, load_review, submit_review  # noqa: E402
+from doar.live_case_bundle import build_live_case_bundle  # noqa: E402
 from doar.production_config import resolve_production_config  # noqa: E402
 from doar.page_reference import (  # noqa: E402
     PARENT_PAGE_DECLARATION_CHOICES, PARENT_PAGE_DECLARATION_LABELS,
     describe_declaration_choice, user_page_declaration_from_choice,
 )
 from doar.parent_view import (  # noqa: E402
-    build_overall_result_summary, capability_status, capability_status_summary_text,
-    disclaimer, friendly_family_name, friendly_source_name, plain_language_observations,
+    capability_status, disclaimer, plain_language_observations, plain_language_rule_rows,
+    parent_care_suggestions,
 )
 from doar.phase2c7 import detector_policy as _pol  # noqa: E402
 from doar.phase2c7 import runtime as _detector_runtime  # noqa: E402
 from doar.profile import ChildProfile, ALLOWED_AGE_RANGES, load_profile, save_profile  # noqa: E402
+from doar.psychologist_feedback import (  # noqa: E402
+    FEEDBACK_CATEGORIES, FEEDBACK_VERDICTS, export_all_feedback, load_feedback, submit_categorized_feedback,
+)
 from doar.registry_v2_build import build_registry_v2  # noqa: E402
 from doar.timed_analysis import analyze_image_with_timing  # noqa: E402
 from doar.visual_evidence import VisualFinding, build_rule_evidence_trace, run_and_persist_initial_scan  # noqa: E402
@@ -95,6 +107,42 @@ def _load_model_predict_fns() -> dict:
     fns["open_vocab_query"] = _detector_runtime.load_open_vocab_query_fn()
     return fns
 
+@st.cache_resource(show_spinner=False)
+def _load_hi_providers() -> dict:
+    """Milestone 1: resolve the Human Interaction Layer's optional Gemini
+    providers ONCE per server process -- each already degrades to a safe
+    deterministic/disabled default when GEMINI_API_KEY/google-genai is
+    unavailable (doar.human_interaction.resolve_default_*)."""
+    return {
+        "answer_provider": hi.resolve_default_answer_provider(),
+        "judge": hi.resolve_default_judge(),
+        "research_provider": hi.resolve_default_research_provider(),
+        "visual_recheck_provider": hi.resolve_default_visual_recheck_provider(),
+        "visual_consistency_judge": hi.resolve_default_visual_consistency_judge(),
+        "global_observer": hi.resolve_default_global_observer(),
+    }
+
+
+def _detections_cache_token(case_dir_str: str) -> float:
+    """detections.json's own mtime, used as part of the bundle cache key --
+    so a bundle built before deep visual analysis ran is never silently
+    reused (with no entities) after the "Run deep visual analysis" button
+    writes real entities to disk. 0.0 (a stable, cacheable value) when the
+    file does not exist yet."""
+    path = Path(case_dir_str) / "detections.json"
+    return path.stat().st_mtime if path.exists() else 0.0
+
+
+@st.cache_resource(show_spinner=False)
+def _load_live_case_bundle(case_dir_str: str, _detections_token: float) -> dict:
+    """Cached per (case_dir, detections.json mtime) -- synthesize_drawing()
+    is pure/local (no network), but rebuilding it on every Streamlit rerun
+    is wasteful. Keying on the detections mtime (rather than case_dir
+    alone) is what makes the deep-scan button's new entities actually
+    visible without a stale cache hit."""
+    return build_live_case_bundle(case_dir_str)
+
+
 CASES_DIR = ROOT / "outputs" / "prototype_cases"
 
 st.set_page_config(page_title="DOAR prototype - dual view", layout="wide")
@@ -112,26 +160,38 @@ st.warning(
 st.session_state.setdefault("case_dir", "")
 
 with st.sidebar:
-    st.header("New analysis")
-    uploaded = st.file_uploader("Upload a child's drawing", type=["png", "jpg", "jpeg"])
-    st.caption("Optional context (never used by the model or rules -- display only)")
-    age_range = st.selectbox("Age range", ALLOWED_AGE_RANGES, index=len(ALLOWED_AGE_RANGES) - 1)
-    gender = st.text_input("Gender (optional)")
-    instruction = st.text_input("Drawing instruction/prompt given to the child (optional)")
-    concern = st.text_area("Parent's concern or question (optional)")
+    st.session_state.setdefault("language", "en")
+    language = st.radio("Language / اللغة", ["en", "ar"], horizontal=True, key="language")
+    ar_side = language == "ar"
 
-    st.caption("Does this image show the complete sheet of paper?")
+    st.header("تحليل جديد" if ar_side else "New analysis")
+    uploaded = st.file_uploader(
+        "ارفع رسمة الطفل" if ar_side else "Upload a child's drawing", type=["png", "jpg", "jpeg"])
+    st.caption(
+        "سياق اختياري (لا يُستخدم أبداً في النموذج أو القواعد -- للعرض فقط)" if ar_side else
+        "Optional context (never used by the model or rules -- display only)")
+    age_range = st.selectbox(
+        "الفئة العمرية" if ar_side else "Age range", ALLOWED_AGE_RANGES, index=len(ALLOWED_AGE_RANGES) - 1)
+    gender = st.text_input("الجنس (اختياري)" if ar_side else "Gender (optional)")
+    instruction = st.text_input(
+        "تعليمات/طلب الرسم المُعطى للطفل (اختياري)" if ar_side else
+        "Drawing instruction/prompt given to the child (optional)")
+    concern = st.text_area("مخاوف/سؤال الوالد (اختياري)" if ar_side else "Parent's concern or question (optional)")
+
+    st.caption("هل تُظهر هذه الصورة الورقة كاملة؟" if ar_side else "Does this image show the complete sheet of paper?")
     page_choice = st.radio(
         "Page declaration", PARENT_PAGE_DECLARATION_CHOICES,
-        format_func=lambda c: PARENT_PAGE_DECLARATION_LABELS[c]["en"],
+        format_func=lambda c: PARENT_PAGE_DECLARATION_LABELS[c]["ar" if ar_side else "en"],
         index=0, label_visibility="collapsed", key="page_declaration_choice",
     )
     st.caption(
+        "هذا اختياري -- يمكن للنظام أيضاً محاولة تحديد ذلك تلقائياً. تحديد زوايا الصفحة يدوياً غير متاح في هذا "
+        "الإصدار." if ar_side else
         "This is optional -- the system can also try to work this out automatically. Manually marking exact page "
         "corners is not available in this version."
     )
 
-    if st.button("Analyze", type="primary", disabled=uploaded is None):
+    if st.button("تحليل" if ar_side else "Analyze", type="primary", disabled=uploaded is None):
         case_name = f"{Path(uploaded.name).stem}_{int(time.time())}"
         case_dir = CASES_DIR / case_name
         case_dir.mkdir(parents=True, exist_ok=True)
@@ -147,7 +207,13 @@ with st.sidebar:
         # never a different checkpoint silently substituted.
         production_config = resolve_production_config()
         declaration = user_page_declaration_from_choice(page_choice)
-        with st.spinner("Running the real analysis pipeline..."):
+        # Performance fix: Analyze runs ONLY the light/normal DOAR pipeline
+        # (objective features, page reference, rules, expressive model) --
+        # never the heavy Grounding-DINO/OWLv2 open-vocabulary scan, which
+        # `finalize_case` already leaves as an honest {"status":
+        # "unavailable"} stub until a reviewer explicitly requests it from
+        # the Psychologist view's "Run deep visual analysis" button below.
+        with st.spinner("جارٍ تشغيل تحليل DOAR..." if ar_side else "Running the DOAR analysis..."):
             analyze_image_with_timing(str(image_path), str(case_dir), production_config.expressive_model_checkpoint,
                                        user_page_declaration=declaration)
             write_versioned(case_dir / "production_config.json", production_config.to_dict())
@@ -157,30 +223,24 @@ with st.sidebar:
                 date=date.today().isoformat(), parent_concern=concern or None,
             )
             save_profile(case_dir, profile)
-        with st.spinner("Running the automatic visual object scan (first run loads real "
-                         "models and can take a few minutes; cached after that)..."):
-            try:
-                run_and_persist_initial_scan(
-                    case_dir, str(image_path), eye_entry=_load_eye_entry(),
-                    registry_v2=_load_registry_v2(), model_predict_fns=_load_model_predict_fns())
-            except Exception as exc:  # noqa: BLE001 -- surfaced to the user, analysis itself already succeeded
-                st.warning(f"Visual object scan failed ({exc}); the rest of the analysis is unaffected. "
-                           "detections.json remains the honest 'unavailable' stub for this case.")
         st.session_state["case_dir"] = str(case_dir.resolve())
         st.rerun()
 
     st.divider()
     previous = sorted((p.name for p in CASES_DIR.iterdir() if p.is_dir()), reverse=True) if CASES_DIR.exists() else []
     if previous:
-        picked = st.selectbox("Or reopen a previous case", ["(none)"] + previous)
+        picked = st.selectbox("أو أعد فتح حالة سابقة" if ar_side else "Or reopen a previous case",
+                               ["(none)"] + previous)
         if picked != "(none)":
             st.session_state["case_dir"] = str((CASES_DIR / picked).resolve())
 
-case_dir_text = st.sidebar.text_input("Case folder", key="case_dir")
+case_dir_text = st.sidebar.text_input("مجلد الحالة" if ar_side else "Case folder", key="case_dir")
 case_dir = Path(case_dir_text) if case_dir_text else None
 
 if not case_dir or not (case_dir / "analysis.json").exists():
-    st.info("Upload a drawing in the sidebar and click **Analyze**, or select/enter a case folder.")
+    st.info(
+        "ارفع رسمة في الشريط الجانبي واضغط **تحليل**، أو اختر/أدخل مجلد حالة." if language == "ar" else
+        "Upload a drawing in the sidebar and click **Analyze**, or select/enter a case folder.")
     st.stop()
 
 analysis = json.loads((case_dir / "analysis.json").read_text(encoding="utf-8"))
@@ -225,17 +285,110 @@ def artifact(name: str) -> str | None:
     return str(p) if p.exists() else None
 
 
-parent_tab, technical_tab = st.tabs(["Parent / User View", "Technical / Research View"])
+ar = language == "ar"
+
+
+def _rtl_open(is_ar: bool) -> None:
+    st.markdown(f'<div dir="{"rtl" if is_ar else "ltr"}">', unsafe_allow_html=True)
+
+
+def _rtl_close() -> None:
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _build_full_interpretation(bundle: dict, case_dir_str: str) -> ci.CaseInterpretation:
+    """Shared by Parent and Psychologist views -- rebuilds CaseInterpretation
+    (a cheap, deterministic, pure computation) using whatever expensive,
+    session-cached results already exist for this case (the Run Full
+    Analysis button's Gemini global observation, the standalone Visual
+    Consistency Judge audit). Never itself triggers a network call or a
+    model load -- those only happen inside their own explicit button
+    handlers."""
+    full_analysis = st.session_state.get(f"full_analysis_{case_dir_str}")
+    gemini_observation = full_analysis.get("gemini_observation") if full_analysis else None
+    gemini_candidates = (gemini_observation.get("candidate_concern_hypotheses")
+                        if gemini_observation else None)
+    visual_audit = st.session_state.get(f"visual_audit_{case_dir_str}")
+    return ci.build_case_interpretation(
+        bundle, visual_judge_audit=visual_audit,
+        gemini_global_observation=gemini_observation, gemini_concern_candidates=gemini_candidates)
+
+
+def _render_ask_doar(*, audience: str, chat_key: str, widget_prefix: str, is_ar: bool) -> None:
+    """Shared Ask DOAR chat box -- reused, unchanged, by both the Parent
+    and Psychologist views (Milestone 1's human_interaction.answer_question
+    pipeline; only `audience` differs). `chat_key` intentionally keeps the
+    Parent view's original `hi_chat_{case_dir}` key so Technical view's
+    existing provenance table keeps working unchanged; the Psychologist
+    view uses a separate key so the two conversations never mix."""
+    st.subheader("اسأل DOAR" if is_ar else "Ask DOAR")
+    st.caption(
+        "الإجابات مبنية حصراً على أدلة هذه الحالة المحفوظة ومصادر DOAR المعتمدة؛ يتم التحقق منها آلياً قبل عرضها."
+        if is_ar else
+        "Answers are grounded in this case's saved evidence and DOAR's approved sources, and are "
+        "verified before being shown."
+    )
+    st.session_state.setdefault(chat_key, [])
+    question = st.text_input("سؤال عن هذه الحالة" if is_ar else "Ask a question about this case",
+                              key=f"{widget_prefix}_chat_q")
+    if st.button("إرسال" if is_ar else "Send", key=f"{widget_prefix}_chat_send") and question:
+        history = [{"role": turn["role"], "content": turn["content"]} for turn in st.session_state[chat_key]]
+        try:
+            bundle = _load_live_case_bundle(str(case_dir), _detections_cache_token(str(case_dir)))
+            providers = _load_hi_providers()
+            # Performance fix: only pass a real on-demand open-vocab predict_fn
+            # (which would load Grounding DINO/OWLv2 on first use) once deep
+            # visual analysis has actually been run for this case -- otherwise
+            # an ordinary Ask DOAR question must never trigger a multi-minute
+            # model load; answer_question degrades to its existing, safe
+            # "on-demand re-check unavailable" wording when this is None.
+            open_vocab_fn = (_load_model_predict_fns().get("open_vocab_query")
+                              if detections.get("status") == "available" else None)
+            answer = hi.answer_question(
+                question, bundle, audience=audience,
+                open_vocab_predict_fn=open_vocab_fn,
+                visual_recheck_provider=providers["visual_recheck_provider"],
+                external_research_provider=providers["research_provider"],
+                answer_provider=providers["answer_provider"], judge=providers["judge"],
+                conversation_history=history,
+            )
+            answer_text = answer.answer
+            provenance = []
+            if answer.used_visual_recheck:
+                provenance.append("on-demand visual re-check (experimental, not part of the original analysis)")
+            if answer.used_external_research:
+                provenance.append("external research (clearly separate from DOAR's own case evidence)")
+            turn_meta = {"judge_verdict": answer.judge_verdict, "judge_mode": answer.judge_mode,
+                         "answer_provider": answer.answer_provider, "judge_details": answer.judge_details}
+        except Exception as exc:  # noqa: BLE001 -- never leak a raw traceback/key to the user
+            answer_text = ("تعذّر الحصول على إجابة لهذا السؤال الآن." if is_ar else
+                            "Could not get an answer to this question right now.")
+            provenance = []
+            turn_meta = {"judge_verdict": "error", "judge_mode": "n/a", "answer_provider": "n/a", "judge_details": {}}
+            st.error(hi.sanitize_error_text(exc))
+        st.session_state[chat_key].append({"role": "user", "content": question})
+        st.session_state[chat_key].append(
+            {"role": "assistant", "content": answer_text, "provenance": provenance, **turn_meta})
+    for turn in reversed(st.session_state[chat_key]):
+        who = ("أنت" if is_ar else "You") if turn["role"] == "user" else ("الرد" if is_ar else "Answer")
+        st.markdown(f"**{who}:** {turn['content']}")
+        if turn.get("provenance"):
+            st.caption("; ".join(turn["provenance"]))
+    if st.session_state[chat_key]:
+        st.caption(hi.FOOTER_DISCLAIMER)
+
+
+parent_tab, psychologist_tab, technical_tab = st.tabs(
+    ["Parent / User View", "Psychologist / Professional View", "Technical / Research View"])
 
 # ===========================================================================
-# PARENT / USER VIEW  (DOAR-TRACE Phase 2A.2: exactly 5 sections --
-# see docs/PARENT_VIEW_INFORMATION_POLICY.md)
+# PARENT / USER VIEW (Milestone 2: simplified to exactly 8 sections -- no
+# rule IDs, evidence families, thresholds, implementation statuses, raw
+# source details, or research jargon here; that detail lives in the
+# Psychologist and Technical views instead).
 # ===========================================================================
 with parent_tab:
-    language = st.radio("Language / اللغة", ["en", "ar"], horizontal=True, key="parent_lang")
-    ar = language == "ar"
-    direction = "rtl" if ar else "ltr"
-    st.markdown(f'<div dir="{direction}">', unsafe_allow_html=True)
+    _rtl_open(ar)
 
     norm = artifact("normalized_image")
     if norm:
@@ -248,129 +401,618 @@ with parent_tab:
              "(display only, never used by the model or the rules)")
         )
 
-    combined_hyps = (structured or {}).get("combined_drawing_level_hypotheses", [])
-    individual_suggestions = (structured or {}).get("individual_rule_suggestions", [])
-    page_assessable = bool(page_reference.get("page_relative_features_assessable"))
+    _parent_bundle = _load_live_case_bundle(str(case_dir), _detections_cache_token(str(case_dir)))
+    _interp = _build_full_interpretation(_parent_bundle, str(case_dir))
+    _profile = _interp.expressive_profile
+    _notable_domains = sorted(
+        (c for c in _interp.concern_domains if c.support_level in ("WEAK", "MODERATE", "STRONG")),
+        key=lambda c: ("STRONG", "MODERATE", "WEAK").index(c.support_level))
 
-    # 1. Overall result -------------------------------------------------------
-    st.subheader("١. النتيجة الإجمالية" if ar else "1. Overall result")
-    for sentence in build_overall_result_summary(
-            structured, page_reference, language, capabilities=judges.get("module_availability", {})):
-        st.write(sentence)
-    st.caption(disclaimer(language))
-
-    # 2. What was observed ------------------------------------------------------
-    st.subheader("٢. ما تمت ملاحظته" if ar else "2. What was observed")
-    for obs in plain_language_observations(analysis, language, page_reference=page_reference):
-        st.write("- " + obs["text"])
-
-    # 3. Possible meaning ---------------------------------------------------
-    st.subheader("٣. المعنى المحتمل" if ar else "3. Possible meaning")
-    if combined_hyps:
+    # 1. Overall expressive impression (SECTION 1: EXPRESSIVE PROFILE only --
+    # deliberately modest; never DOAR's final answer. See sections 3/6 below
+    # for the actual concern-domain reasoning and conclusion.) --------------
+    st.subheader("الانطباع التعبيري العام" if ar else "Overall expressive impression")
+    if _profile.availability == "available" and _profile.top_emotion:
+        feeling_words = (", ".join(cpres.descriptor_label(d.label, language) for d in _profile.richer_descriptors)
+                          or cpres.emotion_label(_profile.top_emotion, language))
+        st.write(("بشكل أساسي: " if ar else "Mainly: ") + feeling_words)
+        if _profile.base_emotion_probabilities:
+            st.dataframe({("الفئة" if ar else "class"):
+                              [cpres.emotion_label(k, language) for k in _profile.base_emotion_probabilities],
+                          ("النسبة" if ar else "probability"):
+                              [f"{v:.0%}" for v in _profile.base_emotion_probabilities.values()]},
+                         width="stretch", hide_index=True)
         st.caption(
-            "الأنماط التالية نتجت عن تقارب أدلة مستقلة، وتتطلب مراجعة مختص." if ar else
-            "The pattern(s) below came from independent evidence converging together, and need clinician review."
+            "هذا مخرج المصنِّف التعبيري الواسع فقط -- وليس الخلاصة النهائية لتحليل DOAR؛ انظر \"مؤشرات تستحق "
+            "الانتباه\" و\"الخلاصة العامة\" أدناه." if ar else
+            "This is only the broad expressive classifier's output -- not DOAR's final conclusion; see "
+            "\"Concern indicators\" and \"Overall conclusion\" below."
         )
-        for hyp in combined_hyps:
-            title = f"[{hyp['level_label']}] {hyp['display_name_ar'] if ar else hyp['display_name_en']}"
-            with st.expander(title):
-                for text in hyp["supporting_texts"]:
-                    st.write("- " + text)
-                families = ", ".join(sorted({friendly_family_name(f, language) for f in hyp["contributing_evidence_families"]}))
-                st.caption(("عائلات الأدلة المستقلة: " if ar else "Independent evidence areas: ") + families)
-                st.warning(
-                    "فرضية مُجمَّعة من عدة أدلة مستقلة — تتطلب مراجعة مختص، وليست تشخيصاً." if ar else
-                    "A combined hypothesis from multiple independent pieces of evidence -- requires clinician "
-                    "review, and is not a diagnosis."
-                )
     else:
-        st.info("لا توجد أنماط مُجمَّعة لهذه الحالة." if ar else "No combined pattern was found for this case.")
+        st.info("نموذج الشعور العام غير متاح لهذه الحالة." if ar else
+                "No overall-feeling model result is available for this case.")
 
-    if individual_suggestions:
-        st.caption(
-            "كل ملاحظة فردية تُعرض بمفردها فقط، ولا تُعرض أبداً كفرضية مُجمَّعة." if ar else
-            "Each individual observation is shown on its own only -- never as a combined pattern."
-        )
-        for i, suggestion in enumerate(individual_suggestions):
-            family_label = friendly_family_name(suggestion["evidence_family"], language)
-            title = (f"ملاحظة {i + 1}: {family_label}" if ar else f"Observation {i + 1}: {family_label}")
-            with st.expander(title):
-                st.write(suggestion["parent_safe_wording"])
-                source_doc = suggestion["source_citation"].split(",")[0].strip()
-                st.caption(("المصدر: " if ar else "Source: ") + friendly_source_name(source_doc, language))
-                st.caption(("مستوى الدليل كما ورد في المصدر: " if ar else "Evidence level as written in source: ")
-                          + (", ".join(suggestion["evidence_level_as_written"]) if suggestion["evidence_level_as_written"] else "not graded by source"))
-                if suggestion["evidence_family"] in ("line_intensity_quality", "line_fragmentation_quality"):
-                    st.caption(
-                        "هذه ملاحظة عن مظهر الخط المُستخرج من الصورة فقط، وليست قياساً لقوة ضغط القلم الفعلية." if ar else
-                        "This is a line-appearance proxy extracted from the image only -- not a measurement of "
-                        "actual physical pencil pressure."
-                    )
-                for alt in suggestion["alternative_explanations"]:
-                    st.caption(("تفسير بديل: " if ar else "Alternative explanation: ") + alt)
-                if suggestion["limitations"]:
-                    st.caption(("محدودية: " if ar else "Limitation: ") + "; ".join(suggestion["limitations"]))
+    # 2. What DOAR noticed ----------------------------------------------------------
+    st.subheader("ما لاحظه DOAR" if ar else "What DOAR noticed")
+    why_lines = [cpres.descriptor_reason(d.reason, language) for d in _profile.richer_descriptors]
+    why_lines += [o["text"] for o in plain_language_observations(analysis, language, page_reference=page_reference)]
+    for line in why_lines[:6]:
+        st.write("- " + line)
+    if not why_lines:
+        st.caption("لم نلاحظ شيئاً يمكن الإبلاغ عنه في هذه الرسمة." if ar else
+                   "Nothing reportable was noticed in this drawing.")
+
+    # 3. Concern indicators (SECTION 3: real DOAR concern-domain registry --
+    # MODERATE/STRONG prominent, WEAK secondary, NONE/INSUFFICIENT collapsed
+    # into a compact expander; never a raw rule ID here) --------------------
+    st.subheader("مؤشرات تستحق الانتباه" if ar else "Concern indicators")
+    st.caption(
+        "هذه أنماط رصدية من سجل DOAR المعتمد -- وليست تشخيصاً." if ar else
+        "These are observational patterns from DOAR's approved registry -- not a diagnosis."
+    )
+    if _notable_domains:
+        for c in _notable_domains:
+            domain_txt = cpres.domain_label(c.domain, language)
+            level_txt = cpres.support_level_label(c.support_level, language)
+            reason_txt = cpres.concern_domain_reason(c, language)
+            if c.support_level in ("MODERATE", "STRONG"):
+                # MODERATE/STRONG: prominent (multiple independent evidence families).
+                st.warning(f"**{domain_txt} -- {level_txt}**\n\n" + ("السبب: " if ar else "Why: ") + reason_txt)
+            else:
+                # WEAK: visible but secondary/subdued (a single evidence family).
+                st.caption(f"{domain_txt} -- {level_txt}. " + ("السبب: " if ar else "Why: ") + reason_txt)
     else:
-        st.info("لا توجد ملاحظات فردية لهذه الحالة." if ar else "No individual observations for this case.")
+        st.info("لم يصل أي مجال قلق إلى مستوى دعم يستحق الذكر لهذه الحالة." if ar else
+                "No concern domain reached a support level worth mentioning for this case.")
+    _quiet_domains = [c for c in _interp.concern_domains if c.support_level in ("NONE", "INSUFFICIENT")]
+    if _quiet_domains:
+        with st.expander("مجالات أخرى لم تصل إلى مستوى دعم يُذكر" if ar else
+                          "Other domains with no notable support", expanded=False):
+            for c in _quiet_domains:
+                st.caption(f"{cpres.domain_label(c.domain, language)} -- {cpres.support_level_label(c.support_level, language)}")
 
-    contradictions = (structured or {}).get("cross_theme_contradictions", [])
-    if contradictions:
-        st.warning(
-            "تم رصد فرضيات متعارضة ولم يُختر فائز تلقائياً:" if ar else
-            "Conflicting patterns were detected; no automatic winner was chosen:"
-        )
-        for c in contradictions:
-            st.write(f"- {c['construct_a']} ↔ {c['construct_b']}")
+    # 4. Whole-image AI opinion (only shown once Full Analysis/Gemini has run
+    # for this case -- concise, candidate-only, never treated as evidence) --
+    _gobs = _interp.gemini_global_observation
+    if _gobs:
+        st.subheader("رأي الذكاء الاصطناعي الشامل للصورة" if ar else "Whole-image AI opinion")
+        if _gobs.get("overall_scene"):
+            st.write(_gobs["overall_scene"])
+        if _gobs.get("overall_visual_tone"):
+            st.caption(("النبرة العامة: " if ar else "Overall tone: ") + str(_gobs["overall_visual_tone"]))
 
-    # 4. Questions and next steps ---------------------------------------------
-    st.subheader("٤. أسئلة وخطوات تالية" if ar else "4. Questions and next steps")
-    questions = list((structured or {}).get("suggested_parent_questions", []))
+    # 5. Agreement / disagreement -----------------------------------------------------
+    st.subheader("مدى اتفاق الأدلة" if ar else "Agreement / disagreement")
+    if _interp.consistency_status == "CONSISTENT":
+        st.write("تتفق معظم الأدلة." if ar else "Most evidence agrees.")
+    elif _interp.consistency_status in ("MIXED", "CONFLICT"):
+        st.write("بعض الأدلة تشير إلى اتجاهات مختلفة." if ar else "Some evidence points in different directions.")
+    else:
+        st.caption("لا تتوفر أدلة كافية لتقييم مدى الاتفاق." if ar else
+                   "Not enough evidence is available to assess agreement.")
+
+    # 6. Overall conclusion (item K: names the expressive profile, the
+    # notable concern domains with their evidence-family counts, the
+    # Gemini note if available, and conflicts/limitations -- built from
+    # CaseInterpretation's own already-computed fields only) ----------------
+    st.subheader("الخلاصة العامة" if ar else "Overall conclusion")
+    st.write(cpres.synthesis_summary(_interp, language))
+
+    # 7. Questions you can ask --------------------------------------------------------
+    st.subheader("أسئلة يمكنك طرحها" if ar else "Questions you can ask")
+    questions = [cpres.parent_question_label(q, language)
+                 for q in (structured or {}).get("suggested_parent_questions", [])]
     if not questions:
-        questions = ["Can you tell me what is happening in this picture?"] if not ar else \
-            ["هل يمكنك أن تخبرني ماذا يحدث في هذه الصورة؟"]
+        questions = ["هل يمكنك أن تخبرني ماذا يحدث في هذه الصورة؟"] if ar else \
+            ["Can you tell me what is happening in this picture?"]
     for q in questions:
         st.write("- " + q)
+    for item in parent_care_suggestions(language)[:2]:
+        st.write("- " + item)
 
-    # 5. Limitations ------------------------------------------------------------
-    st.subheader("٥. المحدوديات" if ar else "5. Limitations")
-    st.write(capability_status_summary_text(language))
-    if not page_assessable:
+    # 8. Ask DOAR -----------------------------------------------------------------
+    st.divider()
+    _render_ask_doar(audience="parent", chat_key=f"hi_chat_{case_dir}", widget_prefix="parent", is_ar=ar)
+
+    st.divider()
+    _page_assessable = bool(page_reference.get("page_relative_features_assessable"))
+    if not _page_assessable or judges.get("module_availability", {}).get("visual_detection") != "available":
+        not_assessed = []
+        if judges.get("module_availability", {}).get("visual_detection") != "available":
+            not_assessed.append("الأجسام والعناصر البصرية" if ar else "objects and visual elements")
+        if not _page_assessable:
+            not_assessed.append("استخدام الصفحة وموضعها" if ar else "page use and placement")
         st.warning(
-            "تعذّر تأكيد ظهور الورقة كاملة في هذه الصورة، لذلك أُخفيت أي ملاحظات عن موضع الرسمة على الصفحة أو نسبة "
-            "تغطيتها لها -- وهي غير غائبة لأنها لم تُلاحَظ، بل لأنه لا يمكن تقييمها بثقة." if ar else
-            "The complete sheet could not be confirmed as visible in this image, so any observations about the "
-            "drawing's placement on the page or how much of the page it covers are suppressed for this case -- not "
-            "because none were found, but because they cannot be assessed with confidence."
+            (f"تعذّر تقييم بثقة: {', '.join(not_assessed)} -- هذا لا يعني غيابها." if ar
+             else f"Could not be confidently assessed: {', '.join(not_assessed)} -- this does not mean "
+                  f"they are absent.")
         )
-    st.info(disclaimer(language))
-    with st.expander("More details about this result" if not ar else "مزيد من التفاصيل حول هذه النتيجة"):
-        st.caption(
-            "التفاصيل التقنية الكاملة (المعرفات الداخلية، السمات الخام، القواعد الأربعون، سجلات التحقق) متاحة في "
-            "علامة التبويب 'Technical / Research View'." if ar else
-            "The full technical detail (internal IDs, raw features, all 41 rules, verification records) is "
-            "available in the 'Technical / Research View' tab."
+    st.caption(disclaimer(language))
+
+    _rtl_close()
+
+# ===========================================================================
+# PSYCHOLOGIST / PROFESSIONAL VIEW (Milestone 2, new): everything a
+# reviewing professional needs -- original drawing, objective observations,
+# evidence by verification status, rules considered, supporting evidence,
+# sources/evidence strength, combined interpretation, alternative
+# explanations, limitations/contradictions, the expressive-model result on
+# its own, all Judge results (deterministic + Gemini answer-Judge +
+# AUDIT-ONLY Visual Consistency Judge), and a feedback form persisted for
+# thesis-level analysis.
+# ===========================================================================
+with psychologist_tab:
+    _rtl_open(ar)
+
+    st.subheader("الرسمة الأصلية" if ar else "Original drawing")
+    norm = artifact("normalized_image")
+    if norm:
+        st.image(norm, width=360)
+
+    if detections.get("status") != "available":
+        st.warning(
+            "لم يُشغَّل بعد المسح البصري العميق لهذه الحالة -- هذا لا يعني عدم وجود أجسام، بل أنه لم يُطلَب بعد." if ar
+            else "Deep visual analysis has not been run yet for this case -- this does not mean no objects "
+                 "are present, only that it has not been requested yet."
         )
 
     st.divider()
-    st.subheader("محادثة متابعة" if ar else "Follow-up chat")
+    st.markdown("### " + ("تشغيل التحليل الكامل" if ar else "Run Full Analysis"))
     st.caption(
-        "الإجابات مبنية حصراً على أدلة هذه الحالة المحفوظة، بدون نموذج لغوي أو اتصال بالإنترنت." if ar else
-        "Answers are grounded strictly in this case's saved evidence -- no LLM, no network call."
+        "يُشغّل الفحص الدلالي العميق (إن لم يكن متاحاً بعد) ورأي Gemini الشامل للصورة، ثم يُعيد بناء التفسير "
+        "الكامل -- عند الطلب فقط، أبداً تلقائياً." if ar else
+        "Runs the deep semantic/object scan (if not already available) and Gemini's whole-image opinion, then "
+        "rebuilds the full interpretation -- on request only, never automatically."
     )
-    st.session_state.setdefault(f"chat_{case_dir}", [])
-    question = st.text_input("سؤال عن هذه الحالة" if ar else "Ask a question about this case", key="parent_chat_q")
-    if st.button("إرسال" if ar else "Send", key="parent_chat_send") and question:
-        response = respond_to_chat(
-            case_dir, question, language, registry_v2=_load_registry_v2(),
-            open_vocab_predict_fn=_load_model_predict_fns().get("open_vocab_query"))
-        st.session_state[f"chat_{case_dir}"].append((question, response))
-    for q, r in reversed(st.session_state[f"chat_{case_dir}"]):
-        st.markdown(f"**{'أنت' if ar else 'You'}:** {q}")
-        st.markdown(f"**{'الرد' if ar else 'Answer'}:** {r.answer}")
-        if r.non_diagnostic_warning:
-            st.caption(r.non_diagnostic_warning)
+    full_analysis_key = f"full_analysis_{case_dir}"
+    if st.button("تشغيل التحليل الكامل" if ar else "Run Full Analysis", key="run_full_analysis", type="primary"):
+        image_path = case_dir / Path(analysis["image_path"]).name
+        with st.status(
+                "جارٍ تحليل الرسمة الكاملة..." if ar else "Analyzing whole drawing...",
+                expanded=True) as full_status:
+            try:
+                providers_hi = _load_hi_providers()
+                if detections.get("status") != "available":
+                    full_status.update(label="جارٍ اكتشاف العناصر البصرية..." if ar else "Detecting visual elements...")
+                    run_and_persist_initial_scan(
+                        case_dir, str(image_path), eye_entry=_load_eye_entry(),
+                        registry_v2=_load_registry_v2(), model_predict_fns=_load_model_predict_fns())
 
-    st.markdown("</div>", unsafe_allow_html=True)
+                full_status.update(label="جارٍ فحص العلاقات..." if ar else "Examining relationships...")
+                fresh_bundle = build_live_case_bundle(case_dir)
+
+                full_status.update(
+                    label="جارٍ بناء التفسير الدلالي..." if ar else "Building semantic interpretation...")
+                full_status.update(
+                    label="جارٍ التحقق من أدلة القواعد النفسية..." if ar else "Checking psychological rule evidence...")
+
+                gemini_result = hi.run_gemini_global_observation(fresh_bundle, observer=providers_hi["global_observer"])
+                full_status.update(label="جارٍ التحقق من اقتراحات Gemini..." if ar else "Checking Gemini suggestions...")
+
+                full_status.update(label="جارٍ مقارنة الأدلة..." if ar else "Comparing evidence...")
+                full_status.update(
+                    label="جارٍ بناء التفسير النهائي..." if ar else "Building final interpretation...")
+                st.session_state[full_analysis_key] = {
+                    "gemini_status": gemini_result["status"], "gemini_reason": gemini_result.get("reason"),
+                    "gemini_observation": gemini_result.get("observation"),
+                }
+                full_status.update(label="اكتمل." if ar else "Complete.", state="complete", expanded=False)
+            except Exception as exc:  # noqa: BLE001 -- surfaced to the user, prior results are unaffected
+                full_status.update(
+                    label=("فشل التحليل الكامل." if ar else "Full Analysis failed."), state="error")
+                st.error(f"Full Analysis failed ({exc}); previously available results are unaffected.")
+        st.rerun()
+    _full_analysis_result = st.session_state.get(full_analysis_key)
+    if _full_analysis_result and _full_analysis_result["gemini_status"] != "ok":
+        # Item F: never silently omit the whole-image AI opinion -- always
+        # show a clear, non-technical sentence that it did not run this
+        # time, plus the technical reason as a secondary detail.
+        st.warning(
+            "رأي الذكاء الاصطناعي الشامل للصورة غير متاح لهذا التشغيل." if ar else
+            "Whole-image AI opinion unavailable for this run."
+        )
+        st.caption(f"{_full_analysis_result['gemini_status']}: {_full_analysis_result.get('gemini_reason')}")
+
+    st.markdown("**" + ("التحليل البصري العميق (Grounding-DINO / OWLv2)" if ar
+                         else "Deep visual analysis (Grounding-DINO / OWLv2)") + "**")
+    st.caption(
+        "هذا يُشغِّل نماذج الرؤية الثقيلة مفتوحة المفردات -- عند الطلب فقط، أبداً تلقائياً عند التحليل العادي "
+        "أو تبديل التبويبات/اللغة." if ar else
+        "This runs the heavy open-vocabulary vision models -- on request only, never automatically "
+        "during ordinary analysis or when switching tabs/language."
+    )
+    deep_scan_label = (
+        ("إعادة تشغيل التحليل البصري العميق" if ar else "Re-run deep visual analysis")
+        if detections.get("status") == "available" else
+        ("تشغيل التحليل البصري العميق" if ar else "Run deep visual analysis")
+    )
+    if st.button(deep_scan_label, key="run_deep_visual_analysis"):
+        image_path = case_dir / Path(analysis["image_path"]).name
+        with st.status(
+                "جارٍ تحميل نماذج الرؤية..." if ar else "Loading visual models...",
+                expanded=True) as deep_scan_status:
+            try:
+                model_predict_fns = _load_model_predict_fns()
+                deep_scan_status.update(label="جارٍ فحص الرسمة..." if ar else "Scanning drawing...")
+                eye_entry = _load_eye_entry()
+                registry_v2 = _load_registry_v2()
+                deep_scan_status.update(
+                    label="جارٍ بناء الأدلة البصرية..." if ar else "Building visual evidence...")
+                run_and_persist_initial_scan(
+                    case_dir, str(image_path), eye_entry=eye_entry,
+                    registry_v2=registry_v2, model_predict_fns=model_predict_fns)
+                deep_scan_status.update(
+                    label="اكتمل." if ar else "Complete.", state="complete", expanded=False)
+            except Exception as exc:  # noqa: BLE001 -- surfaced to the user, light analysis is unaffected
+                deep_scan_status.update(
+                    label=("فشل التحليل البصري العميق." if ar else "Deep visual analysis failed."),
+                    state="error")
+                st.error(f"Deep visual analysis failed ({exc}); the rest of the analysis is unaffected. "
+                         "detections.json remains the honest 'unavailable' stub for this case.")
+        st.rerun()
+
+    # Phase G0: OBJECTIVE_ONLY formal/graphic-element measurements
+    # (line geometry, stroke texture, colour/fill, symmetry/regularity --
+    # see src/doar/formal_features.py). Deterministic CV only, no model
+    # weights -- cheap, but still gated behind an explicit button (never
+    # computed during ordinary Analyze) since it is a NEW, separate,
+    # research-only artifact, not yet part of any Parent/Psychologist
+    # conclusion. Its output can NEVER affect concern-domain support --
+    # see tests/test_formal_features_no_concern_score_effect.py.
+    st.markdown("**" + ("قياسات شكلية/بيانية (بحثية، وصفية فقط)" if ar
+                         else "Formal/graphic measurements (research, OBJECTIVE_ONLY)") + "**")
+    st.caption(
+        "قياسات حاسوبية حتمية (سُمك الخط، الاتجاه، التماثل، الانتظام...) -- وصفية فقط، ولا يمكنها أبداً "
+        "تغيير درجة دعم أي مجال قلق." if ar else
+        "Deterministic computer-vision measurements (line width, orientation, symmetry, regularity...) -- "
+        "descriptive only, and can never change any concern domain's support level."
+    )
+    formal_features_key = f"formal_features_{case_dir}"
+    if st.button("حساب القياسات الشكلية/البيانية" if ar else "Compute formal/graphic measurements",
+                 key="run_formal_features"):
+        try:
+            image_path = case_dir / Path(analysis["image_path"]).name
+            resolved_analysis = resolve_analysis_artifacts(analysis, case_dir)
+            doc = ff.run_and_persist_formal_features(case_dir, image_path, resolved_analysis)
+            overlay = ff.render_formal_feature_overlay(str(image_path), resolved_analysis)
+            st.session_state[formal_features_key] = {"document": doc, "overlay": overlay}
+        except Exception as exc:  # noqa: BLE001 -- surfaced to the user, rest of analysis unaffected
+            st.error(f"Formal/graphic measurement failed ({exc}); the rest of the analysis is unaffected.")
+    _formal_result = st.session_state.get(formal_features_key)
+    if _formal_result:
+        st.image(_formal_result["overlay"], width=320,
+                  caption=("أخضر = مقاطع خط مستقيمة مكتشفة؛ أحمر = نقاط تقاطع/زوايا (تفسير \"الاستقامة\" و\"كثافة "
+                           "التقاطع\")" if ar else
+                           "Green = detected near-straight segments; red = corner/crossing points (explains "
+                           "\"straightness\"/\"crossing density\")"))
+        with st.expander("كل القياسات (خام)" if ar else "All measurements (raw)", expanded=False):
+            st.dataframe([
+                {"feature_id": name, "value": round(v["value"], 4), "missing": v["missing"],
+                 "confidence": v["confidence"]}
+                for name, v in _formal_result["document"]["features"].items()
+            ], width="stretch", hide_index=True)
+        with st.expander("مراجعة خبير لقياس واحد (بحثي، لا يُفعّل تلقائياً)" if ar
+                          else "Expert review of one measurement (research, never auto-activated)", expanded=False):
+            with st.form("formal_feature_review_form"):
+                ff_reviewer = st.text_input("اسم المراجع" if ar else "Reviewer name", key="ff_reviewer_name")
+                ff_feature_id = st.selectbox("المعرّف" if ar else "Feature", list(_formal_result["document"]["features"]))
+                ff_obs_correct = st.radio("هل الملاحظة صحيحة؟" if ar else "Is the observation correct?",
+                                          OBSERVATION_CORRECT_VALUES, horizontal=True, key="ff_obs_correct")
+                ff_relevant = st.radio("هل هي ذات صلة سريرية؟" if ar else "Clinically relevant?",
+                                       CLINICALLY_RELEVANT_VALUES, horizontal=True, key="ff_relevant")
+                ff_support = st.radio("مستوى الدعم من وجهة نظر الخبير" if ar else "Expert support level",
+                                      EXPERT_SUPPORT_LEVEL_VALUES, horizontal=True, key="ff_support")
+                ff_decision = st.radio("القرار المقترح للقاعدة" if ar else "Suggested rule decision",
+                                       EXPERT_RULE_DECISION_VALUES, horizontal=True, key="ff_decision")
+                ff_agreement = st.radio("الاتفاق مع التوليف العام" if ar else "Agreement with overall synthesis",
+                                        OVERALL_SYNTHESIS_AGREEMENT_VALUES, horizontal=True, key="ff_agreement")
+                ff_notes = st.text_area("ملاحظات" if ar else "Notes", key="ff_notes")
+                if st.form_submit_button("إرسال المراجعة" if ar else "Submit review"):
+                    if not ff_reviewer.strip():
+                        st.error("اسم المراجع مطلوب." if ar else "Reviewer name is required.")
+                    else:
+                        submit_formal_feature_review(
+                            case_dir, reviewer_name=ff_reviewer.strip(), feature_id=ff_feature_id,
+                            observation_correct=ff_obs_correct, clinically_relevant=ff_relevant,
+                            expert_support_level=ff_support, expert_rule_decision=ff_decision,
+                            overall_synthesis_agreement=ff_agreement,
+                            raw_measurement=_formal_result["document"]["features"][ff_feature_id]["value"],
+                            notes=ff_notes.strip() or None)
+                        st.success("تم حفظ المراجعة." if ar else "Review recorded.")
+        existing_ff_reviews = load_formal_feature_review(case_dir).get("entries", [])
+        if existing_ff_reviews:
+            st.caption(("مراجعات سابقة لهذه الحالة: " if ar else "Prior reviews for this case: ")
+                       + str(len(existing_ff_reviews)))
+
+    audit_key = f"visual_audit_{case_dir}"
+    _psych_bundle = _load_live_case_bundle(str(case_dir), _detections_cache_token(str(case_dir)))
+    _psych_interp = _build_full_interpretation(_psych_bundle, str(case_dir))
+    _psych_profile = _psych_interp.expressive_profile
+
+    st.subheader("الملف التعبيري" if ar else "Expressive profile")
+    if _psych_profile.availability == "available" and _psych_profile.base_emotion_probabilities:
+        st.dataframe({("الفئة" if ar else "class"):
+                          [cpres.emotion_label(k, language) for k in _psych_profile.base_emotion_probabilities],
+                      ("النسبة" if ar else "probability"):
+                          [f"{v:.0%}" for v in _psych_profile.base_emotion_probabilities.values()]},
+                     width="stretch", hide_index=True)
+        st.caption(("الفئة الأعلى: " if ar else "Top class: ") + str(_psych_profile.top_emotion)
+                   + (f", {'المعايرة' if ar else 'calibration'}: {_psych_profile.calibration_status}"
+                      if _psych_profile.calibration_status else ""))
+    else:
+        st.info("نموذج المحتوى التعبيري غير متاح لهذه الحالة." if ar else
+                "The expressive-content model is unavailable for this case.")
+        if _psych_profile.unavailable_reason:
+            st.caption(_psych_profile.unavailable_reason)
+
+    st.subheader("الانطباع التعبيري الأغنى" if ar else "Richer expressive impression")
+    if _psych_profile.richer_descriptors:
+        for d in _psych_profile.richer_descriptors:
+            st.write(f"- **{cpres.descriptor_label(d.label, language)}** -- {cpres.descriptor_reason(d.reason, language)}")
+    else:
+        st.caption("لا توجد أوصاف تعبيرية أغنى مدعومة لهذه الحالة." if ar else
+                   "No richer expressive descriptor is supported for this case.")
+
+    st.subheader("ملاحظات بصرية مهمة" if ar else "Important visual observations")
+    if _psych_interp.visual_concepts:
+        for c in _psych_interp.visual_concepts:
+            st.write(f"- {c.human_readable_label.replace('_', ' ')} ({c.status})")
+    else:
+        st.caption("لا توجد ملاحظات بصرية بعد." if ar else "No visual observations yet.")
+
+    st.subheader("العلاقات" if ar else "Relationships")
+    try:
+        from doar.relationship_features import compute_relationship_features
+        _rel = compute_relationship_features(_psych_bundle.get("entities") or [])
+        st.caption(
+            (f"عدد الأشكال المتحقق منها: {_rel['entity_count']}" if ar else
+             f"Verified figures/objects: {_rel['entity_count']}")
+            + (f" -- {', '.join(sorted(_rel['repeated_labels']))} " + ("مكررة" if ar else "repeated")
+               if _rel["repeated_labels"] else "")
+            + (f" -- {len(_rel['spatially_separated_entity_ids'])} "
+               + ("منفصلة مكانياً" if ar else "spatially separated") if _rel["spatially_separated_entity_ids"] else "")
+        )
+    except Exception:
+        st.caption("لا تتوفر بيانات علاقات كافية." if ar else "Not enough data for relationship analysis.")
+
+    st.subheader("الانطباع العام للرسمة (كاملة)" if ar else "Global (whole-drawing) impression")
+    st.caption(
+        "حتمي (تركيب/علاقات) بشكل أساسي، مع ملاحظة Gemini الشاملة (إن وُجدت) مُميَّزة بوضوح أدناه." if ar else
+        "Primarily deterministic (composition/relationships); Gemini's whole-image note (if run) is shown "
+        "clearly separated below."
+    )
+    _global = _psych_interp.global_impression
+    if _global.availability == "available":
+        st.write(_global.overall_scene)
+        st.caption(("النبرة التعبيرية العامة: " if ar else "Overall expressive tone: ") + _global.expressive_tone)
+        for note in _global.contradictions:
+            st.warning(note)
+        st.markdown(f"**{'الاتساق بين الانطباع العام والأدلة المحلية' if ar else 'Global <-> local consistency'}: "
+                    f"{cpres.consistency_label(_psych_interp.global_local_consistency, language)}**")
+    else:
+        st.caption("لا يتوفر انطباع عام كافٍ للرسمة الكاملة بعد." if ar else
+                   "Not enough whole-drawing evidence is available yet for a global impression.")
+
+    if _psych_interp.gemini_global_observation:
+        _gobs = _psych_interp.gemini_global_observation
+        with st.expander(("رأي Gemini الشامل للصورة (مُرشَّح فقط)" if ar else
+                          "Gemini's whole-image opinion (CANDIDATE only)"), expanded=True):
+            st.caption(
+                "توليد فرضيات مُرشَّحة فقط -- لا يُغيّر أبداً درجات دعم مجالات القلق مباشرة." if ar else
+                "Candidate hypothesis generation only -- never directly changes concern-domain support scores."
+            )
+            st.write(_gobs.get("overall_scene"))
+            st.caption(("النبرة: " if ar else "Tone: ") + str(_gobs.get("overall_visual_tone")))
+            if _gobs.get("expressive_descriptors"):
+                st.write(("أوصاف تعبيرية: " if ar else "Expressive descriptors: ")
+                        + ", ".join(_gobs["expressive_descriptors"]))
+            if _gobs.get("salient_relationships"):
+                st.write(("علاقات بارزة: " if ar else "Salient relationships: ")
+                        + "; ".join(_gobs["salient_relationships"]))
+            if _gobs.get("important_visual_observations"):
+                st.write(("ملاحظات بصرية مهمة: " if ar else "Important visual observations: ")
+                        + "; ".join(_gobs["important_visual_observations"]))
+            if _gobs.get("uncertainty"):
+                st.caption(("عدم اليقين: " if ar else "Uncertainty: ") + _gobs["uncertainty"])
+
+    if _psych_interp.gemini_candidates:
+        st.subheader("فرضيات Gemini المُرشَّحة -- بعد التحقق" if ar else "Gemini candidate hypotheses -- verified")
+        st.caption(
+            "كل فرضية من Gemini يتم التحقق منها مقابل أدلة DOAR المحكومة فقط -- لا يمكن لرأي Gemini أن يرفع "
+            "درجة الدعم." if ar else
+            "Every Gemini candidate is checked against DOAR's own governed evidence only -- Gemini's opinion "
+            "can never raise the support score."
+        )
+        for gc in _psych_interp.gemini_candidates:
+            gc_domain_txt = cpres.domain_label(gc.domain, language)
+            gc_status_txt = cpres.verification_status_label(gc.verification_status, language)
+            with st.expander(f"{gc_domain_txt} -- {gc_status_txt}"):
+                st.caption(("اقتراح Gemini: " if ar else "Gemini suggested: ") + gc.gemini_reason)
+                if gc.gemini_observations:
+                    st.write(("ملاحظات Gemini: " if ar else "Gemini's observations: ")
+                            + "; ".join(gc.gemini_observations))
+                if ar and gc.governed_support_level:
+                    st.write("لماذا: أدلة DOAR المحكومة الخاصة بهذا المجال هي "
+                             + cpres.support_level_label(gc.governed_support_level, "ar") + ".")
+                else:
+                    st.write(("لماذا: " if ar else "Why: ") + gc.why)
+
+    st.subheader("تصنيفات مجالات القلق" if ar else "Concern-domain classifications")
+    st.caption(
+        "كل مجال يُعرض بمستوى دعمه الفعلي فقط -- لا يوجد تشخيص، فقط أنماط رصدية." if ar else
+        "Every domain is shown at its real, computed support level only -- observational patterns, never a diagnosis."
+    )
+    _gemini_domains_with_candidates = {gc.domain for gc in _psych_interp.gemini_candidates}
+    st.dataframe([
+        {
+            ("المجال" if ar else "Concern"): cpres.domain_label(c.domain, language),
+            ("الدعم" if ar else "Support"): cpres.support_level_label(c.support_level, language),
+            ("الأسر المستقلة" if ar else "Independent families"):
+                f"{len(c.independent_evidence_families)}/{c.assessable_family_count}",
+            ("حالة الأدلة" if ar else "Evidence status"):
+                ("تعذّر التقييم" if ar else "not assessable") if c.assessable_family_count == 0
+                else ("قابل للتقييم" if ar else "assessable"),
+            ("فرضية Gemini؟" if ar else "Gemini candidate?"):
+                ("نعم" if ar else "Yes") if c.domain in _gemini_domains_with_candidates else ("لا" if ar else "No"),
+        }
+        for c in _psych_interp.concern_domains
+    ], width="stretch", hide_index=True)
+
+    for c in _psych_interp.concern_domains:
+        domain_txt = cpres.domain_label(c.domain, language)
+        level_txt = cpres.support_level_label(c.support_level, language)
+        reason_txt = cpres.concern_domain_reason(c, language)
+        with st.expander(f"{domain_txt} -- {level_txt}"):
+            st.write(("لماذا: " if ar else "Why: ") + reason_txt)
+            if c.support_ratio is not None:
+                st.caption(("نسبة الدعم: " if ar else "Support ratio: ")
+                          + f"{c.support_ratio:.2f} ({len(c.independent_evidence_families)}/{c.assessable_family_count})")
+            if c.independent_evidence_families:
+                st.caption(("الأسر المستقلة الداعمة: " if ar else "Supporting independent families: ")
+                          + ", ".join(cpres.evidence_family_label(f, language) for f in c.independent_evidence_families))
+            if c.supporting_observations:
+                st.markdown("**" + ("الملاحظات الداعمة" if ar else "Supporting observations") + "**")
+                for o in c.supporting_observations:
+                    st.write("- " + cpres.observation_label(o, language))
+            if c.alternative_explanations:
+                st.markdown("**" + ("تفسيرات بديلة" if ar else "Alternative explanations") + "**")
+                for a in c.alternative_explanations:
+                    st.write("- " + a)
+            if c.contradictory_evidence:
+                st.markdown("**" + ("أدلة معارضة" if ar else "Evidence pointing against it") + "**")
+                st.write(f"{len(c.contradictory_evidence)} " + ("مرجع معارض" if ar else "contradicting reference(s)"))
+            if c.missing_expected_evidence:
+                st.caption(("معلومات ناقصة: " if ar else "Missing information: ")
+                          + "; ".join(c.missing_expected_evidence))
+            if c.sources:
+                st.caption(("المصادر: " if ar else "Sources: ")
+                          + "; ".join(s.get("citation_title") or s.get("source_pdf_page_section") or "n/a"
+                                      for s in c.sources))
+
+    st.subheader("الاتساق بين الانفعال والقواعد" if ar else "Emotion <-> rules consistency")
+    st.markdown(f"**{cpres.consistency_label(_psych_interp.consistency_status, language)}**")
+    if _psych_interp.contradictions:
+        for cont in _psych_interp.contradictions:
+            st.write("- " + cont)
+
+    st.subheader("التوليف العام" if ar else "Overall synthesis")
+    st.write(cpres.synthesis_summary(_psych_interp, language))
+    if _psych_interp.missing_information:
+        st.caption(("معلومات مفقودة / عدم يقين: " if ar else "Missing information / uncertainty: ")
+                   + "; ".join(_psych_interp.missing_information))
+
+    with st.expander("الأدلة التقنية" if ar else "Technical evidence", expanded=False):
+        st.markdown("**" + ("القواعد المدروسة (معرفات خام)" if ar else "Rules considered (raw IDs)") + "**")
+        rule_rows = plain_language_rule_rows(analysis["rule_evaluations"], language)
+        st.dataframe([
+            {"rule_id": r["rule_id"], "label": r["label"], "status": r["status"], "message": r["message"],
+             "confidence_ceiling": r["confidence_ceiling"], "matched_evidence_ids": ", ".join(r["evidence_ids"])}
+            for r in rule_rows
+        ], width="stretch")
+        st.markdown("**" + ("بنية CaseInterpretation الكاملة" if ar else "Full CaseInterpretation structure") + "**")
+        st.json(_psych_interp.to_dict())
+
+    st.subheader("نتائج قضاة الذكاء الاصطناعي" if ar else "AI Judge results")
+    st.caption(
+        "قاضي DOAR الحتمي يعمل دائماً أولاً؛ القاضي الدلالي (Gemini) اختياري ولا يمكنه أبداً تجاوز فشل حتمي." if ar
+        else "DOAR's deterministic Judge always runs first; the optional semantic (Gemini) Judge can never "
+             "override a deterministic failure."
+    )
+    hi_chat_log = st.session_state.get(f"hi_chat_{case_dir}", []) + st.session_state.get(f"hi_chat_clinician_{case_dir}", [])
+    assistant_turns = [t for t in hi_chat_log if t["role"] == "assistant"]
+    if assistant_turns:
+        st.dataframe([
+            {"answer": t["content"][:120], "judge_verdict": t.get("judge_verdict"),
+             "judge_mode": t.get("judge_mode"), "answer_provider": t.get("answer_provider")}
+            for t in assistant_turns
+        ], width="stretch")
+    else:
+        st.caption("لا توجد محادثات Ask DOAR بعد في هذه الجلسة." if ar else "No Ask DOAR turns yet this session.")
+
+    st.markdown("**" + ("قاضي الاتساق البصري (تدقيق فقط)" if ar else "Visual Consistency Judge (AUDIT ONLY)") + "**")
+    st.caption(
+        "هذا تدقيق مستقل بواسطة نموذج بصري لغوي (VLM) لا يُغذّي أبداً محرك الأدلة أو القواعد -- تدقيق فقط لمراجعة "
+        "بشرية." if ar else
+        "This is an independent VLM audit -- it NEVER feeds back into the evidence/rule engine. "
+        "Audit only, for human review."
+    )
+    if st.button("تشغيل تدقيق الاتساق البصري" if ar else "Run visual consistency audit", key="run_visual_audit"):
+        providers = _load_hi_providers()
+        bundle = _load_live_case_bundle(str(case_dir), _detections_cache_token(str(case_dir)))
+        st.session_state[audit_key] = hi.run_visual_consistency_audit(
+            bundle, judge=providers["visual_consistency_judge"])
+        st.rerun()
+    audit_result = st.session_state.get(audit_key)
+    if audit_result is None:
+        st.caption("لم يُشغَّل بعد في هذه الجلسة." if ar else "Not yet run this session.")
+    elif audit_result["status"] != "ok":
+        st.info(f"{audit_result['status']}: {audit_result.get('reason')}")
+    else:
+        audit = audit_result["audit"]
+        au_cols = st.columns(4)
+        au_cols[0].markdown("**" + ("مدعومة" if ar else "Supported") + "**")
+        for x in audit["supported_observations"]:
+            au_cols[0].write("- " + x)
+        au_cols[1].markdown("**" + ("مُغفلة محتملة" if ar else "Likely missed") + "**")
+        for x in audit["likely_missed_observations"]:
+            au_cols[1].write("- " + x)
+        au_cols[2].markdown("**" + ("متنازع عليها" if ar else "Disputed") + "**")
+        for x in audit["disputed_observations"]:
+            au_cols[2].write("- " + x)
+        au_cols[3].markdown("**" + ("تعذّر التحقق" if ar else "Unavailable checks") + "**")
+        for x in audit["unavailable_checks"]:
+            au_cols[3].write("- " + x)
+        st.caption(("الاتفاق العام: " if ar else "Overall agreement: ") + audit["overall_agreement"])
+
+    st.divider()
+    _render_ask_doar(audience="clinician", chat_key=f"hi_chat_clinician_{case_dir}",
+                      widget_prefix="clinician", is_ar=ar)
+
+    st.divider()
+    st.subheader("تقييم الأخصائي" if ar else "Psychologist feedback")
+    st.caption(
+        "يُحفظ هذا التقييم لهذه الحالة لأغراض التحليل البحثي (الرسالة الجامعية) -- منفصل تماماً عن مخرجات DOAR "
+        "نفسها." if ar else
+        "This feedback is persisted for this case for research/thesis analysis -- kept entirely separate "
+        "from DOAR's own output."
+    )
+    existing_feedback = load_feedback(case_dir).get("entries", [])
+    if existing_feedback:
+        st.dataframe(existing_feedback, width="stretch")
+    verdict_labels = {"agree": ("أوافق", "Agree"), "partially_agree": ("أوافق جزئياً", "Partially agree"),
+                       "disagree": ("لا أوافق", "Disagree"), "cannot_assess": ("لا يمكن التقييم", "Cannot assess")}
+    category_labels = {
+        "overall_interpretation": ("التفسير العام", "Overall interpretation"),
+        "emotion_interpretation": ("تفسير الانفعال", "Emotion interpretation"),
+        "concern_domain_interpretation": ("تفسير مجالات القلق", "Concern-domain interpretation"),
+        "explanation_usefulness": ("فائدة الشرح", "Explanation usefulness"),
+    }
+    with st.form("psychologist_feedback_form"):
+        fb_name = st.text_input("اسم الأخصائي" if ar else "Reviewer name")
+        fb_ratings = {}
+        for category in FEEDBACK_CATEGORIES:
+            fb_ratings[category] = st.radio(
+                category_labels[category][0] if ar else category_labels[category][1], FEEDBACK_VERDICTS,
+                format_func=lambda v: verdict_labels[v][0] if ar else verdict_labels[v][1],
+                key=f"fb_{category}", horizontal=True)
+        fb_comment = st.text_area("تعليق" if ar else "Comment")
+        if st.form_submit_button("إرسال التقييم" if ar else "Submit feedback"):
+            if not fb_name.strip():
+                st.error("اسم الأخصائي مطلوب." if ar else "Reviewer name is required.")
+            else:
+                submit_categorized_feedback(case_dir, reviewer_name=fb_name.strip(), ratings=fb_ratings,
+                                            comment=fb_comment.strip() or None)
+                st.success("تم حفظ التقييم." if ar else "Feedback recorded.")
+                st.rerun()
+    all_feedback = export_all_feedback(CASES_DIR)
+    if all_feedback:
+        st.download_button(
+            "تنزيل جميع تقييمات الأخصائيين (كل الحالات، JSON)" if ar else
+            "Download all psychologist feedback (all cases, JSON)",
+            json.dumps(all_feedback, ensure_ascii=False, indent=2).encode("utf-8"),
+            file_name="psychologist_feedback_export.json")
+
+    _rtl_close()
 
 # ===========================================================================
 # TECHNICAL / RESEARCH VIEW  (DOAR-TRACE Phase 2A.2, Section 9: organized
@@ -527,7 +1169,8 @@ with technical_tab:
         st.caption("production_config.json not available for this case (analyzed before DOAR V1.1).")
 
     st.header("6. Rule evaluations")
-    st.dataframe(analysis["rule_evaluations"], width="stretch")
+    with st.expander(f"All {len(analysis['rule_evaluations'])} rule evaluations", expanded=False):
+        st.dataframe(analysis["rule_evaluations"], width="stretch")
 
     st.header("7. Combined-pattern calculation")
     if structured:
@@ -562,10 +1205,11 @@ with technical_tab:
         st.info("structured_analysis.json not available for this case (analyzed before this update).")
 
     st.header("8. Evidence and provenance")
-    st.dataframe([
-        {**e, "value": str(e["value"]), "limitations": "; ".join(e.get("limitations", []))}
-        for e in analysis["evidence"]
-    ], width="stretch")
+    with st.expander(f"All {len(analysis['evidence'])} evidence items", expanded=False):
+        st.dataframe([
+            {**e, "value": str(e["value"]), "limitations": "; ".join(e.get("limitations", []))}
+            for e in analysis["evidence"]
+        ], width="stretch")
     st.code(
         f"analysis.schema_version: {analysis['schema_version']}\n"
         f"structured_analysis schema_version: {structured.get('schema_version') if structured else 'n/a'}\n"
@@ -603,18 +1247,43 @@ with technical_tab:
         st.info("generated_claims.json/verification_report.json not available for this case (analyzed before this update).")
     st.subheader("Reliability and safety warnings (deterministic judges.json)")
     st.json(judges)
-    st.subheader("LLM-generated claims, evidence references, and judge results")
-    st.info("No LLM is enabled in this prototype -- see LLM_GROUNDING_AND_SAFETY_DESIGN.md. "
-            "All chat responses below are deterministic evidence lookups (src/doar/qa.py), not generated text.")
-    chat_log = st.session_state.get(f"chat_{case_dir}", [])
-    if chat_log:
-        st.dataframe([
-            {"question": q, "answer": r.answer, "evidence_ids": ", ".join(r.evidence_ids),
-             "availability": r.availability, "escalated": r.escalated}
-            for q, r in chat_log
-        ], width="stretch")
+    st.subheader("Ask DOAR -- provenance and judge results (Human Interaction Layer)")
+    st.info("Ask DOAR is wired to src/doar/human_interaction.py -- deterministic verification always "
+            "runs; the optional Gemini answer/judge providers are used only when GEMINI_API_KEY is set, "
+            "and always degrade to a deterministic fallback on failure. See LLM_GROUNDING_AND_SAFETY_DESIGN.md. "
+            "The fixed response-Judge checklist (evidence grounding, verified/uncertain/rejected fidelity, "
+            "missing-detector-!=-absence, page-assessability gates, rule eligibility, source validity, "
+            "no diagnosis/causal invention, no single-weak-observation escalation, external-research and "
+            "visual-audit separation, alternatives/limitations preserved, question answered) is enforced in "
+            "deterministic_verify()/DeterministicJudge and in GeminiJudge's system prompt.")
+    for label, key in (("Parent chat", f"hi_chat_{case_dir}"), ("Psychologist chat", f"hi_chat_clinician_{case_dir}")):
+        hi_chat_log = st.session_state.get(key, [])
+        assistant_turns = [t for t in hi_chat_log if t["role"] == "assistant"]
+        st.caption(label)
+        if assistant_turns:
+            st.dataframe([
+                {"answer": t["content"], "provenance": "; ".join(t.get("provenance") or []) or "original_saved_evidence",
+                 "judge_verdict": t.get("judge_verdict"), "judge_mode": t.get("judge_mode"),
+                 "answer_provider": t.get("answer_provider")}
+                for t in assistant_turns
+            ], width="stretch")
+            with st.expander(f"Per-turn Judge checklist detail ({label})", expanded=False):
+                st.json([t.get("judge_details", {}) for t in assistant_turns])
+        else:
+            st.caption("No chat turns yet this session.")
+
+    st.subheader("Visual Consistency Judge -- raw audit result (AUDIT ONLY)")
+    st.caption("Never written into detections.json/analysis.json/structured_analysis.json -- session-only, "
+               "never wired into answer_question/deterministic_verify. Triggered manually from the "
+               "Psychologist tab.")
+    audit_result = st.session_state.get(f"visual_audit_{case_dir}")
+    if audit_result is not None:
+        st.json(audit_result)
     else:
-        st.caption("No chat turns yet this session.")
+        st.caption("Not yet run this session.")
+
+    with st.expander("Psychologist feedback -- raw (this case)", expanded=False):
+        st.json(load_feedback(case_dir))
 
     st.header("10. Visual object detections")
     st.subheader("Object detections")
@@ -719,10 +1388,11 @@ with technical_tab:
                        "This is the honest, expected state today: see DOAR_V1_RULE_INTEGRATION_REPORT.md.")
     else:
         st.json(detections)
-        st.caption("detections.json is the honest 'unavailable' stub for this case -- either it was "
-                   "analyzed before the visual scan was wired in, or the scan failed for this case "
-                   "(see the warning shown at analysis time). \"Detector not implemented / scan failed\", "
-                   "not \"no objects found\".")
+        st.caption("detections.json is the honest 'unavailable' stub for this case -- most commonly because "
+                   "deep visual analysis (Grounding-DINO/OWLv2) has not been requested yet via the "
+                   "Psychologist view's 'Run deep visual analysis' button (Analyze itself never runs it "
+                   "automatically, for performance); it can also mean the scan was run and failed. Either "
+                   "way this is \"not run / failed\", never \"no objects found\".")
     cap = capability_status("en")
     cap_cols = st.columns(3)
     with cap_cols[0]:
@@ -805,18 +1475,19 @@ with technical_tab:
         st.write(f"{registry_v2_doc['rule_count']} rules total "
                  f"({registry_v2_doc['rule_count_original_production']} original production + "
                  f"{registry_v2_doc['rule_count_new_from_compiled_pdf']} new from the compiled PDF).")
-        st.dataframe([
-            {"rule_id": r["rule_id"], "observable": r["observable"], "target_construct": r["target_construct"],
-             "observability_class": r["observability_class"], "allowed_output_level": r["allowed_output_level"],
-             "evidence_family": r["evidence_family"], "source_document": r["source_document"], "source_page": r["source_page"],
-             "threshold_source": r.get("threshold_source"), "dependency_group": ", ".join(r.get("dependency_group") or []),
-             "validation_status": r.get("validation_status"), "confidence_ceiling": r.get("confidence_ceiling"),
-             "page_reference_requirement": r.get("page_reference_requirement"),
-             "feature_version": r.get("feature_version"),
-             "expert_review_status": r.get("expert_review_status"),
-             "known_robustness_limitations": r.get("known_robustness_limitations")}
-            for r in registry_v2_doc["rules"]
-        ], width="stretch")
+        with st.expander(f"All {registry_v2_doc['rule_count']} rules", expanded=False):
+            st.dataframe([
+                {"rule_id": r["rule_id"], "observable": r["observable"], "target_construct": r["target_construct"],
+                 "observability_class": r["observability_class"], "allowed_output_level": r["allowed_output_level"],
+                 "evidence_family": r["evidence_family"], "source_document": r["source_document"], "source_page": r["source_page"],
+                 "threshold_source": r.get("threshold_source"), "dependency_group": ", ".join(r.get("dependency_group") or []),
+                 "validation_status": r.get("validation_status"), "confidence_ceiling": r.get("confidence_ceiling"),
+                 "page_reference_requirement": r.get("page_reference_requirement"),
+                 "feature_version": r.get("feature_version"),
+                 "expert_review_status": r.get("expert_review_status"),
+                 "known_robustness_limitations": r.get("known_robustness_limitations")}
+                for r in registry_v2_doc["rules"]
+            ], width="stretch")
         n_executable = sum(1 for r in registry_v2_doc["rules"] if r["allowed_output_level"] == "individual_heuristic_only")
         st.caption(f"{n_executable} of {registry_v2_doc['rule_count']} rules are actually executable "
                    f"(allowed_output_level=individual_heuristic_only); every other rule is disabled regardless of "
@@ -851,3 +1522,47 @@ with technical_tab:
                                new_label=new_label.strip() or None, note=note.strip() or None)
                 st.success("Review recorded.")
                 st.rerun()
+
+    st.header("14. Research runtime configuration")
+    st.caption(
+        "Which experiment/artifact currently backs each scientific role, and its real, current status. "
+        "Changing the winner (once Colab selects one) means pointing this registry at a new artifact -- "
+        "never rewriting CaseInterpretation. See doar.research_runtime / doar.experiment_manifest.")
+    from doar.research_runtime import resolve_research_runtime_configuration
+    _runtime_cfg = resolve_research_runtime_configuration()
+    st.dataframe([
+        {"role": c.role, "experiment": c.experiment, "status": c.status, "model_or_artifact": c.model_or_artifact,
+         "implementation": c.implementation, "checkpoint": c.checkpoint, "preprocessing": c.preprocessing}
+        for c in _runtime_cfg.components()
+    ], width="stretch")
+    with st.expander("Full research runtime configuration (raw JSON)", expanded=False):
+        st.json(_runtime_cfg.to_dict())
+    with st.expander("Example experiment artifact manifest (current MobileNet development artifact)", expanded=False):
+        from doar.experiment_manifest import example_mobilenet_v3_small_development_manifest
+        st.json(example_mobilenet_v3_small_development_manifest().to_dict())
+        st.caption("Contract: doar.experiment_manifest.ExperimentManifest / load_experiment_manifest() -- "
+                   "the loader shape future Colab experiment exports should target.")
+
+    st.header("15. Traceability: conclusion -> domain -> aggregation -> evidence family -> rule -> "
+              "detection/feature -> model/artifact -> experiment")
+    _tech_interp = _build_full_interpretation(
+        _load_live_case_bundle(str(case_dir), _detections_cache_token(str(case_dir))), str(case_dir))
+    for c in _tech_interp.concern_domains:
+        if c.support_level in ("NONE", "NOT_CURRENTLY_ASSESSED"):
+            continue
+        with st.expander(f"{c.domain} -- {c.support_level} (ratio={c.support_ratio})"):
+            st.write(f"1. CONCLUSION: {c.domain_label} = {c.support_level} "
+                     f"(support_ratio={c.support_ratio}, assessable_families={c.assessable_family_count})")
+            st.write(f"2. AGGREGATION: {_runtime_cfg.evidence_aggregator.model_or_artifact} "
+                     f"({_runtime_cfg.evidence_aggregator.implementation})")
+            st.write(f"3. EVIDENCE FAMILIES: {', '.join(c.independent_evidence_families) or '(none)'}")
+            st.write(f"4. RULES: {', '.join(c.supporting_rule_ids) or '(none)'}")
+            st.write(f"5. FEATURES/DETECTIONS: {', '.join(c.supporting_observations) or '(none)'}")
+            st.write(f"6. MODEL/ARTIFACT: {_runtime_cfg.semantic_concept_provider.model_or_artifact or 'deterministic rule engine (no learned model)'}")
+            st.write(f"7. EXPERIMENT: {_runtime_cfg.semantic_concept_provider.experiment or 'n/a (not experiment-derived)'}")
+    if _tech_interp.gemini_candidates:
+        st.subheader("Gemini candidate -> verification traceability")
+        st.dataframe([c.to_dict() for c in _tech_interp.gemini_candidates], width="stretch")
+    if _tech_interp.gemini_global_observation:
+        with st.expander("Gemini global observer -- raw structured output", expanded=False):
+            st.json(_tech_interp.gemini_global_observation)

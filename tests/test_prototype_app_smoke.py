@@ -55,7 +55,7 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             at.session_state["case_dir"] = str(case_dir.resolve())
             at.run(timeout=60)
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
-            self.assertEqual(len(at.tabs), 2)
+            self.assertEqual(len(at.tabs), 3)
 
     def test_renders_both_views_without_exception_with_real_checkpoint(self):
         candidate = ROOT / "outputs/phase5/seed42_reference/efficientnet_b0_seed_42/best.pt"
@@ -100,15 +100,20 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             at.session_state["case_dir"] = str(case_dir.resolve())
             at.run(timeout=60)
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
-            expander_labels = [e.label for e in at.expander]
-            self.assertTrue(
-                any("page-space use" in label for label in expander_labels),
-                f"expected an individual-suggestion expander for the page-space-use observation, got: {expander_labels}",
-            )
-            self.assertFalse(
-                any("PSY_AR_SIZE_HALF_014" in label for label in expander_labels),
-                f"raw rule_id must never appear in a Parent-view expander title, got: {expander_labels}",
-            )
+            # Milestone 2: Parent View shows individual observations as plain,
+            # parent-safe bullets (no per-observation expander, no raw rule_id);
+            # that professional detail now lives only in the Psychologist tab.
+            parent_tab, psychologist_tab = at.tabs[0], at.tabs[1]
+            parent_text = " ".join(m.value for m in parent_tab.markdown)
+            self.assertNotIn("PSY_AR_SIZE_HALF_014", parent_text,
+                              "raw rule_id must never appear in the Parent view")
+            # Milestone 3: professional rule-ID detail now lives inside the
+            # Psychologist view's collapsed "Technical evidence" expander
+            # (a dataframe of all rule evaluations), not in an expander title.
+            tech_expanders = [e for e in psychologist_tab.expander if "Technical evidence" in e.label]
+            self.assertEqual(len(tech_expanders), 1)
+            rules_df = tech_expanders[0].dataframe[0].value
+            self.assertIn("PSY_AR_SIZE_HALF_014", rules_df.to_string())
             structured = json.loads((case_dir / "structured_analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(structured["combined_drawing_level_hypotheses"], [])
 

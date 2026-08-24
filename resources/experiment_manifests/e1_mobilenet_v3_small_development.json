@@ -1,0 +1,42 @@
+{
+  "experiment_id": "E1_visual_representation",
+  "task": "expressive_emotion_classification_4class",
+  "model_name": "mobilenet_v3_small",
+  "artifact_version": "best.pt (best validation-epoch checkpoint)",
+  "checkpoint_path": "C:\\Users\\ZZ01G7865\\Downloads\\DOAR\\DOAR-work\\experiments\\E1_visual_representation\\checkpoints\\mobilenet_v3_small\\best.pt",
+  "class_mapping": [
+    "Angry",
+    "Fear",
+    "Happy",
+    "Sad"
+  ],
+  "preprocessing": {
+    "family": "torchvision",
+    "model_name": "mobilenet_v3_small",
+    "weights_id": "IMAGENET1K_V1",
+    "revision": "torchvision_weights_transform",
+    "preprocessing_version": "torchvision_weights_derived",
+    "resize": 256,
+    "crop": 224,
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "interpolation": "bilinear",
+    "transform_source": "torchvision_weights.transforms()"
+  },
+  "validation_metrics": {
+    "val_macro_f1": 0.7480453959583941
+  },
+  "split_manifest_sha256": null,
+  "training_seed": 42,
+  "status": "DEVELOPMENT",
+  "created_at": null,
+  "notes": "Highest validation macro-F1 among E1 candidates with a completed (non-smoke-only) run, as of this session. NOT a declared E1 experiment winner and NOT the final thesis model -- prototype/demo use only. See doar.deep.e1_dev_checkpoint for the read-only inference adapter and doar.research_runtime for how this is registered at runtime."
+}

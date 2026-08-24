@@ -137,7 +137,7 @@ def load_open_vocab_query_fn(*, model_id: str = "IDEA-Research/grounding-dino-ti
     from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
     import torch
 
-    processor = AutoProcessor.from_pretrained(model_id)
+    processor = AutoProcessor.from_pretrained(model_id, use_fast=False)
     model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device).eval()
 
     def query(image_path: str, target: str) -> list[tuple]:

@@ -67,6 +67,22 @@ def predict(
         return {**unavailable(f"Checkpoint does not exist: {checkpoint}"), "status": "failed"}
     try:
         if checkpoint.suffix.lower() in (".pt", ".pth"):
+            # Demo-readiness additive branch: an E1-experiment checkpoint
+            # (DOAR-work/experiments/E1_visual_representation) has a
+            # different, metadata-light save shape than every production
+            # checkpoint deep/inference.py already handles -- detect it by
+            # its own real shape (no "classes" key) rather than by path,
+            # and route to the dedicated, clearly-labeled DEVELOPMENT
+            # adapter. Any checkpoint that already carries "classes"
+            # (every existing/production checkpoint) takes the EXACT same
+            # path as before -- zero behavior change for that case.
+            import torch as _torch
+            _payload = _torch.load(checkpoint, map_location="cpu", weights_only=False)
+            from .deep.e1_dev_checkpoint import is_e1_dev_checkpoint, predict_e1_dev_checkpoint
+            if is_e1_dev_checkpoint(_payload):
+                result = predict_e1_dev_checkpoint(str(image_path), checkpoint, _payload)
+                result["model_family"] = "deep_image"
+                return result
             from .deep.inference import predict_image
             result = predict_image(str(image_path), str(checkpoint))
             result["model_family"] = "deep_image"

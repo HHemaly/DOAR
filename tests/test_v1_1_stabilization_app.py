@@ -173,11 +173,15 @@ class CapabilityWordingRegressionTests(unittest.TestCase):
             at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
             at.session_state["case_dir"] = str(case_dir.resolve())
             at.run(timeout=60)
+            # Milestone 3: the Parent view's honest "not yet assessed" signal
+            # for this case now renders as a short st.warning (case_
+            # interpretation-driven Parent view), not the old
+            # build_overall_result_summary() markdown paragraph -- same
+            # safety intent (never claim objects were scanned when they
+            # were not), different element/wording.
             all_text = " ".join(m.value for m in at.markdown)
-            # detections.json is the honest "unavailable" stub for this
-            # fixture (no visual scan was run) -- the "were not analyzed"
-            # wording is the ACCURATE one here, not the "were scanned" one.
-            self.assertIn("were not analyzed", all_text)
+            warning_text = " ".join(w.value for w in at.warning)
+            self.assertIn("objects and visual elements", warning_text)
             self.assertNotIn("automatically scanned for known objects", all_text)
 
 

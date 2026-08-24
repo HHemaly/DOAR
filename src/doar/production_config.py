@@ -131,18 +131,40 @@ def resolve_production_config() -> ProductionAnalysisConfig:
     (which produces the less honest "failed" status -- see
     DOAR_V1_1_STABILIZATION_REPORT.md Problem B)."""
     checkpoint_available = EXPRESSIVE_MODEL_CHECKPOINT_PATH.exists()
-    reason = None if checkpoint_available else (
-        f"No trained checkpoint present at {EXPRESSIVE_MODEL_CHECKPOINT_PATH} in this environment "
-        "(outputs/ is git-ignored and not populated on this machine) -- the same production "
-        "identifier resolves automatically wherever this checkpoint file exists.")
+    identifier = EXPRESSIVE_MODEL_IDENTIFIER
+    checkpoint_path = str(EXPRESSIVE_MODEL_CHECKPOINT_PATH) if checkpoint_available else None
+    reason = None
+    if not checkpoint_available:
+        # Demo-readiness fallback ONLY: the frozen production checkpoint is
+        # absent (outputs/ is git-ignored), but a real, compatible E1
+        # candidate checkpoint may exist locally -- use it, explicitly
+        # labeled as a DEVELOPMENT model (never silently presented as the
+        # frozen/final one; see deep/e1_dev_checkpoint.py for exactly
+        # which metadata was recovered from where). Falls back to
+        # unavailable, honestly, if that checkpoint isn't present either.
+        try:
+            from .deep.e1_dev_checkpoint import E1_DEV_CHECKPOINT_PATH, MODEL_VERSION as E1_DEV_MODEL_VERSION
+        except ImportError:
+            E1_DEV_CHECKPOINT_PATH = None
+            E1_DEV_MODEL_VERSION = None
+        if E1_DEV_CHECKPOINT_PATH is not None and E1_DEV_CHECKPOINT_PATH.exists():
+            checkpoint_available = True
+            checkpoint_path = str(E1_DEV_CHECKPOINT_PATH)
+            identifier = E1_DEV_MODEL_VERSION
+        else:
+            reason = (
+                f"No trained checkpoint present at {EXPRESSIVE_MODEL_CHECKPOINT_PATH} in this environment "
+                "(outputs/ is git-ignored and not populated on this machine), and no usable E1 development "
+                f"checkpoint was found at {E1_DEV_CHECKPOINT_PATH} either -- the same production "
+                "identifier resolves automatically wherever the frozen checkpoint file exists.")
     eye_status = "unknown"
     if VISUAL_DETECTOR_POLICY_PATH.exists():
         rows = json.loads(VISUAL_DETECTOR_POLICY_PATH.read_text(encoding="utf-8"))
         eye_row = next((r for r in rows if r["target"] == "eye"), None)
         eye_status = eye_row["status"] if eye_row else "unknown"
     return ProductionAnalysisConfig(
-        expressive_model_identifier=EXPRESSIVE_MODEL_IDENTIFIER,
-        expressive_model_checkpoint=(str(EXPRESSIVE_MODEL_CHECKPOINT_PATH) if checkpoint_available else None),
+        expressive_model_identifier=identifier,
+        expressive_model_checkpoint=checkpoint_path,
         expressive_model_available=checkpoint_available,
         expressive_model_unavailable_reason=reason,
         visual_detector_policy_path=str(VISUAL_DETECTOR_POLICY_PATH),

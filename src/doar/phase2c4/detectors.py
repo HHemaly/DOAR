@@ -118,6 +118,20 @@ def florence2_prompt_for_class(class_name: str) -> str:
 # ZeroShotClipDetector.load_real in phase2b/inference.py exactly).
 # ---------------------------------------------------------------------------
 
+def grounding_dino_text_labels(results: dict) -> list:
+    """`GroundingDinoProcessor.post_process_grounded_object_detection`
+    currently returns the same string labels under both `results["labels"]`
+    (deprecated -- transformers warns this key will hold integer class ids
+    in a future release) and `results["text_labels"]` (the documented,
+    stable, string-typed replacement). Always prefer `text_labels`; only
+    fall back to `labels` for an older/hypothetical transformers build that
+    does not populate `text_labels` at all. Never used to convert a future
+    integer id into a string -- if `text_labels` is absent, `labels` is
+    still assumed to be the same string type this codebase has always
+    required for semantic object names."""
+    return results["text_labels"] if "text_labels" in results else results["labels"]
+
+
 def load_real_owlv2(*, model_id: str = "google/owlv2-base-patch16-ensemble",
                      threshold: float = 0.1, device: str = "cpu") -> OpenVocabDetector:
     """threshold=0.1 matches the value used throughout OWLv2's own
@@ -127,7 +141,7 @@ def load_real_owlv2(*, model_id: str = "google/owlv2-base-patch16-ensemble",
     from transformers import Owlv2ForObjectDetection, Owlv2Processor
     import torch
 
-    processor = Owlv2Processor.from_pretrained(model_id)
+    processor = Owlv2Processor.from_pretrained(model_id, use_fast=False)
     model = Owlv2ForObjectDetection.from_pretrained(model_id).to(device).eval()
     texts = [owlv2_text_queries()]
 
@@ -161,7 +175,7 @@ def load_real_grounding_dino(*, model_id: str = "IDEA-Research/grounding-dino-ti
     from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
     import torch
 
-    processor = AutoProcessor.from_pretrained(model_id)
+    processor = AutoProcessor.from_pretrained(model_id, use_fast=False)
     model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device).eval()
     text = grounding_dino_text_prompt()
 
@@ -175,7 +189,7 @@ def load_real_grounding_dino(*, model_id: str = "IDEA-Research/grounding-dino-ti
             outputs, inputs.input_ids, threshold=threshold, text_threshold=text_threshold,
             target_sizes=[img.size[::-1]])[0]
         return [RawDetection(label=label, score=float(score))
-                for label, score in zip(results["labels"], results["scores"])]
+                for label, score in zip(grounding_dino_text_labels(results), results["scores"])]
 
     return OpenVocabDetector(predict_fn, model_name=f"grounding_dino:{model_id}")
 

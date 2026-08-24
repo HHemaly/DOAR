@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from doar.analysis import analyze_image
 from doar.parent_view import (
     build_overall_result_summary, capability_status, capability_status_summary_text,
-    disclaimer, friendly_family_name, friendly_source_name, overall_interpretation,
+    disclaimer, friendly_colour_name, friendly_family_name, friendly_source_name, overall_interpretation,
     plain_language_observations, plain_language_rule_rows,
 )
 
@@ -178,6 +178,23 @@ class FriendlyNameTests(unittest.TestCase):
     def test_unknown_family_falls_back_to_underscored_replacement(self):
         self.assertEqual(friendly_family_name("some_new_family", "en"), "some new family")
 
+    def test_every_analysis_colour_bin_has_an_arabic_name(self):
+        """Pre-doctor stabilization pass: analysis.py's _colour() closed
+        vocabulary (verified against that function directly) must never
+        leak an untranslated English colour name into the Arabic Parent
+        view."""
+        for colour in ("red", "green", "blue", "yellow", "dark", "none_or_neutral"):
+            ar_name = friendly_colour_name(colour, "ar")
+            self.assertNotEqual(ar_name, colour)
+            self.assertTrue(any("؀" <= c <= "ۿ" for c in ar_name))
+
+    def test_meaningful_colours_are_translated_inside_the_arabic_sentence(self):
+        analysis = {"colour": {"meaningful_colours": ["blue", "red"]}, "composition": {}, "quality": {}}
+        [obs] = [o for o in plain_language_observations(analysis, "ar") if "ev_dominant_colour" in o["evidence_ids"]]
+        self.assertNotIn("blue", obs["text"])
+        self.assertNotIn("red", obs["text"])
+        self.assertIn(friendly_colour_name("blue", "ar"), obs["text"])
+
 
 class OverallResultSummaryTests(unittest.TestCase):
     """DOAR-TRACE Phase 2A.2, Section 3."""
@@ -189,7 +206,7 @@ class OverallResultSummaryTests(unittest.TestCase):
         }
         sentences = build_overall_result_summary(structured, {"page_relative_features_assessable": True}, "en")
         joined = " ".join(sentences)
-        self.assertIn("No concerning combined drawing pattern was identified", joined)
+        self.assertIn("No combined pattern was identified from the evidence currently available", joined)
         self.assertIn("No individual heuristic observations were found", joined)
         self.assertIn("Objects and relationships were not analyzed in this version", joined)
 
@@ -203,7 +220,7 @@ class OverallResultSummaryTests(unittest.TestCase):
         }
         sentences = build_overall_result_summary(structured, {"page_relative_features_assessable": True}, "en")
         joined = " ".join(sentences)
-        self.assertIn("No concerning combined drawing pattern was identified", joined)
+        self.assertIn("No combined pattern was identified from the evidence currently available", joined)
         self.assertIn("most similar to the dataset's Happy expressive-content category", joined)
         self.assertIn("One weak line-appearance observation was found", joined)
         self.assertIn("Objects and relationships were not analyzed in this version", joined)

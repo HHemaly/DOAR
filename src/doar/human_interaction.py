@@ -46,6 +46,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Protocol
 
+from . import case_interpretation as ci
 from . import claim_verifier as cv
 from . import reasoning_chain as rc
 from .judges import DIAGNOSTIC_PATTERNS, _ARABIC_DIAGNOSTIC
@@ -60,6 +61,7 @@ FOOTER_DISCLAIMER = (
 
 _Q_AND_A_VISUAL_RECHECK_TAG = "Q&A_VISUAL_RECHECK"
 _EXTERNAL_RESEARCH_LABEL = "Additional research -- not part of the original DOAR analysis"
+_VISUAL_AUDIT_LABEL = "Visual consistency audit -- AUDIT ONLY, not case evidence"
 
 
 # ---------------------------------------------------------------------------
@@ -730,6 +732,342 @@ def governed_visual_recheck(target: str, bundle: dict, *, provider: "GeminiVisua
     return {"status": "ok", "reason": None, "candidate": candidate, "verification": verification}
 
 
+# ---------------------------------------------------------------------------
+# Visual Consistency Judge -- an independent VLM audit of the original
+# drawing against DOAR's own structured observations. AUDIT ONLY: this is
+# a read-only cross-check for a human reviewer, NEVER wired into
+# answer_question/deterministic_verify/build_evidence_package, and its
+# output is never written back into any case file (detections.json/
+# analysis.json/structured_analysis.json are untouched). It can flag a
+# "likely missed" or "disputed" observation, but that finding can never by
+# itself add an entity, activate a rule, or become case evidence -- only a
+# human (or a future, separately-governed pipeline change) could act on it.
+# ---------------------------------------------------------------------------
+
+_VISUAL_CONSISTENCY_MODEL_ENV_VAR = "DOAR_VISUAL_CONSISTENCY_MODEL"
+
+_VISUAL_CONSISTENCY_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "supported_observations": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "likely_missed_observations": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "disputed_observations": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "unavailable_checks": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "overall_agreement": {"type": "STRING", "enum": ["high", "partial", "low"]},
+    },
+    "required": ["supported_observations", "likely_missed_observations", "disputed_observations",
+                 "unavailable_checks", "overall_agreement"],
+}
+
+_VISUAL_CONSISTENCY_SYSTEM_PROMPT = (
+    "You are an independent visual-consistency AUDITOR for DOAR, a children's-drawing research "
+    "tool. You will see the original drawing and a list of DOAR's own structured observations "
+    "about it (confirmed entities, uncertain/rejected entities, and measured objective "
+    "features). Your ONLY job is to compare what you actually see in the image against that "
+    "list, and report:\n"
+    "- supported_observations: DOAR observations you independently agree are visible.\n"
+    "- likely_missed_observations: things plainly visible in the drawing that DOAR's list does "
+    "not mention.\n"
+    "- disputed_observations: DOAR observations you do NOT think match what is actually in the "
+    "image.\n"
+    "- unavailable_checks: anything you cannot judge from the image (too small, ambiguous, out "
+    "of frame).\n"
+    "- overall_agreement: 'high'/'partial'/'low'.\n"
+    "This is an AUDIT ONLY. Never state a diagnosis, a psychological interpretation, or a cause. "
+    "Never invent an item not actually visible. Respond with the required JSON object only."
+)
+
+
+@dataclass(frozen=True)
+class GeminiVisualConsistencyJudge:
+    """Optional real VLM audit, same construction/call pattern as
+    `GeminiVisualRecheckProvider` (separate class, separate prompt, never
+    shares state with the frozen broad Observer/Verifier or the Q&A visual
+    re-check path). Raises RuntimeError at construction if the key or
+    `google-genai` package is missing, exactly like every other optional
+    Gemini class in this module."""
+    api_key: str | None = None
+    model: str | None = None
+    timeout_seconds: float = 30.0
+    request_fn: Callable[[str, str, dict, float], bytes] | None = None
+
+    def __post_init__(self):
+        key = self.api_key or os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise RuntimeError("GEMINI_API_KEY is not set -- GeminiVisualConsistencyJudge is unavailable.")
+        object.__setattr__(self, "api_key", key)
+        object.__setattr__(
+            self, "model", self.model or os.environ.get(_VISUAL_CONSISTENCY_MODEL_ENV_VAR, "gemini-3.6-flash"))
+        if self.request_fn is None:
+            try:
+                from google import genai  # noqa: F401
+            except ImportError as exc:
+                raise RuntimeError(
+                    "google-genai package is not installed -- GeminiVisualConsistencyJudge is unavailable. "
+                    "Install the 'interaction' extra (pip install -e '.[interaction]') to enable it."
+                ) from exc
+
+    def audit(self, image_path: str, structured_observations: dict) -> dict:
+        """ONE call against `image_path`. Never persists anything."""
+        from .visual_observer import _guess_image_mime, _pil_image_to_png_b64, _post_gemini_generate_content
+        from PIL import Image
+
+        img = Image.open(image_path).convert("RGB")
+        try:
+            image_b64 = _pil_image_to_png_b64(img)
+        finally:
+            img.close()
+        payload = {
+            "systemInstruction": {"parts": [{"text": _VISUAL_CONSISTENCY_SYSTEM_PROMPT}]},
+            "contents": [{
+                "role": "user",
+                "parts": [
+                    {"text": "DOAR's structured observations for this drawing (JSON): "
+                              + json.dumps(structured_observations, default=str)},
+                    {"inlineData": {"mimeType": _guess_image_mime(image_path), "data": image_b64}},
+                ],
+            }],
+            "generationConfig": {
+                "responseMimeType": "application/json", "responseSchema": _VISUAL_CONSISTENCY_RESPONSE_SCHEMA,
+                "thinkingConfig": {"thinkingLevel": "minimal"},
+            },
+        }
+        send = self.request_fn or _post_gemini_generate_content
+        raw = send(self.api_key, self.model, payload, self.timeout_seconds)
+        response = json.loads(raw)
+        if "error" in response:
+            raise RuntimeError(f"Gemini API returned an error: {response['error']!r}")
+        content_text = response["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = json.loads(content_text)
+        return {
+            "supported_observations": list(parsed.get("supported_observations") or []),
+            "likely_missed_observations": list(parsed.get("likely_missed_observations") or []),
+            "disputed_observations": list(parsed.get("disputed_observations") or []),
+            "unavailable_checks": list(parsed.get("unavailable_checks") or []),
+            "overall_agreement": parsed.get("overall_agreement", "low"),
+        }
+
+
+def summarize_bundle_for_visual_audit(bundle: dict) -> dict:
+    """Compact, human-readable summary of THIS case's structured
+    observations -- the only thing the Visual Consistency Judge is shown
+    besides the raw image. Reuses the same compact-summary helpers
+    `build_evidence_package` already uses; never a raw dump of internal
+    IDs/thresholds."""
+    entities = _entity_observation_summaries(bundle)
+    objective = _compact_objective_feature_summary(bundle)
+    chains = build_evidence_chains(bundle)
+    return {
+        "confirmed_entities": entities["verified"],
+        "uncertain_or_unreviewed_entities": entities["uncertain_or_unreviewed"],
+        "rejected_entities": entities["rejected"],
+        "objective_features": objective,
+        "literature_linked_observations": sorted({c["rule_display_name"] for c in chains}),
+    }
+
+
+def run_visual_consistency_audit(bundle: dict, *, judge: "GeminiVisualConsistencyJudge | None" = None) -> dict:
+    """READ-ONLY entry point the UI calls on explicit user request (never
+    automatically, never on every rerun). Returns {"status": "unavailable"
+    |"error"|"ok", "reason", "audit"}. `audit`, when present, is ALWAYS
+    AUDIT_ONLY -- the caller must never feed it back into
+    answer_question/deterministic_verify/detections.json/any evidence
+    file."""
+    image_rel_path = (bundle.get("image") or {}).get("relative_path")
+    if not image_rel_path:
+        return {"status": "unavailable", "reason": "bundle has no image path", "audit": None}
+    if judge is None:
+        return {"status": "unavailable",
+                "reason": "no visual consistency judge configured (GEMINI_API_KEY/google-genai not available)",
+                "audit": None}
+    image_path = str(ROOT / image_rel_path)
+    observations = summarize_bundle_for_visual_audit(bundle)
+    try:
+        audit = judge.audit(image_path, observations)
+    except Exception as exc:
+        return {"status": "error", "reason": sanitize_error_text(exc), "audit": None}
+    return {"status": "ok", "reason": None, "audit": audit}
+
+
+def resolve_default_visual_consistency_judge() -> "GeminiVisualConsistencyJudge | None":
+    try:
+        return GeminiVisualConsistencyJudge()
+    except RuntimeError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Gemini Global Observer -- a whole-image CANDIDATE HYPOTHESIS GENERATOR,
+# used by the "Run Full Analysis" workflow. Same construction/call pattern
+# as GeminiVisualConsistencyJudge (separate class, separate prompt, no
+# shared state). NOT authoritative: its `candidate_concern_hypotheses` are
+# verified by case_interpretation.verify_gemini_concern_candidates against
+# DOAR's own governed, Gemini-blind concern-domain results before they are
+# ever shown -- Gemini's own text can never raise a concern domain's
+# support level. `overall_scene`/`overall_visual_tone`/etc. are surfaced
+# as a separate, clearly-labeled Gemini note alongside (never merged into)
+# the deterministic GlobalImpression.
+# ---------------------------------------------------------------------------
+
+_GLOBAL_OBSERVER_MODEL_ENV_VAR = "DOAR_GLOBAL_OBSERVER_MODEL"
+
+_GLOBAL_OBSERVER_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "overall_scene": {"type": "STRING"},
+        "overall_visual_tone": {"type": "STRING"},
+        "expressive_descriptors": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "salient_relationships": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "important_visual_observations": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "candidate_concern_hypotheses": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "domain": {"type": "STRING"}, "reason": {"type": "STRING"},
+                    "observations": {"type": "ARRAY", "items": {"type": "STRING"}},
+                },
+                "required": ["domain", "reason", "observations"],
+            },
+        },
+        "uncertainty": {"type": "STRING"},
+    },
+    "required": ["overall_scene", "overall_visual_tone", "expressive_descriptors", "salient_relationships",
+                 "important_visual_observations", "candidate_concern_hypotheses", "uncertainty"],
+}
+
+# The exact domain vocabulary Gemini is asked to use for
+# candidate_concern_hypotheses.domain -- every REAL clinical domain DOAR's
+# registry defines, plus the same explicitly-unmapped extras case_
+# interpretation.py already recognizes (so an unsupported-but-named guess
+# still resolves to NOT_CURRENTLY_ASSESSED instead of an unrecognized
+# free-text string). maltreatment_or_safety_concern is deliberately
+# INCLUDED in the vocabulary (so Gemini uses the real key rather than
+# inventing one) but is always forced to NOT_CURRENTLY_ASSESSED at
+# verification time regardless of what Gemini says -- see
+# case_interpretation._FORBIDDEN_DOMAINS.
+_GLOBAL_OBSERVER_DOMAIN_VOCABULARY = (
+    "positive_affect_or_social_engagement", "anxiety_or_stress_related", "depressive_or_low_mood_related",
+    "aggression_or_threat_related", "social_withdrawal_related", "developmental_or_attention_related",
+    "maltreatment_or_safety_concern", "trauma_related", "bullying_related", "autism_related",
+)
+
+_GLOBAL_OBSERVER_SYSTEM_PROMPT = (
+    "You are DOAR's whole-image observer for a children's-drawing research tool. Look at the "
+    "COMPLETE drawing (not just one detail) and describe it as a candidate-hypothesis generator, "
+    "never as a final authority:\n"
+    "- overall_scene: one or two sentences describing the whole image.\n"
+    "- overall_visual_tone: a short phrase (e.g. 'mostly cheerful', 'tense and dark', 'mixed').\n"
+    "- expressive_descriptors: short adjectives for the overall expressive impression.\n"
+    "- salient_relationships: how elements relate (grouping, isolation, proximity, scale) -- "
+    "whole-drawing observations, not single-object descriptions.\n"
+    "- important_visual_observations: plainly visible things worth noting.\n"
+    "- candidate_concern_hypotheses: a list of {domain, reason, observations}. `domain` MUST be "
+    "one of exactly this vocabulary (use the closest match, or omit if none fit -- never invent a "
+    "new domain string): " + ", ".join(_GLOBAL_OBSERVER_DOMAIN_VOCABULARY) + ". These are CANDIDATES "
+    "ONLY -- DOAR will independently verify each one against its own governed evidence; you are not "
+    "deciding anything.\n"
+    "- uncertainty: one short sentence on what is unclear or hard to judge from this image.\n"
+    "Never state a diagnosis. Never claim certainty a single drawing cannot support. Respond with "
+    "the required JSON object only."
+)
+
+
+@dataclass(frozen=True)
+class GeminiGlobalObserver:
+    api_key: str | None = None
+    model: str | None = None
+    timeout_seconds: float = 30.0
+    request_fn: Callable[[str, str, dict, float], bytes] | None = None
+
+    def __post_init__(self):
+        key = self.api_key or os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise RuntimeError("GEMINI_API_KEY is not set -- GeminiGlobalObserver is unavailable.")
+        object.__setattr__(self, "api_key", key)
+        object.__setattr__(
+            self, "model", self.model or os.environ.get(_GLOBAL_OBSERVER_MODEL_ENV_VAR, "gemini-3.6-flash"))
+        if self.request_fn is None:
+            try:
+                from google import genai  # noqa: F401
+            except ImportError as exc:
+                raise RuntimeError(
+                    "google-genai package is not installed -- GeminiGlobalObserver is unavailable. "
+                    "Install the 'interaction' extra (pip install -e '.[interaction]') to enable it."
+                ) from exc
+
+    def observe(self, image_path: str) -> dict:
+        """ONE call against `image_path`. Never persists anything, never
+        touches any case file."""
+        from .visual_observer import _guess_image_mime, _pil_image_to_png_b64, _post_gemini_generate_content
+        from PIL import Image
+
+        img = Image.open(image_path).convert("RGB")
+        try:
+            image_b64 = _pil_image_to_png_b64(img)
+        finally:
+            img.close()
+        payload = {
+            "systemInstruction": {"parts": [{"text": _GLOBAL_OBSERVER_SYSTEM_PROMPT}]},
+            "contents": [{
+                "role": "user",
+                "parts": [
+                    {"text": "Describe this complete drawing."},
+                    {"inlineData": {"mimeType": _guess_image_mime(image_path), "data": image_b64}},
+                ],
+            }],
+            "generationConfig": {
+                "responseMimeType": "application/json", "responseSchema": _GLOBAL_OBSERVER_RESPONSE_SCHEMA,
+                "thinkingConfig": {"thinkingLevel": "minimal"},
+            },
+        }
+        send = self.request_fn or _post_gemini_generate_content
+        raw = send(self.api_key, self.model, payload, self.timeout_seconds)
+        response = json.loads(raw)
+        if "error" in response:
+            raise RuntimeError(f"Gemini API returned an error: {response['error']!r}")
+        content_text = response["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = json.loads(content_text)
+        return {
+            "overall_scene": parsed.get("overall_scene", ""),
+            "overall_visual_tone": parsed.get("overall_visual_tone", ""),
+            "expressive_descriptors": list(parsed.get("expressive_descriptors") or []),
+            "salient_relationships": list(parsed.get("salient_relationships") or []),
+            "important_visual_observations": list(parsed.get("important_visual_observations") or []),
+            "candidate_concern_hypotheses": [
+                {"domain": h.get("domain"), "reason": h.get("reason", ""), "observations": list(h.get("observations") or [])}
+                for h in (parsed.get("candidate_concern_hypotheses") or [])
+            ],
+            "uncertainty": parsed.get("uncertainty", ""),
+        }
+
+
+def run_gemini_global_observation(bundle: dict, *, observer: "GeminiGlobalObserver | None" = None) -> dict:
+    """READ-ONLY entry point -- called only from the explicit "Run Full
+    Analysis" action, never automatically. Returns {"status":
+    "unavailable"|"error"|"ok", "reason", "observation"}."""
+    image_rel_path = (bundle.get("image") or {}).get("relative_path")
+    if not image_rel_path:
+        return {"status": "unavailable", "reason": "bundle has no image path", "observation": None}
+    if observer is None:
+        return {"status": "unavailable",
+                "reason": "no Gemini global observer configured (GEMINI_API_KEY/google-genai not available)",
+                "observation": None}
+    image_path = str(ROOT / image_rel_path)
+    try:
+        observation = observer.observe(image_path)
+    except Exception as exc:
+        return {"status": "error", "reason": sanitize_error_text(exc), "observation": None}
+    return {"status": "ok", "reason": None, "observation": observation}
+
+
+def resolve_default_global_observer() -> "GeminiGlobalObserver | None":
+    try:
+        return GeminiGlobalObserver()
+    except RuntimeError:
+        return None
+
+
 def _answer_visual_question(question: str, bundle: dict, *, open_vocab_predict_fn=None,
                              visual_recheck_provider: "GeminiVisualRecheckProvider | None" = None) -> dict:
     target = extract_visual_target(question)
@@ -751,7 +1089,11 @@ def _answer_visual_question(question: str, bundle: dict, *, open_vocab_predict_f
             answer = (f"A '{target}' was noticed by the first visual pass on this drawing, but it was not "
                        f"independently confirmed (status: {', '.join(statuses)}).")
         return {"answer": answer, "category": "visual", "chains": [],
-                "evidence_ids": [e.entity_id for e in matches], "rule_ids": [], "source_ids": [],
+                # "ev_semantic_" prefix matches drawing_synthesis.normalize_semantic_evidence's own
+                # evidence_id scheme exactly -- a bare entity_id is never a known evidence_id in
+                # _governed_case_as_legacy_view and would make every genuinely confirmed visual
+                # answer fail deterministic_verify's evidence_id check.
+                "evidence_ids": [f"ev_semantic_{e.entity_id}" for e in matches], "rule_ids": [], "source_ids": [],
                 "used_external_research": False, "used_visual_recheck": False}
 
     # Nothing in saved evidence -- this is the ORIGINAL_SAVED_EVIDENCE ->
@@ -892,6 +1234,23 @@ def _compact_objective_feature_summary(bundle: dict) -> dict:
     }
 
 
+def _compact_emotion_summary(bundle: dict) -> dict | None:
+    """Real, calibrated expressive-content model output for this case, if
+    one ran -- included as raw grounding data only (Milestone 1: live-case
+    adapter). Never phrased as a psychological claim here; the answer/
+    judge prompts already forbid that. Returns None (never fabricated)
+    when no model ran or it produced no probabilities."""
+    emotion = bundle.get("emotion")
+    if not emotion or emotion.get("status") != "available":
+        return None
+    probabilities = emotion.get("probabilities") or {}
+    if not probabilities:
+        return None
+    top_class = max(probabilities, key=probabilities.get)
+    return {"top_class": top_class, "top_probability": round(probabilities[top_class], 3),
+            "calibration_status": emotion.get("calibration_status")}
+
+
 def build_evidence_package(question: str, audience: str, result: dict, bundle: dict) -> dict:
     """The ONLY input an AI answer helper / AI Judge ever receives.
     `relevant_matched_rules` is deliberately just `result["chains"]`
@@ -929,6 +1288,8 @@ def build_evidence_package(question: str, audience: str, result: dict, bundle: d
         "overall_synthesis": ({"level": synthesis.overall_synthesis["level"],
                                 "summary": synthesis.overall_synthesis["summary"]}
                                if synthesis is not None else None),
+        "expressive_model": _compact_emotion_summary(bundle),
+        "case_interpretation": ci.summarize_for_grounding(ci.build_case_interpretation(bundle)),
         "external_research": (
             {"sources": result.get("external_sources", [])} if result.get("used_external_research") else None),
         "deterministic_draft_answer": result.get("answer"),
@@ -1021,9 +1382,14 @@ class GeminiAnswerProvider:
     `gemini-3.6-flash`. Raises RuntimeError at construction if the key or
     `google-genai` package is missing, so callers fail fast and fall
     back to `DeterministicAnswerProvider` rather than degrading silently
-    mid-question."""
+    mid-question. `timeout_seconds` (default 30.0, matching every other
+    Gemini-backed class in this module) bounds the network call itself --
+    without it, a stalled/slow request to Gemini hangs the entire
+    Streamlit script run with no visible error, which is exactly what
+    made Ask DOAR look like "Send does nothing" during live testing."""
     api_key: str | None = None
     model: str | None = None
+    timeout_seconds: float = 30.0
 
     def __post_init__(self):
         key = self.api_key or os.environ.get("GEMINI_API_KEY")
@@ -1057,7 +1423,10 @@ class GeminiAnswerProvider:
                 "specific issues, still using ONLY the evidence package above): " + "; ".join(revision_instructions))
         response = client.models.generate_content(
             model=self.model, contents="\n\n".join(prompt_parts),
-            config=types.GenerateContentConfig(system_instruction=_ANSWER_SYSTEM_PROMPT),
+            config=types.GenerateContentConfig(
+                system_instruction=_ANSWER_SYSTEM_PROMPT,
+                http_options=types.HttpOptions(timeout=int(self.timeout_seconds * 1000)),
+            ),
         )
         text = getattr(response, "text", None)
         return text.strip() if text else None
@@ -1124,9 +1493,11 @@ class GeminiGroundedResearchProvider:
     mid-question. Model ID is configurable, defaults to a current Gemini
     model; never touches the frozen Observer/Verifier model settings."""
 
-    def __init__(self, *, api_key: str | None = None, model: str | None = None):
+    def __init__(self, *, api_key: str | None = None, model: str | None = None,
+                 timeout_seconds: float = 30.0):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.model = model or os.environ.get("DOAR_RESEARCH_MODEL", "gemini-3.6-flash")
+        self.timeout_seconds = timeout_seconds
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY is not set -- GeminiGroundedResearchProvider is unavailable.")
         try:
@@ -1148,7 +1519,10 @@ class GeminiGroundedResearchProvider:
             contents=(f"Answer this question about children's drawing psychology using reliable "
                       f"scientific/academic/clinical sources only. Be concise and honest about "
                       f"uncertainty. Question: {question}"),
-            config=types.GenerateContentConfig(tools=[grounding_tool]),
+            config=types.GenerateContentConfig(
+                tools=[grounding_tool],
+                http_options=types.HttpOptions(timeout=int(self.timeout_seconds * 1000)),
+            ),
         )
         text = getattr(response, "text", None)
         if not text:
@@ -1401,6 +1775,11 @@ def deterministic_verify(result: dict, bundle: dict) -> dict:
         extra_failed.append("unsupported diagnostic language in answer text")
     if result.get("used_external_research") and _EXTERNAL_RESEARCH_LABEL not in result["answer"]:
         extra_failed.append("external research used but not labeled as separate from the original DOAR analysis")
+    if result.get("used_visual_audit") and _VISUAL_AUDIT_LABEL not in result["answer"]:
+        # Defensive/forward-looking: no current answerer sets used_visual_audit (the Visual
+        # Consistency Judge is never wired into answer_question), but this check exists so a
+        # future integration mistake can't silently blend an AUDIT_ONLY finding into case evidence.
+        extra_failed.append("visual consistency audit used but not labeled as a separate, audit-only finding")
     extra_failed.extend(_narrator_upgrades_uncertain_evidence(result["answer"], bundle))
     return {**report, "all_passed": report["all_passed"] and not extra_failed, "extra_checks_failed": extra_failed}
 
@@ -1526,16 +1905,33 @@ _JUDGE_SYSTEM_PROMPT = (
     "You are DOAR's independent semantic Judge for Ask-DOAR answers. You receive the "
     "user's exact question, a candidate answer, and the EXACT structured evidence package "
     "the answer was supposed to be grounded in (case evidence, rules, references, evidence "
-    "statuses, external research if any). Check, strictly:\n"
-    "1. Did the response directly answer the question?\n"
-    "2. Are claims about THIS drawing supported by this case's own evidence?\n"
-    "3. Are descriptions of DOAR rules faithful to the rule wording given?\n"
-    "4. Do cited references actually support the statement attributed to them?\n"
-    "5. Was UNCERTAIN/UNREVIEWED evidence presented as certain/confirmed?\n"
-    "6. Did the answer invent a cause, reason, object, or emotion not in the package?\n"
-    "7. Was external research confused with or presented as original DOAR evidence?\n"
-    "8. Is a psychological association presented more strongly than the evidence permits "
-    "(e.g. a diagnosis instead of an association)?\n"
+    "statuses, external research if any). Check against this FIXED checklist, strictly:\n"
+    "1. Evidence grounding -- is every factual claim about THIS drawing traceable to this "
+    "case's own saved evidence in the package?\n"
+    "2. Verified/uncertain/rejected fidelity -- is UNCERTAIN/UNREVIEWED/REJECTED evidence ever "
+    "presented as certain/confirmed?\n"
+    "3. Missing detector != absence -- does the answer ever treat 'not detected' or 'not "
+    "assessed' as proof something is absent from the drawing?\n"
+    "4. Page-assessability gates -- if the page/placement could not be confirmed assessable, "
+    "does the answer still make a page-relative claim as if it could?\n"
+    "5. Rule eligibility/prerequisites -- are descriptions of DOAR rules faithful to the rule "
+    "wording and status given (never a rule presented as satisfied when its status says "
+    "otherwise)?\n"
+    "6. Source validity -- do cited references actually support the statement attributed to "
+    "them?\n"
+    "7. No diagnosis/causal invention -- did the answer state or imply a diagnosis, or invent a "
+    "cause, reason, object, or emotion not in the package?\n"
+    "8. No single weak observation escalated to a strong combined conclusion -- is one "
+    "individual, unconverged heuristic described with the certainty of a combined, multi-family "
+    "pattern?\n"
+    "9. External research separated -- was external/outside research ever confused with or "
+    "presented as original DOAR case evidence?\n"
+    "10. Visual-audit findings separated -- was a visual-consistency AUDIT finding (if any) ever "
+    "presented as original DOAR case evidence rather than a separate, audit-only observation?\n"
+    "11. Alternatives/limitations preserved -- if the package lists alternative explanations or "
+    "limitations for a cited observation, does the answer suppress them in a way that overstates "
+    "certainty?\n"
+    "12. Did the response directly answer the question asked?\n"
     "You may also receive recent CONVERSATION HISTORY -- this is CONTEXT ONLY, to help you tell "
     "whether a follow-up question was resolved against the right earlier topic. A prior "
     "assistant turn's own text is NEVER itself evidence; every factual claim in the candidate "
@@ -1562,6 +1958,7 @@ class GeminiJudge:
     the other optional Gemini providers in this module."""
     api_key: str | None = None
     model: str | None = None
+    timeout_seconds: float = 30.0
 
     def __post_init__(self):
         key = self.api_key or os.environ.get("GEMINI_API_KEY")
@@ -1603,6 +2000,7 @@ class GeminiJudge:
                 config=types.GenerateContentConfig(
                     system_instruction=_JUDGE_SYSTEM_PROMPT,
                     response_mime_type="application/json", response_schema=_JUDGE_RESPONSE_SCHEMA,
+                    http_options=types.HttpOptions(timeout=int(self.timeout_seconds * 1000)),
                 ),
             )
             parsed = json.loads(response.text)

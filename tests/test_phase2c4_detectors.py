@@ -12,8 +12,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from doar.phase2c4.detectors import (
     OpenVocabDetector, RawDetection, build_class_presence,
-    florence2_prompt_for_class, grounding_dino_text_prompt, make_default_label_to_classes,
-    owlv2_text_queries,
+    florence2_prompt_for_class, grounding_dino_text_labels, grounding_dino_text_prompt,
+    make_default_label_to_classes, owlv2_text_queries,
 )
 
 CLASSES = ("person", "face", "hand", "animal", "house", "tree", "heart", "star", "circle", "vehicle")
@@ -111,6 +111,40 @@ class PromptDefinitionTests(unittest.TestCase):
 
     def test_florence2_prompt_is_bare_noun(self):
         self.assertEqual(florence2_prompt_for_class("circle"), "circle")
+
+
+class GroundingDinoTextLabelsCompatibilityTests(unittest.TestCase):
+    """Regression coverage for the pre-doctor stabilization pass: transformers
+    warns that GroundingDinoProcessor.post_process_grounded_object_detection's
+    `labels` key will hold integer class ids in a future release and that
+    `text_labels` (already present today) is the stable string-typed
+    replacement. `grounding_dino_text_labels` must use `text_labels`
+    whenever it exists, and must NEVER surface an integer id as a
+    user-facing/semantic object label."""
+
+    def test_current_shape_prefers_text_labels(self):
+        results = {"labels": ["person", "house"], "text_labels": ["person", "house"], "scores": [0.9, 0.8]}
+        self.assertEqual(grounding_dino_text_labels(results), ["person", "house"])
+
+    def test_future_shape_with_integer_labels_still_returns_strings(self):
+        results = {"labels": [1, 7], "text_labels": ["person", "house"], "scores": [0.9, 0.8]}
+        labels = grounding_dino_text_labels(results)
+        self.assertEqual(labels, ["person", "house"])
+        self.assertTrue(all(isinstance(label, str) for label in labels))
+
+    def test_falls_back_to_labels_only_when_text_labels_is_absent(self):
+        results = {"labels": ["person", "house"], "scores": [0.9, 0.8]}
+        self.assertEqual(grounding_dino_text_labels(results), ["person", "house"])
+
+    def test_never_converts_a_future_integer_id_into_a_string(self):
+        """When text_labels is missing AND labels holds integers (a shape
+        transformers does not currently produce but the warning threatens),
+        this helper must not paper over it by str()-ing the integer --
+        that would silently inject a numeric id as a semantic label."""
+        results = {"labels": [1, 7], "scores": [0.9, 0.8]}
+        labels = grounding_dino_text_labels(results)
+        self.assertEqual(labels, [1, 7])
+        self.assertFalse(all(isinstance(label, str) for label in labels))
 
 
 if __name__ == "__main__":

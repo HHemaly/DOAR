@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from ..phase2c4.calibration import GROUNDING_DINO_ORIGINAL_THRESHOLD, OWLV2_ORIGINAL_THRESHOLD
+from ..phase2c4.detectors import grounding_dino_text_labels
 from .ontology import PART_TARGETS
 from .schema import PartInstance
 
@@ -115,7 +116,7 @@ def load_real_grounding_dino_parts(*, model_id: str = "IDEA-Research/grounding-d
     from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
     import torch
 
-    processor = AutoProcessor.from_pretrained(model_id)
+    processor = AutoProcessor.from_pretrained(model_id, use_fast=False)
     model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device).eval()
     text = grounding_dino_part_text_prompt()
 
@@ -131,7 +132,7 @@ def load_real_grounding_dino_parts(*, model_id: str = "IDEA-Research/grounding-d
         w, h = img.size
         return [RawBoxDetection(label=label, score=float(score),
                                  bbox_xywh_normalized=_xyxy_pixels_to_xywh_normalized(box, w, h))
-                for label, score, box in zip(results["labels"], results["scores"], results["boxes"])]
+                for label, score, box in zip(grounding_dino_text_labels(results), results["scores"], results["boxes"])]
 
     return predict_fn, {"model_name": f"grounding_dino:{model_id}", "checkpoint": model_id,
                          "prompt": text, "threshold": threshold}
@@ -144,7 +145,7 @@ def load_real_owlv2_parts(*, model_id: str = "google/owlv2-base-patch16-ensemble
     from transformers import Owlv2ForObjectDetection, Owlv2Processor
     import torch
 
-    processor = Owlv2Processor.from_pretrained(model_id)
+    processor = Owlv2Processor.from_pretrained(model_id, use_fast=False)
     model = Owlv2ForObjectDetection.from_pretrained(model_id).to(device).eval()
     texts = [owlv2_part_text_queries()]
 

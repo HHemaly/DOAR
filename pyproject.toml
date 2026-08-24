@@ -12,13 +12,24 @@ ingest = ["pypdf>=4"]
 ui = ["streamlit>=1.36,<2"]
 deep = ["torch>=2.2,<3", "torchvision>=0.17,<1"]
 embeddings = ["open-clip-torch>=2.26,<3"]
-# Phase 2C.4: open-vocabulary detector benchmark (Grounding DINO, OWLv2,
-# Florence-2 via `transformers`; YOLO-World via `ultralytics`). Heavy,
-# optional, local-only -- never required by CI (ci.yml installs only
-# cv/dev/ml). einops/accelerate are Florence-2's own documented runtime
+# Phase 2C.4: open-vocabulary detectors (Grounding DINO, OWLv2, Florence-2
+# via `transformers`; YOLO-World via `ultralytics`). Originally a
+# benchmark-only extra, never required by CI (ci.yml installs only
+# cv/dev/ml) -- but doar_prototype_app.py's automatic visual object scan
+# (phase2c7/runtime.py -> phase2c4/detectors.py) now depends on it at
+# real-app runtime, so a fresh app deployment MUST install this extra (see
+# the `app` extra below), not just a local ad hoc `pip install
+# transformers`. einops/accelerate are Florence-2's own documented runtime
 # dependencies (custom modeling code + device_map loading), not a DOAR
 # choice.
 phase2c4 = ["transformers>=4.40,<5", "accelerate>=0.30,<1", "einops>=0.7,<1", "ultralytics>=8.1,<9"]
+# Everything the canonical live app (doar_prototype_app.py) needs to run
+# with real models end-to-end: the Streamlit UI, the optional Gemini
+# Human Interaction Layer, and the real open-vocabulary object detectors
+# the automatic visual scan requires. `pip install -e ".[app]"` is the
+# single command a fresh checkout needs before `streamlit run
+# doar_prototype_app.py`.
+app = ["doar-v3[ui,interaction,phase2c4]"]
 # Phase 2C.6: graphical bounding-box editor for the part-annotation app.
 # streamlit-drawable-canvas (MIT, github.com/andfanilo/streamlit-drawable-
 # canvas, archived upstream) is a thin Streamlit custom component wrapping

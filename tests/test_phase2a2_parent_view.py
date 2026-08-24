@@ -111,22 +111,50 @@ def _thin_margin_image() -> Image.Image:
 
 @unittest.skipUnless(_STREAMLIT_TESTING_AVAILABLE, "streamlit.testing.v1.AppTest not available")
 class ParentViewSectionCountTests(unittest.TestCase):
-    """Section 11: Parent View has at most five main result sections."""
+    """Phase G0.1, Step 8 investigation result: this test's original
+    assertion (exactly 5 subheaders, LITERALLY NUMBERED "1." .. "5." in
+    English) is STALE, not a regression. It encoded docs/PARENT_VIEW_
+    INFORMATION_POLICY.md's Phase 2A.2 policy ("Parent View contains
+    EXACTLY 5 main result sections": Overall result / What was observed /
+    Possible meaning / Questions and next steps / Limitations), written
+    when the Parent view was a flat rule-suggestion list with no
+    CaseInterpretation/concern-domain architecture at all.
 
-    def test_parent_view_has_at_most_five_numbered_subheaders(self):
+    That policy was deliberately superseded by two later, explicitly
+    user-directed phases: the M3 CaseInterpretation/concern-domain
+    redesign, and then the pre-doctor stabilization pass's item I, which
+    explicitly specifies a richer structure (Overall expressive impression
+    / What DOAR noticed / Concern indicators / Whole-image AI opinion /
+    Agreement-disagreement / Overall conclusion / Questions you can ask /
+    Ask DOAR) -- MORE than 5 sections, and current `st.subheader(...)`
+    calls carry plain descriptive text (e.g. "Overall expressive
+    impression"), never a literal "1."/"2." prefix (numbering lives only
+    in source-code comments now, see doar_prototype_app.py). Both changes
+    predate the current Phase G0.1 session. Per Step 8's explicit
+    instruction, this is investigated and the test is UPDATED to assert
+    the current, approved structure -- not silently deleted."""
+
+    _CURRENT_PARENT_SECTION_SUBHEADERS = (
+        "Overall expressive impression", "What DOAR noticed", "Concern indicators",
+        "Agreement / disagreement", "Overall conclusion", "Questions you can ask", "Ask DOAR",
+    )
+
+    def test_parent_view_has_the_current_approved_section_structure(self):
         with tempfile.TemporaryDirectory() as d:
             case_dir = _build_case(d, _wide_margin_image())
             at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
             at.session_state["case_dir"] = str(case_dir.resolve())
             at.run(timeout=60)
             self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
-            # Parent-view result subheaders are numbered "1." .. "5." in
-            # English -- Technical view's headers ("1. Input and page
-            # reference" etc.) are st.header, not st.subheader, so this
-            # counts only the Parent tab's own subheader widgets.
-            numbered = [s.value for s in at.subheader if s.value[:2].rstrip(".").isdigit()]
-            self.assertLessEqual(len(numbered), 5, numbered)
-            self.assertEqual(len(numbered), 5, numbered)  # exactly 5, per the task's required structure
+            parent_tab = at.tabs[0]
+            subheaders = [s.value for s in parent_tab.subheader]
+            for expected in self._CURRENT_PARENT_SECTION_SUBHEADERS:
+                self.assertIn(expected, subheaders, subheaders)
+            # "Whole-image AI opinion" is conditional (only shown once
+            # Full Analysis/Gemini has produced a global observation for
+            # this case) -- never asserted unconditionally present.
+            self.assertFalse(any(s[:2].rstrip(".").isdigit() for s in subheaders),
+                              "Parent subheaders should be plain descriptive text, not numbered, per the current design")
 
 
 @unittest.skipUnless(_STREAMLIT_TESTING_AVAILABLE, "streamlit.testing.v1.AppTest not available")

@@ -31,6 +31,23 @@ _SOURCE_FRIENDLY_NAMES: dict[str, dict[str, str]] = {
     },
 }
 
+# The exact closed set analysis.py's _colour() can emit in
+# meaningful_colours (verified against that function directly this pass).
+_COLOUR_NAMES: dict[str, dict[str, str]] = {
+    "red": {"en": "red", "ar": "أحمر"},
+    "green": {"en": "green", "ar": "أخضر"},
+    "blue": {"en": "blue", "ar": "أزرق"},
+    "yellow": {"en": "yellow", "ar": "أصفر"},
+    "dark": {"en": "dark", "ar": "داكن"},
+    "none_or_neutral": {"en": "none/neutral", "ar": "لا يوجد / محايد"},
+}
+
+
+def friendly_colour_name(colour: str, language: str = "en") -> str:
+    entry = _COLOUR_NAMES.get(colour)
+    return entry["ar" if language == "ar" else "en"] if entry else colour
+
+
 _FAMILY_FRIENDLY_NAMES: dict[str, dict[str, str]] = {
     "size_composition": {"en": "page-space use", "ar": "استخدام مساحة الصفحة"},
     "spatial_placement": {"en": "placement", "ar": "الموضع"},
@@ -85,6 +102,60 @@ def disclaimer(language: str = "en") -> str:
     return _DISCLAIMER["ar" if language == "ar" else "en"]
 
 
+# ---------------------------------------------------------------------------
+# Milestone 2: simplified Parent View -- "what the parent can do" / "when
+# to consider a professional". Deliberately generic, non-case-specific
+# guidance (never a fabricated clinical recommendation tied to this one
+# drawing) -- static, translated templates only.
+# ---------------------------------------------------------------------------
+
+_PARENT_CARE_SUGGESTIONS: dict[str, list[str]] = {
+    "en": [
+        "Keep drawing and creative activities relaxed, playful, and low-pressure.",
+        "Ask your child open, curious questions about their drawing (\"Can you tell me about this part?\") "
+        "rather than leading questions.",
+        "Notice patterns over time and across several drawings, not just this one picture.",
+        "Share anything you notice with your child's teacher, pediatrician, or another trusted adult in "
+        "their life if you'd like a second perspective.",
+    ],
+    "ar": [
+        "حافظي/حافظ على أجواء مريحة وغير ضاغطة أثناء الرسم والأنشطة الإبداعية.",
+        "اطرحي/اطرح على طفلك أسئلة مفتوحة وفضولية عن رسمته (\"هل يمكنك أن تخبرني عن هذا الجزء؟\") بدلاً من "
+        "الأسئلة الموجِّهة.",
+        "لاحظي/لاحظ الأنماط عبر الوقت وعدة رسومات، وليس فقط هذه الرسمة الواحدة.",
+        "شاركي/شارك ما تلاحظينه/تلاحظه مع معلم طفلك أو طبيب الأطفال أو شخص بالغ آخر تثقين/تثق به إذا "
+        "أردت رأياً إضافياً.",
+    ],
+}
+
+_PROFESSIONAL_REFERRAL_GUIDANCE: dict[str, list[str]] = {
+    "en": [
+        "The same specific pattern keeps repeating across several drawings over time.",
+        "You have concerns about your child's mood, behavior, or development that go beyond a single drawing.",
+        "You would value an in-person developmental or psychological assessment for peace of mind.",
+        "This tool cannot diagnose anything -- only a licensed professional can.",
+    ],
+    "ar": [
+        "إذا استمر ظهور نفس النمط تحديداً عبر عدة رسومات على مدى فترة من الوقت.",
+        "إذا كانت لديك مخاوف بشأن مزاج طفلك أو سلوكه أو نموه تتجاوز رسمة واحدة.",
+        "إذا رغبت/رغبتِ في تقييم نمائي أو نفسي حضوري لمزيد من الاطمئنان.",
+        "لا يمكن لهذه الأداة تشخيص أي شيء -- فقط أخصائي مرخّص يمكنه ذلك.",
+    ],
+}
+
+
+def parent_care_suggestions(language: str = "en") -> list[str]:
+    """Generic, non-case-specific things a parent can do -- never a
+    fabricated recommendation derived from this one drawing's content."""
+    return _PARENT_CARE_SUGGESTIONS["ar" if language == "ar" else "en"]
+
+
+def professional_referral_guidance(language: str = "en") -> list[str]:
+    """Generic, non-case-specific signs that a professional, in-person
+    assessment may be worth considering."""
+    return _PROFESSIONAL_REFERRAL_GUIDANCE["ar" if language == "ar" else "en"]
+
+
 def plain_language_observations(analysis: dict, language: str = "en", page_reference: dict | None = None) -> list[dict]:
     """Real measured composition/colour/quality values, rephrased in plain
     sentences. Each item carries the evidence_id(s) it was derived from.
@@ -128,7 +199,7 @@ def plain_language_observations(analysis: dict, language: str = "en", page_refer
         )
         out.append({"text": text, "evidence_ids": []})
 
-    colours = colour.get("meaningful_colours", [])
+    colours = [friendly_colour_name(c, language) for c in colour.get("meaningful_colours", [])]
     if colours:
         joined = "، ".join(colours) if ar else ", ".join(colours)
         text = f"الألوان الملحوظة في الرسمة: {joined}." if ar else f"Noticeable colours in the drawing: {joined}."
@@ -221,12 +292,11 @@ def overall_interpretation(analysis: dict, language: str = "en") -> str:
                      else "No emotion prediction is available for this case.")
 
     if triggered:
-        ids = ", ".join(r["rule_id"] for r in triggered)
         parts.append(
-            (f"تم رصد {len(triggered)} نمط/أنماط بصرية ضعيفة الدعم ({ids})، وجميعها فرضيات "
+            (f"تم رصد {len(triggered)} نمط/أنماط بصرية ضعيفة الدعم، وجميعها فرضيات "
              "غير مُتحقق منها علمياً وسقف ثقتها منخفض متعمد.")
             if ar else
-            (f"{len(triggered)} weak-support visual pattern(s) were observed ({ids}) — "
+            (f"{len(triggered)} weak-support visual pattern(s) were observed — "
              "these are unvalidated hypotheses with an intentionally low confidence cap.")
         )
     else:
@@ -275,10 +345,23 @@ def build_overall_result_summary(
              "'Possible meaning' below.")
         )
     else:
-        sentences.append(
-            "لم يتم تحديد أي نمط رسم مُجمَّع مثير للقلق." if ar else
-            "No concerning combined drawing pattern was identified."
-        )
+        not_assessed = []
+        visual_available = (capabilities or {}).get("visual_detection") == "available"
+        if not visual_available:
+            not_assessed.append("الأجسام والعناصر البصرية" if ar else "objects and visual elements")
+        if not page_assessable:
+            not_assessed.append("استخدام الصفحة وموضع الرسمة" if ar else "page use and drawing placement")
+        if not_assessed:
+            sentences.append(
+                (f"لم يُحدَّد أي نمط مُجمَّع من الأدلة المتاحة حالياً؛ تعذّر تقييم: {', '.join(not_assessed)}." if ar
+                 else f"No combined pattern was identified from the evidence currently available; "
+                      f"{', '.join(not_assessed)} could not be assessed for this case.")
+            )
+        else:
+            sentences.append(
+                "لم يُحدَّد أي نمط مُجمَّع من الأدلة المتاحة لهذه الحالة." if ar else
+                "No combined pattern was identified from the evidence available for this case."
+            )
 
     if model_obs:
         sentences.append(model_obs["text"])
