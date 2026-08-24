@@ -144,10 +144,27 @@ class PrototypeAppSmokeTests(unittest.TestCase):
             )
 
     def test_no_case_selected_shows_info_not_a_crash(self):
+        # feature/supervisor-demo-v2: with no case_dir pre-seeded, the app
+        # now defaults to the new Supervisor Demo Home page (not the legacy
+        # upload prompt) -- see doar_prototype_app.py's "Smart default"
+        # comment next to `supervisor_view_mode`. This test now explicitly
+        # selects the legacy view to confirm ITS OWN "no case selected"
+        # behaviour is unchanged and still doesn't crash.
         at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
+        at.session_state["supervisor_view_mode"] = "Full Research App (legacy)"
         at.run(timeout=60)
         self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
         self.assertTrue(any("Upload a drawing" in i.value for i in at.info))
+
+    def test_no_case_selected_defaults_to_supervisor_demo_home(self):
+        """New default (feature/supervisor-demo-v2): a completely fresh
+        launch, with nothing pre-seeded, lands on the Supervisor Demo Home
+        page -- never a crash, never the bare legacy upload prompt."""
+        at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
+        at.run(timeout=60)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        self.assertEqual(at.session_state["supervisor_view_mode"], "Supervisor Demo")
+        self.assertTrue(any("TRY A PREPARED DEMONSTRATION" in h.value for h in at.subheader))
 
 
 if __name__ == "__main__":
