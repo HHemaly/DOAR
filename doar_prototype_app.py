@@ -264,7 +264,7 @@ def _render_ask_doar(*, audience: str, chat_key: str, widget_prefix: str, is_ar:
 SUPERVISOR_DEMO_CASES: dict[str, dict] = {
     "case1": {
         "case_id": "a103_1787479142", "role": "complete",
-        "title": {"en": "Full Analysis Walkthrough", "ar": "جولة كاملة في التحليل"},
+        "title": {"en": "Example Drawing 1", "ar": "رسمة توضيحية ١"},
         "purpose": {
             "en": "The main example: DOAR's full pipeline on one drawing, from observation to governed synthesis.",
             "ar": "المثال الرئيسي: خط أنابيب DOAR الكامل على رسمة واحدة، من الملاحظة إلى التوليف المحكوم.",
@@ -272,7 +272,7 @@ SUPERVISOR_DEMO_CASES: dict[str, dict] = {
     },
     "case2": {
         "case_id": "a111_1787479358", "role": "contrast",
-        "title": {"en": "A Different Drawing Profile", "ar": "ملف رسمة مختلف"},
+        "title": {"en": "Example Drawing 2", "ar": "رسمة توضيحية ٢"},
         "purpose": {
             "en": "A visually different drawing: different colours, detected content and expressive profile.",
             "ar": "رسمة مختلفة بصرياً: ألوان ومحتوى مكتشف وملف تعبيري مختلف.",
@@ -280,7 +280,7 @@ SUPERVISOR_DEMO_CASES: dict[str, dict] = {
     },
     "case3": {
         "case_id": "h38_1786305027", "role": "governance",
-        "title": {"en": "Uncertainty and Governance", "ar": "عدم اليقين والحوكمة"},
+        "title": {"en": "Example Drawing 3", "ar": "رسمة توضيحية ٣"},
         "purpose": {
             "en": "Why verification matters: weak, contradicted or missing evidence, handled cautiously.",
             "ar": "لماذا يهم التحقق: أدلة ضعيفة أو متعارضة أو ناقصة، تُعالَج بحذر.",
@@ -425,6 +425,19 @@ def _sd_pipeline_banner(language: str) -> None:
     st.markdown(f'<div class="doar-pipeline">{text}</div>', unsafe_allow_html=True)
 
 
+def _sd_open_case(case_key: str) -> None:
+    """on_click callback for the Home "Open Analysis" buttons. Streamlit
+    forbids writing to a widget-bound session_state key (supervisor_section
+    is bound to the sidebar navigation radio, instantiated earlier in every
+    script run) after that widget has already been instantiated in the same
+    run. Callbacks run in a separate phase BEFORE the next run's widget tree
+    is built, so mutating supervisor_section here -- instead of inline in
+    the button's `if st.button(...):` body during normal script execution --
+    is the structurally correct fix, not just a cosmetic one."""
+    st.session_state["supervisor_active_case"] = case_key
+    st.session_state["supervisor_section"] = "Drawing Analysis"
+
+
 def _sd_home(language: str) -> None:
     ar = language == "ar"
     st.markdown('<div class="doar-kicker">' +
@@ -449,7 +462,7 @@ def _sd_home(language: str) -> None:
     )
     _sd_pipeline_banner(language)
 
-    st.subheader("جرّب عرضاً توضيحياً مُعداً مسبقاً" if ar else "TRY A PREPARED DEMONSTRATION")
+    st.subheader("أمثلة على الرسومات" if ar else "Example Drawings")
     cols = st.columns(3)
     for col, (case_key, cfg) in zip(cols, SUPERVISOR_DEMO_CASES.items()):
         case_dir = CASES_DIR / cfg["case_id"]
@@ -463,15 +476,13 @@ def _sd_home(language: str) -> None:
                     st.caption("(الصورة غير متاحة)" if ar else "(image unavailable)")
                 st.markdown(f"**{cfg['title'][language]}**")
                 st.caption(cfg["purpose"][language])
-                if st.button(("افتح التحليل" if ar else "Open Analysis"),
-                             key=f"sd_open_{case_key}", width="stretch", type="primary"):
-                    st.session_state["supervisor_active_case"] = case_key
-                    st.session_state["supervisor_section"] = "Drawing Analysis"
-                    st.rerun()
+                st.button(("افتح التحليل" if ar else "Open Analysis"),
+                          key=f"sd_open_{case_key}", width="stretch", type="primary",
+                          on_click=_sd_open_case, args=(case_key,))
     st.divider()
     st.caption(
-        ("هذه حالات تطويرية مُعدة مسبقاً؛ لا تُستخدم بيانات \"الاختبار المُقفَل\" أبداً في هذا العرض." if ar else
-         "These are prepared development-only cases; \"Locked Test\" data is never used in this demonstration.")
+        ("هذه رسومات مثالية جاهزة؛ لا تُستخدم بيانات \"الاختبار المُقفَل\" أبداً هنا." if ar else
+         "These are prepared example drawings; \"Locked Test\" data is never used here.")
     )
 
 
@@ -820,6 +831,18 @@ def _sd_technical_trace(language: str, case_key: str) -> None:
          "One clean table of this case's real governed rule evidence. Raw JSON is available only "
          "inside \"Advanced / Raw Details\" below.")
     )
+    # Real scientific-provenance caveat (kept here, deliberately not on the
+    # polished Home/Drawing Analysis pages -- see CURRENT_CAPABILITY_AUDIT.md
+    # Section 3). Unlike the removed top-of-app banner, this is scoped to
+    # the technical view only, where it is still load-bearing information.
+    st.warning(
+        ("نموذج بحثي، غير تشخيصي. جرى تدريب كل نقطة تحقق متاحة حالياً على تقسيم يحتوي على تلوث "
+         "تكراري وتجاوز لبوابة التسرب -- انظر CURRENT_CAPABILITY_AUDIT.md القسم 3. عامل كل مُخرَج على "
+         "أنه أولي." if ar else
+         "Research prototype, non-diagnostic. Every checkpoint currently available was trained on a "
+         "duplicate-contaminated, leakage-gate-overridden split -- see CURRENT_CAPABILITY_AUDIT.md "
+         "Section 3. Treat all output as preliminary.")
+    )
     reg = _sd_rules_registry_index()
     det = docs.get("detections") or {}
     findings = det.get("findings", []) if det.get("status") == "available" else []
@@ -872,8 +895,9 @@ def _sd_research_progress(language: str) -> None:
     ar = language == "ar"
     st.markdown("## " + ("تقدّم البحث" if ar else "Research Progress"))
     st.caption(
-        ("حالات محافِظة لا تُبالغ في وصف الاكتمال — منفصلة تماماً عن أي حالة عرض محددة." if ar else
-         "Conservative statuses that do not overstate completion -- entirely separate from any specific demo case.")
+        ("حالات محافِظة لا تُبالغ في وصف الاكتمال — منفصلة تماماً عن أي رسمة توضيحية محددة." if ar else
+         "Conservative statuses that do not overstate completion -- entirely separate from any specific "
+         "example drawing.")
     )
     rows = [
         ("F0", "Dataset integrity / frozen controls", "COMPLETE"),
@@ -904,13 +928,17 @@ def render_supervisor_demo() -> None:
 
     with st.sidebar:
         st.markdown("### DOAR")
-        language = st.radio("Language / اللغة", ["en", "ar"], horizontal=True, key="supervisor_language")
+        language = st.radio("Language / اللغة", ["en", "ar"], horizontal=True, key="supervisor_language",
+                             format_func=lambda v: "English" if v == "en" else "العربية")
         ar = language == "ar"
         section_options = ["Home", "Drawing Analysis", "Technical Trace", "Research Progress"]
         section_label_ar = {"Home": "الرئيسية", "Drawing Analysis": "تحليل الرسمة",
                              "Technical Trace": "الأثر التقني", "Research Progress": "تقدّم البحث"}
-        st.radio(("الأقسام" if ar else "Sections"), section_options,
-                  format_func=lambda s: section_label_ar[s] if ar else s, key="supervisor_section")
+        section_label_en = {"Home": "Home", "Drawing Analysis": "Analyze Drawing",
+                             "Technical Trace": "Technical Trace", "Research Progress": "Research Progress"}
+        st.radio(("التنقّل" if ar else "Navigation"), section_options,
+                  format_func=lambda s: section_label_ar[s] if ar else section_label_en[s],
+                  key="supervisor_section")
         st.divider()
         if st.session_state["supervisor_active_case"]:
             st.caption(("الحالة النشطة: " if ar else "Active case: ") +
@@ -929,8 +957,8 @@ def render_supervisor_demo() -> None:
         _sd_home(language)
         return
     if section in ("Drawing Analysis", "Technical Trace") and not active_case:
-        st.info("اختر حالة عرض من الرئيسية أولاً." if language == "ar" else
-                "Select a demo case from Home first.")
+        st.info("اختر رسمة توضيحية من الرئيسية أولاً." if language == "ar" else
+                "Select an example drawing from Home first.")
         pick_cols = st.columns(3)
         for col, (case_key, cfg) in zip(pick_cols, SUPERVISOR_DEMO_CASES.items()):
             if col.button(cfg["title"][language], key=f"sd_quickpick_{case_key}", width="stretch"):
@@ -945,36 +973,45 @@ def render_supervisor_demo() -> None:
         _sd_research_progress(language)
 
 
-st.set_page_config(page_title="DOAR prototype - dual view", layout="wide")
+st.set_page_config(page_title="DOAR", layout="wide")
+
+# ---------------------------------------------------------------------------
+# View switch (feature/supervisor-demo-v2): the polished view (Home /
+# Drawing Analysis / Technical Trace / Research Progress, three prepared
+# cases, zero Gemini calls just to open a case) IS the product UI and is
+# always what a normal launch shows -- there is no visible top-level "which
+# app" choice any more. The full legacy Parent/Psychologist/Technical
+# research app -- upload, reopen-any-case, Run Full Analysis, deep visual
+# scan, expert review, etc. -- is completely untouched below and stays
+# reachable only for development/debugging, behind an explicit opt-in
+# (DOAR_DEV_MODE=1 env var, or ?dev=1 query param), never as a visible
+# choice a supervisor/user would stumble into.
+# ---------------------------------------------------------------------------
+_dev_mode = bool(os.environ.get("DOAR_DEV_MODE")) or st.query_params.get("dev") == "1"
+# Smart default: if a case_dir was already pre-seeded (e.g. an existing
+# test/script driving this app the original way via
+# st.session_state["case_dir"]), default straight to the legacy view so
+# that flow keeps working completely unchanged; a fresh launch with no
+# pre-seeded case defaults to the polished view.
+st.session_state.setdefault(
+    "supervisor_view_mode",
+    "Full Research App (legacy)" if st.session_state.get("case_dir") else "Supervisor Demo")
+if _dev_mode:
+    with st.sidebar.expander("Technical / Developer", expanded=False):
+        _view_mode = st.radio(
+            "View", ["Supervisor Demo", "Full Research App (legacy)"], key="supervisor_view_mode")
+else:
+    _view_mode = st.session_state["supervisor_view_mode"]
+if _view_mode == "Supervisor Demo":
+    render_supervisor_demo()
+    st.stop()
+st.sidebar.divider()
 st.title("DOAR v3 -- Dual-View Prototype")
 st.warning(
     "Research prototype, non-diagnostic. Every checkpoint currently available was "
     "trained on a duplicate-contaminated, leakage-gate-overridden split -- see "
     "CURRENT_CAPABILITY_AUDIT.md Section 3. Treat all output as preliminary."
 )
-
-# ---------------------------------------------------------------------------
-# View switch (feature/supervisor-demo-v2): defaults to the new, polished
-# Supervisor Demo (Home / Drawing Analysis / Technical Trace / Research
-# Progress, three prepared cases, zero Gemini calls just to open a case).
-# The full legacy Parent/Psychologist/Technical research app -- upload,
-# reopen-any-case, Run Full Analysis, deep visual scan, expert review, etc.
-# -- is completely untouched below and stays reachable via this switch.
-# ---------------------------------------------------------------------------
-# Smart default: if a case_dir was already pre-seeded (e.g. an existing
-# test/script driving this app the original way via
-# st.session_state["case_dir"]), default straight to the legacy view so
-# that flow keeps working completely unchanged; a fresh launch with no
-# pre-seeded case defaults to the new Supervisor Demo.
-st.session_state.setdefault(
-    "supervisor_view_mode",
-    "Full Research App (legacy)" if st.session_state.get("case_dir") else "Supervisor Demo")
-_view_mode = st.sidebar.radio(
-    "View", ["Supervisor Demo", "Full Research App (legacy)"], key="supervisor_view_mode")
-if _view_mode == "Supervisor Demo":
-    render_supervisor_demo()
-    st.stop()
-st.sidebar.divider()
 
 # ---------------------------------------------------------------------------
 # Sidebar: upload + optional child context + checkpoint choice + page

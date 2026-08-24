@@ -40,13 +40,58 @@ class SupervisorDemoSmokeTests(unittest.TestCase):
         if self._old_key is not None:
             os.environ["GEMINI_API_KEY"] = self._old_key
 
+    def test_open_analysis_button_click_case1_no_crash(self):
+        """P0 regression test for the real crash:
+        streamlit.errors.StreamlitAPIException: st.session_state.supervisor_section
+        cannot be modified after the widget with key supervisor_section is
+        instantiated. The prior test suite missed this because it wrote to
+        at.session_state["supervisor_section"] directly instead of clicking
+        the real rendered "Open Analysis" button, which is the only path
+        that actually exercises the widget-instantiation-then-write ordering
+        that Streamlit forbids. This test clicks the REAL button located by
+        its actual rendered key (key=f"sd_open_{case_key}" in _sd_home)."""
+        at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
+        at.run(timeout=60)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        at.button(key="sd_open_case1").click()
+        at.run(timeout=120)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        self.assertEqual(at.session_state["supervisor_section"], "Drawing Analysis")
+        self.assertEqual(at.session_state["supervisor_active_case"], "case1")
+        self.assertTrue(any("Example Drawing 1" in m.value for m in at.markdown if m.value.startswith("##")))
+
+    def test_open_analysis_button_click_all_three_cases_no_crash(self):
+        """Same real-click path as above, exercised for all three prepared
+        cases with a real click on the sidebar navigation radio (the widget
+        bound to key="supervisor_section") back to Home in between -- the
+        exact click sequence a supervisor clicking through the UI would
+        produce: Home -> Open Analysis -> Home -> Open Analysis -> ..."""
+        at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
+        at.run(timeout=60)
+        self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
+        for case_key in DEMO_CASE_KEYS:
+            # Real click on the sidebar "Navigation" radio widget itself
+            # (not a direct session_state write) to return Home before each
+            # case is opened.
+            at.sidebar.radio(key="supervisor_section").set_value("Home")
+            at.run(timeout=60)
+            self.assertEqual(len(at.exception), 0,
+                              [str(e) for e in at.exception] + [f"nav-home before {case_key}"])
+
+            at.button(key=f"sd_open_{case_key}").click()
+            at.run(timeout=120)
+            self.assertEqual(len(at.exception), 0,
+                              [str(e) for e in at.exception] + [f"open {case_key}"])
+            self.assertEqual(at.session_state["supervisor_section"], "Drawing Analysis")
+            self.assertEqual(at.session_state["supervisor_active_case"], case_key)
+
     def test_fresh_launch_defaults_to_home(self):
         at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))
         at.run(timeout=60)
         self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
         self.assertEqual(at.session_state["supervisor_view_mode"], "Supervisor Demo")
         self.assertEqual(at.session_state["supervisor_section"], "Home")
-        self.assertTrue(any("TRY A PREPARED DEMONSTRATION" in h.value for h in at.subheader))
+        self.assertTrue(any("Example Drawings" in h.value for h in at.subheader))
 
     def test_each_prepared_case_renders_drawing_analysis_and_technical_trace(self):
         at = AppTest.from_file(str(ROOT / "doar_prototype_app.py"))

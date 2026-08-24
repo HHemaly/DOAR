@@ -164,7 +164,7 @@ class PrototypeAppSmokeTests(unittest.TestCase):
         at.run(timeout=60)
         self.assertEqual(len(at.exception), 0, [str(e) for e in at.exception])
         self.assertEqual(at.session_state["supervisor_view_mode"], "Supervisor Demo")
-        self.assertTrue(any("TRY A PREPARED DEMONSTRATION" in h.value for h in at.subheader))
+        self.assertTrue(any("Example Drawings" in h.value for h in at.subheader))
 
 
 if __name__ == "__main__":
