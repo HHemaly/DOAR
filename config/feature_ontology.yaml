@@ -1,0 +1,331 @@
+# DOAR V2 canonical feature ontology.
+#
+# One entry per canonical feature_id. This file declares what a feature
+# IS (type, prerequisites, confounds) -- it does not compute anything.
+# See src/doar/ontology/feature_schema.py for the loader/validator and
+# docs/DOAR_V2_FEATURE_AUDIT.md for the full audit of every feature
+# currently computed anywhere in the repository (59 in features.py alone),
+# most of which are not yet promoted into this ontology file.
+#
+# `status` follows the V2 migration vocabulary used throughout
+# docs/DOAR_V2_MIGRATION.md: KEEP / ADAPT / REPLACE / LEGACY / PLANNED.
+#
+# Two feature families are represented here:
+#  1. Real, implemented, image-only features already produced by
+#     evidence_adapter.py (status: KEEP) -- these back the working
+#     end-to-end demo (ontology/legacy_adapters.py).
+#  2. Deliberately unimplemented/planned features that appear as required
+#     features of the 13 tier-2 rules, plus two illustrative prerequisite
+#     features (human_figure_present, hands_region_visible) that
+#     demonstrate the omission-safety mechanism this schema exists to
+#     support (status: PLANNED) -- none of these are computed by any
+#     extractor today; they exist so the ontology, the engine's
+#     prerequisite-gating, and the tests that exercise it have something
+#     concrete and documented to point at before a real body-part/object
+#     detector exists.
+
+features:
+  composition.bounding_box_coverage:
+    name: bounding_box_coverage
+    category: size_placement
+    type: continuous
+    unit: ratio
+    definition: >
+      Fraction of the page occupied by the foreground drawing's bounding
+      box, from the existing foreground/background segmentation mask.
+    requirements: []
+    assessability:
+      description: >
+        Assessable whenever the image quality gate marks the image
+        supported and the segmentation mask is non-empty. Not assessable
+        on a blank page or a quality-gated-unsupported image.
+    candidate_methods: [existing_cv]
+    confounds: [cropped_page, multiple_figures, paper_size_variation]
+    rules_using_feature:
+      [PSY_AR_SIZE_HALF_014, PSY_AR_SIZE_FULL_015, PSY_AR_SIZE_SMALL_016]
+    source_module: "src/doar/evidence_adapter.py::build_evidence_set"
+    status: KEEP
+
+  composition.centroid_normalized:
+    name: centroid_normalized
+    category: size_placement
+    type: geometry
+    unit: normalized_fraction
+    definition: >
+      Normalized (x, y) centroid of the foreground mask, intensity-weighted.
+    requirements: []
+    assessability:
+      description: >
+        Not assessable when no foreground pixels are detected (undefined
+        centroid) or the image is quality-gated unsupported.
+    candidate_methods: [existing_cv]
+    confounds: [multiple_figures, off_center_cropping]
+    rules_using_feature: []
+    source_module: "src/doar/evidence_adapter.py::build_evidence_set"
+    status: KEEP
+
+  composition.centroid_x:
+    name: centroid_x
+    category: size_placement
+    type: continuous
+    unit: normalized_fraction
+    definition: Horizontal component of composition.centroid_normalized.
+    requirements: []
+    assessability:
+      description: Derived from composition.centroid_normalized; same conditions apply.
+    candidate_methods: [existing_cv]
+    confounds: [multiple_figures, off_center_cropping]
+    rules_using_feature: [PSY_AR_PLACE_LEFT_018, PSY_AR_PLACE_RIGHT_019]
+    source_module: "src/doar/ontology/legacy_adapters.py::evidence_set_to_store"
+    status: ADAPT
+
+  composition.centroid_y:
+    name: centroid_y
+    category: size_placement
+    type: continuous
+    unit: normalized_fraction
+    definition: Vertical component of composition.centroid_normalized.
+    requirements: []
+    assessability:
+      description: Derived from composition.centroid_normalized; same conditions apply.
+    candidate_methods: [existing_cv]
+    confounds: [multiple_figures, off_center_cropping]
+    rules_using_feature: [PSY_AR_PLACE_TOP_017]
+    source_module: "src/doar/ontology/legacy_adapters.py::evidence_set_to_store"
+    status: ADAPT
+
+  colour.dominant:
+    name: dominant_colour
+    category: colour
+    type: categorical
+    allowed_values: [red, green, blue, yellow, black, white, mixed, unknown]
+    definition: Coarse fixed-bin dominant colour of foreground pixels.
+    requirements: []
+    assessability:
+      description: Not assessable when quality-gated unsupported.
+    candidate_methods: [existing_cv]
+    confounds: [scanner_white_balance, paper_colour, lighting]
+    rules_using_feature: []
+    source_module: "src/doar/evidence_adapter.py::build_evidence_set"
+    status: KEEP
+
+  quality.overall_status:
+    name: overall_status
+    category: image_page_quality
+    type: categorical
+    allowed_values: [supported, unsupported]
+    definition: Deterministic resolution/blur/contrast gate result.
+    requirements: []
+    assessability:
+      description: Always assessable -- computed directly from the raw image.
+    candidate_methods: [existing_cv]
+    confounds: []
+    rules_using_feature: []
+    source_module: "src/doar/evidence_adapter.py::build_evidence_set"
+    status: KEEP
+
+  # --- Illustrative prerequisite chain (omission-safety demonstration) ---
+  # Not computed by any extractor yet. Exists so the ontology's
+  # requirements-gating mechanism (engine.py::_prerequisites_satisfied)
+  # has a documented, non-hypothetical example, per the task's own
+  # worked example: "hands_detected=false alone must not become
+  # hands_missing=true without visibility/prerequisite evidence."
+  human_figure_present:
+    name: human_figure_present
+    category: semantic_objects
+    type: boolean
+    definition: Whether a human figure is reliably localized in the drawing.
+    requirements: []
+    assessability:
+      description: >
+        Requires an object/figure detector. No such detector is
+        implemented, adopted, or validated in this release (see
+        UNIMPLEMENTED_FEATURES in evidence_adapter.py).
+    candidate_methods: [segmentation, detection]
+    confounds: [multiple_figures, non_figurative_drawing]
+    rules_using_feature: []
+    source_module: null
+    status: PLANNED
+
+  hands_region_visible:
+    name: hands_region_visible
+    category: object_components_body_parts
+    type: boolean
+    definition: >
+      Whether the region of the page where hands would appear (given the
+      localized human figure) is unoccluded and within the page bounds.
+    requirements: [human_figure_present]
+    assessability:
+      description: >
+        Only meaningful once human_figure_present is TRUE; requires a
+        figure/pose localizer that does not exist yet.
+    candidate_methods: [pose_estimation, segmentation]
+    confounds: [cropped_page, occlusion, figure_partially_off_page]
+    rules_using_feature: []
+    source_module: null
+    status: PLANNED
+
+  hands_present:
+    name: hands_present
+    category: object_components_body_parts
+    type: boolean
+    definition: >
+      Whether hands are depicted on the localized human figure. A value
+      of FALSE here may only be reported once human_figure_present and
+      hands_region_visible are both TRUE -- otherwise "not detected"
+      must resolve to UNKNOWN, never to a confirmed omission.
+    requirements: [human_figure_present, hands_region_visible]
+    assessability:
+      description: >
+        Requires a body-part/component detector. No such detector is
+        implemented in this release (detectors/ is schema-only
+        scaffolding, see docs/LEGACY_AUDIT.md and CURRENT_SYSTEM_AUDIT.md).
+    candidate_methods: [pose_estimation, segmentation, detection]
+    confounds: [cropped_page, occlusion, drawing_style_stick_figure]
+    rules_using_feature: []
+    source_module: null
+    status: PLANNED
+
+  # --- Unimplemented canonical categories required by the 13 tier-2 rules ---
+  # These mirror evidence_adapter.py::UNIMPLEMENTED_FEATURES exactly (same
+  # feature_ids, same reasons) so the ontology and the existing evidence
+  # pipeline never disagree about which categories have no extractor.
+  semantic.face.eyes:
+    name: face_eyes
+    category: semantic_objects
+    type: categorical
+    allowed_values: [wide, stern, closed, none, unknown]
+    definition: >
+      Style of eyes depicted on a detected face (wide/stern/closed).
+      Three current tier-2 rules (wide/stern/closed eyes) all key off
+      this one coarse categorical feature -- see docs/DOAR_V2_RULE_AUDIT.md
+      for the resulting ambiguity (the rules cannot currently be
+      distinguished at the evidence layer even if a detector existed).
+    requirements: [human_figure_present]
+    assessability:
+      description: No face/eye detector is implemented, adopted, or validated in this release.
+    candidate_methods: [face_landmark_detection]
+    confounds: [drawing_style, age_appropriate_simplification]
+    rules_using_feature: [PSY_AR_EYES_WIDE_001, PSY_AR_EYES_STERN_002, PSY_AR_EYES_CLOSED_003]
+    source_module: null
+    status: PLANNED
+
+  semantic.object.animal_species:
+    name: animal_species
+    category: semantic_objects
+    type: categorical
+    allowed_values: [tiger_or_wolf, fox, squirrel, lion, other, none, unknown]
+    definition: Species classification of a detected animal figure.
+    requirements: []
+    assessability:
+      description: No animal-species classifier is implemented, adopted, or validated in this release.
+    candidate_methods: [image_classification]
+    confounds: [ambiguous_species, stylized_drawing]
+    rules_using_feature:
+      [PSY_AR_ANIMAL_TIGER_WOLF_004, PSY_AR_ANIMAL_FOX_005, PSY_AR_ANIMAL_SQUIRREL_006, PSY_AR_ANIMAL_LION_007]
+    source_module: null
+    status: PLANNED
+
+  semantic.object.symbol:
+    name: symbol_object
+    category: semantic_objects
+    type: categorical
+    allowed_values: [stars, flowers_clouds_sun, hearts, none, unknown]
+    definition: Presence of a recognized decorative symbol category.
+    requirements: []
+    assessability:
+      description: No symbol classifier is implemented, adopted, or validated in this release.
+    candidate_methods: [image_classification, shape_matching]
+    confounds: [ambiguous_symbol, stylized_drawing]
+    rules_using_feature: [PSY_AR_STARS_009, PSY_AR_FLOWERS_CLOUDS_SUN_010, PSY_AR_HEARTS_013]
+    source_module: null
+    status: PLANNED
+
+  semantic.object.category:
+    name: object_category
+    category: semantic_objects
+    type: categorical
+    allowed_values: [vehicle, none, unknown]
+    definition: General object-category classification.
+    requirements: []
+    assessability:
+      description: No general object-category classifier is implemented, adopted, or validated in this release.
+    candidate_methods: [image_classification]
+    confounds: [ambiguous_category]
+    rules_using_feature: [PSY_AR_TRANSPORT_012]
+    source_module: null
+    status: PLANNED
+
+  geometry.primitive_shape:
+    name: primitive_shape
+    category: primitive_geometry
+    type: categorical
+    allowed_values: [circle, rectangle, triangle, line, other, unknown]
+    definition: Primitive-shape semantic classification of a contour/component.
+    requirements: []
+    assessability:
+      description: >
+        Contour extraction exists for stroke maps, but shape-semantic
+        classification is not wired to any evidence output.
+    candidate_methods: [contour_classification]
+    confounds: [overlapping_shapes, freehand_imprecision]
+    rules_using_feature: [PSY_AR_CIRCLES_011]
+    source_module: null
+    status: PLANNED
+
+  geometry.shape_repetition:
+    name: shape_repetition
+    category: primitive_geometry
+    type: continuous
+    unit: count
+    definition: Count of repeated instances of the same geometric primitive.
+    requirements: [geometry.primitive_shape]
+    assessability:
+      description: Requires shape-semantic classification, which does not exist yet.
+    candidate_methods: [contour_classification]
+    confounds: [overlapping_shapes]
+    rules_using_feature: [PSY_AR_GEOMETRY_008]
+    source_module: null
+    status: PLANNED
+
+  ocr.text_regions:
+    name: text_regions
+    category: ocr_text
+    type: set
+    definition: Set of localized text regions and their transcriptions.
+    requirements: []
+    assessability:
+      description: OCR is not wired into analyze_image in this release.
+    candidate_methods: [ocr]
+    confounds: [handwriting_legibility, non_latin_script]
+    rules_using_feature: []
+    source_module: null
+    status: PLANNED
+
+  corrections.erasures:
+    name: erasures
+    category: corrections_erasures
+    type: set
+    definition: Set of localized erasure/overwriting/correction marks.
+    requirements: []
+    assessability:
+      description: No erasure/overwriting/correction detector is implemented in this release.
+    candidate_methods: [stroke_analysis]
+    confounds: [scan_artifacts, eraser_smudging]
+    rules_using_feature: []
+    source_module: null
+    status: PLANNED
+
+  spatial.relationships:
+    name: spatial_relationships
+    category: spatial_relationships
+    type: set
+    definition: Set of pairwise spatial relationships between detected objects.
+    requirements: []
+    assessability:
+      description: Requires object detection, which does not exist yet.
+    candidate_methods: [detection, relationship_modeling]
+    confounds: [occlusion, overlapping_objects]
+    rules_using_feature: []
+    source_module: null
+    status: PLANNED
