@@ -2,7 +2,7 @@
 name = "doar-v3"
 version = "0.1.0"
 requires-python = ">=3.11,<3.13"
-dependencies = ["numpy>=1.26,<3", "Pillow>=10,<12"]
+dependencies = ["numpy>=1.26,<3", "Pillow>=10,<12", "PyYAML>=6,<7"]
 
 [project.optional-dependencies]
 ml = ["scikit-learn>=1.4", "pandas>=2.2"]
@@ -31,3 +31,4 @@ select = ["E4", "E7", "E9", "F"]
 # E402 for those files; no rule is weakened globally.
 "main.py" = ["E402"]
 "tests/**" = ["E402"]
+"scripts/**" = ["E402"]

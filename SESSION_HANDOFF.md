@@ -42,6 +42,42 @@ and in what order everything happened.
 
 ---
 
+## 0a. Addendum: DOAR V2 ontology foundation milestone (post-`247562d`)
+
+A later session added a new, additive `src/doar/ontology/` package on
+top of everything above — a declarative feature ontology
+(`config/feature_ontology.yaml`), a source-agnostic `FeatureObservation`,
+a multi-source append-only `FeatureStore` (CORROBORATED/SINGLE_SOURCE/
+AI_ONLY/CONFLICT/NOT_ASSESSABLE/HUMAN_CONFIRMED/HUMAN_CORRECTED), a
+`CaseContext` (age/sex/task/narrative, all genuinely optional), a
+composable declarative `Rule` schema (EMPIRICAL_EXPRESSIVE vs.
+CLASSICAL_PROJECTIVE, explicit citation metadata), and a three-valued
+(TRUE/FALSE/UNKNOWN) rule engine with full evaluation traces
+(`MATCHED`/`MATCHED_PROVISIONAL`/`NOT_MATCHED`/`NOT_ASSESSABLE`/
+`NOT_APPLICABLE_TO_TASK`/`NOT_APPLICABLE_TO_AGE`/`MISSING_PREREQUISITE`/
+`CONFLICTING_EVIDENCE`). It re-expresses the existing 19-rule registry
+declaratively via adapters (`ontology/legacy_adapters.py`) and confirms
+all 19 are `CLASSICAL_PROJECTIVE`/`IMAGE_ONLY` (none age/task/narrative-
+dependent, none empirically supported) — see `docs/DOAR_V2_ARCHITECTURE.md`,
+`docs/DOAR_V2_FEATURE_AUDIT.md` (59 real `features.py` features, not the
+commonly-quoted "~22"), `docs/DOAR_V2_RULE_AUDIT.md`, and
+`docs/DOAR_V2_MIGRATION.md` (KEEP/ADAPT/LEGACY/NEXT catalog) for full
+detail. **No file listed anywhere above this addendum was modified** —
+`evidence_schema.py`/`rule_schema.py`/`evidence_rule_engine.py`/
+`evidence_adapter.py`/`evidence_pipeline.py`/`features.py`/`rules.py`/
+`models.py`/`deep/*` are all byte-for-byte unchanged; this milestone
+added new files only (`src/doar/ontology/`, `config/feature_ontology.yaml`,
+`tests/test_ontology_*.py`, `scripts/generate_*.py`,
+`artifacts/rule_feature_matrix.csv`, `artifacts/feature_audit.csv`, the
+four `docs/DOAR_V2_*.md` files, and this addendum). Baseline commit for
+V1-vs-V2 comparison: `247562d`. Full test suite after this milestone: 551
+tests (471 pre-existing + 80 new), same 2 pre-existing failures as
+before this milestone (unrelated to this work), 0 new errors, 47 skipped
+(missing optional `torch`/`opencv-python-headless`/`streamlit` in the
+execution environment only).
+
+---
+
 ## 1. Git state
 
 **Branch**: `master` (only branch). **No remotes configured** — nothing has
