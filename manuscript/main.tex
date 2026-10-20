@@ -1,0 +1,187 @@
+%% DOAR manuscript for Machine Vision and Applications (Springer Nature sn-jnl).
+%% STATUS: DRAFT. Every \pending{...} marks a result that does not exist yet;
+%% the manuscript must not be submitted while any \pending or VERIFY remains.
+%% Numbers outside \pending are either (a) recomputed by the journal scripts on
+%% committed manifests (Sec. 5.1) or (b) copied from the archived notebook
+%% outputs (T0 columns), each traceable in RESULTS_PROVENANCE.md.
+
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
+
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{url}
+
+\newcommand{\pending}[1]{\textcolor{red}{\textbf{[PENDING: #1]}}}
+\newcommand{\authorinput}[1]{\textcolor{blue}{\textbf{[AUTHOR INPUT: #1]}}}
+
+\begin{document}
+
+\title[Benchmark and measurement validity in children's drawing analysis]{Benchmark and measurement validity in children's drawing analysis: augmentation-copy leakage, model selection, and the reliability of objective visual features}
+
+\author*[1]{\fnm{\authorinput{first name}} \sur{\authorinput{surname}}}\email{\authorinput{email}}
+\author[1]{\fnm{\authorinput{first name}} \sur{\authorinput{surname}}}\email{\authorinput{email}}
+\affil*[1]{\orgdiv{Faculty of Media Engineering and Technology}, \orgname{German University in Cairo}, \orgaddress{\city{Cairo}, \country{Egypt}}}
+
+\abstract{Automated analysis of children's drawings is usually evaluated as image classification, and objective drawing features are usually computed after an automatic separation of marks from paper. Both steps carry validity assumptions that are rarely tested: that evaluation images are independent of training images, and that a feature named after a visual property measures that property. We test both assumptions on a reused four-class benchmark (Angry, Fear, Happy, Sad; 3,395 drawings after conflict removal). At the benchmark level, a filename audit shows that 102 of 284 validation images (35.9\%) and 200 of 512 test images (39.1\%) share a Roboflow source name with a training image, although the split was grouped by exact and perceptual hashes; \pending{image-level confirmation rate of copies (A5)}. We quantify the effect of such copies on nine pretrained encoders and three adaptation depths by re-scoring saved predictions and by repeating the complete protocol on a source-grouped split: \pending{inflation estimate, ranking change (Kendall $\tau$), selected model and single test result with CI}. At the measurement level, we compare a support-aware deterministic extractor with six standard thresholding methods against human reference masks and propagate mask errors into 49 objective features: \pending{mask F1 by method and regime; ICC of features; AUROC and AURC of the assessability states}. The results \pending{one-sentence conclusion once known}. Labels are treated as benchmark categories only; no psychological interpretation is made.}
+
+\keywords{children's drawings, data leakage, benchmark validity, measurement validity, foreground segmentation, binarization, transfer learning, selective prediction}
+
+\maketitle
+
+%% ============================================================================
+\section{Introduction}\label{sec:intro}
+
+Children's drawings are studied computationally for two different purposes. Classification studies train models to assign a drawing to a small set of expressive or clinical categories \cite{ali2022sensing,ciftci2025kido}; measurement studies compute named visual properties---colour, placement, coverage, line width---that echo formal-element rating schemes from art therapy \cite{gantt2001feats,kim2007placement,kim2007colour}. Both are increasingly combined with multimodal language models that write interpretations on top of detected content \cite{ma2025pick,binaei2026artcognition,psydraw2024}. All of these pipelines inherit two assumptions that are rarely tested. The first is that evaluation images are independent of training images. The second is that a feature computed after automatically separating drawing marks from the support actually measures the visual property its name promises.
+
+Both assumptions are fragile on drawing data. Public drawing collections are often assembled from several sources and exported through annotation platforms that add augmented copies of each image; copies that are rotated, flipped or noised are not caught by the exact and perceptual hashes commonly used to deduplicate splits. Leakage of this kind is a known failure mode of machine-learning-based science \cite{kapoor2023leakage} and can make benchmark scores, model rankings and conclusions drawn from them unreliable. Separately, drawings are scanned or photographed on paper of many colours, with shadows, page edges and full-canvas painting; an automatic foreground estimate that fails silently produces feature values that look plausible but describe the wrong pixels. Quantitative claims about drawings, whether predictive or descriptive, therefore rest on the validity of measurement in the sense of \cite{jacobs2021measurement}.
+
+This paper studies both levels on a reused four-class drawing benchmark and asks three questions. \textbf{RQ1}: how much do augmentation copies across splits inflate validation performance, and do they change which encoder and which adaptation depth a careful protocol selects? \textbf{RQ2}: do automatic quality-control flags and confidence or assessability states predict whether a drawing-mark mask, and the features computed from it, are correct? \textbf{RQ3}: under a leakage-controlled split and human-referenced measurement, which representation and which measurements remain defensible?
+
+Our contributions are:
+\begin{itemize}
+\item a source-level leakage analysis of a reused children's-drawing benchmark, showing that perceptual-hash grouping misses augmented copies, with \pending{confirmed copy rate} and a quantified effect on nine encoders and three adaptation depths under one fixed protocol;
+\item a corrected, pre-registered representation comparison on a source-grouped split with a single locked-test evaluation;
+\item a measurement-validity study of drawing-mark extraction against human reference masks, comparing a support-aware extractor with standard thresholding baselines and propagating mask errors into 49 objective drawing features;
+\item an evaluation of whether assessability states can be trusted to withhold unreliable measurements, using risk--coverage analysis.
+\end{itemize}
+The paper makes no claim about the psychological meaning of labels, features or predictions.
+
+%% ============================================================================
+\section{Related work}\label{sec:related}
+
+\paragraph{Classification of children's drawings.} Learned image models have been applied to emotion-related categories of children's drawings \cite{ali2022sensing,ciftci2025kido}, with reported scores that depend strongly on how labels were obtained and how splits were built. \c{C}ift\c{c}i et al. \cite{ciftci2025kido} pair drawings with children's own written reflections, a stronger label source than folder names. Studies that test the predictive validity of projective drawing signs for intelligence or mental health have reported weak or null relationships \cite{imuta2013drawing,lin2022htp}, which is why we treat the four labels as benchmark categories only. Our own earlier study \cite{mjeer2026prior} reported four-class results on the same dataset family without source-level grouping; the present paper does not compare scores with it.
+
+\paragraph{Multimodal reasoning over drawings.} Recent systems decompose House--Tree--Person drawings into objects and reason over them with multimodal language models \cite{ma2025pick,psydraw2024}, or combine visual and kinematic drawing cues \cite{binaei2026artcognition}. These systems depend on the visual evidence beneath them; we study the validity of that evidence, not interpretation.
+
+\paragraph{Formal elements and computational measurement.} Formal-element rating systems describe global properties of art products \cite{gantt2001feats}. Computer systems that rate placement and colour-related elements were proposed early \cite{kim2007placement,kim2007colour}. We do not propose new features; we test whether an existing 51-column feature extractor measures its named constructs when the mark/support separation is imperfect.
+
+\paragraph{Binarization and segmentation quality control.} Separating marks from paper is a document-binarization problem with classical global and local methods \cite{otsu1979threshold,niblack1986introduction,sauvola2000adaptive} and learned methods whose ranking varies across benchmarks \cite{sukesh2024fair}. Children's drawings add coloured media, full-canvas painting and photographed pages. Automated quality control of segmentations without ground truth is established in medical imaging \cite{robinson2019qc}; selective prediction formalises withholding outputs when confidence is low \cite{geifman2017selective}. We evaluate drawing-specific assessability states in that frame.
+
+\paragraph{Leakage, shortcuts and model selection.} Leakage between training and evaluation data inflates reported performance \cite{kapoor2023leakage}; models may also exploit non-causal cues such as acquisition artefacts \cite{geirhos2020shortcut}, and label errors in test sets destabilise benchmark rankings \cite{northcutt2021pervasive}. Frozen linear-probe rankings of pretrained models need not predict fine-tuned rankings \cite{kornblith2019better}, and full fine-tuning can distort pretrained features \cite{kumar2022finetuning}; we therefore use frozen screening only as a shortlist step.
+
+%% ============================================================================
+\section{Data}\label{sec:data}
+
+\paragraph{Source and labels.} The Combined Drawing dataset contains 3,688 images in four labelled folders (Angry, Fear, Happy, Sad). \authorinput{Name every source dataset (with URL, version and licence), how each source assigned labels, how the sources were combined, whether any children's identities or metadata exist, and the ethics/consent position. Without this the paper cannot be submitted.} We treat the labels as benchmark categories of unknown psychological validity.
+
+\paragraph{T0: hash-grouped split.} The original split (T0) groups images by SHA-256 identity and difference-hash Hamming distance $\le 2$ using union--find, excludes 93 groups whose members carry different labels (293 images), and assigns groups to train (2,599), validation (284) and test (512) by a seeded per-class largest-remainder procedure. No group crosses splits under these two criteria. The test split was never used for any model, threshold or analysis decision before the single evaluation in Sec.~\ref{sec:res-test}.
+
+\paragraph{Filename provenance.} 2,432 of the 3,395 included files carry Roboflow export names of the form \texttt{<stem>.rf.<hash>.jpg}. Roboflow keeps the source file name as the stem and appends a per-export hash, so files sharing a stem are candidate copies of one source image; Sec.~\ref{sec:res-audit} tests this.
+
+%% ============================================================================
+\section{Methods}\label{sec:methods}
+
+All thresholds, rules and statistical choices below were fixed in a pre-registration committed before the experiments were run (supplementary file \texttt{PREREGISTRATION.md}).
+
+\subsection{Source-level leakage audit and T1}\label{sec:m-leak}
+We collect three kinds of evidence that two images are copies of one drawing: (i) a shared Roboflow stem; (ii) a difference hash within distance 6 under any of the eight rotations and reflections of the square group; (iii) cosine similarity $\ge 0.95$ between frozen CLIP ViT-B/32 image embeddings \cite{radford2021clip}. A blinded reviewer judges 40 sampled train--validation pairs per evidence type, mixed with 20 same-class control pairs and labelled only by pair identifiers. An evidence type is accepted if at least 90\% of its reviewed candidates are judged to be the same drawing.
+
+T1 merges the T0 groups with all accepted evidence edges by union--find, excludes groups with conflicting labels, keeps the four previously exposed images in training, and assigns groups to splits. \pending{strategy chosen by the authors: minimal-change (each image keeps its T0 split unless its group spans splits) or full regrouping at T0 proportions; resulting split sizes}. Re-drawing the test split is legitimate because no model had been evaluated on the T0 test split.
+
+\paragraph{Re-scoring saved predictions.} Before any retraining, every saved T0 validation prediction file is re-scored separately on validation images that share a Roboflow stem with a training image and on the remaining images.
+
+\subsection{Representation protocol}\label{sec:m-rep}
+The protocol and all hyper-parameters are those of the original analysis and are run unchanged on T1: (1) frozen linear probes on nine encoders---MobileNetV3-Small, ResNet-18 \cite{he2016resnet}, EfficientNet-B0 \cite{tan2019efficientnet}, DenseNet-121, ConvNeXt-Tiny \cite{liu2022convnext}, ViT-B/16 \cite{dosovitskiy2021vit}, CLIP ViT-B/32 \cite{radford2021clip}, DINOv2 ViT-S/14 \cite{oquab2024dinov2} and SigLIP2 ViT-B/16 \cite{tschannen2025siglip2}---each with ten seeds; (2) the three encoders with the highest mean probe macro-F1 are adapted with a frozen, partially fine-tuned (final $\approx$25\% of visual units) or fully fine-tuned encoder, three seeds each; (3) the two configurations with the highest mean on those three seeds receive two further seeds; (4) the configuration with the highest five-seed mean is selected. Macro-F1 is the selection metric.
+
+\subsection{Drawing-mark extraction}\label{sec:m-fg}
+We evaluate three frozen extractors from the original analysis and five standard baselines. A0 thresholds the CIE-Lab distance to a background colour estimated from border pixels. R1-V1 and R1-V2 were developed on 84 images (44 A0 failures and 40 A0 successes); V2 first estimates whether a coherent support exists (light, mid, dark or ambiguous full canvas), thresholds relative to that support, suppresses smooth border floods, and assigns each mask a support confidence and a measurement policy (usable, review required, unreliable). V2 was frozen before an 80-image holdout was drawn. The baselines are global Otsu \cite{otsu1979threshold} on luminance, Sauvola \cite{sauvola2000adaptive} and Niblack \cite{niblack1986introduction} with a 25-pixel window and $k=0.2$, adaptive Gaussian thresholding (block 35, $C=10$), and Otsu on Lab distance from the median image colour; none is tuned on reference data.
+
+\subsection{Human references}\label{sec:m-ref}
+About 120 train/validation images, excluding the development and holdout images and their stem siblings, are sampled by largest-remainder allocation across V2 support regime $\times$ A0 state. Annotators see neither labels, file names nor method masks. For each image they first judge whether marks and support can be separated (or mark the image as full canvas, photographed scene, not a child's drawing, or blank), then build a reference mask from their own paper samples and a threshold, corrected with add and erase brush strokes. Forty images are annotated independently by a second annotator. \pending{annotator roles and agreement}.
+
+\subsection{Metrics and statistics}\label{sec:m-stats}
+Mask agreement uses pixel F1, IoU and boundary F1 with a 2-pixel tolerance \cite{csurka2013good}. Feature agreement between features computed on the reference mask and on each method's mask uses mean absolute error and ICC(2,1) \cite{shrout1979icc,koo2016icc}. Gate validity uses the AUROC of each state for detecting a bad measurement (F1 $<0.5$ on an assessable image, or an image a human judged not assessable) and the area under the risk--coverage curve \cite{geifman2017selective}. Uncertainty about a score on a fixed image set is estimated by 10,000 image-level bootstrap resamples \cite{efron1994bootstrap}; seed variation is reported separately as model variance. Paired comparisons use paired bootstraps and exact McNemar tests; families of tests are Holm-corrected \cite{holm1979simple}; proportions carry Wilson intervals.
+
+%% ============================================================================
+\section{Results}\label{sec:results}
+
+\subsection{Source-level audit}\label{sec:res-audit}
+Table~\ref{tab:audit} summarises the filename evidence for the T0 split. Roboflow stem groups are dominated by triples (463 of 1,300 stems), the size produced by a three-times augmented export, and no stem group carries more than one label. 270 stems have files in more than one split. Measured per image, 102 of 284 validation images (35.9\%; Angry 19, Fear 11, Happy 35, Sad 37) and 200 of 512 test images (39.1\%) share a stem with at least one training image. A further 45 plain (non-Roboflow) file names recur across splits. \pending{A5 blinded review: share of same-stem pairs judged the same drawing, transformations seen, control false-positive rate; dihedral and embedding candidate counts and precision}.
+
+\begin{table}[t]
+\caption{Filename-level source audit of the T0 split (3,395 included images). Computed by \texttt{a1\_stem\_audit.py} from the committed T0 manifests; only file names and split assignments were read.}\label{tab:audit}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Quantity & Value \\
+\midrule
+Files with Roboflow export names & 2,432 \\
+Distinct Roboflow stems & 1,300 \\
+Stem groups of size 1 / 2 / 3 / 4 / 5 & 670 / 148 / 463 / 18 / 1 \\
+Stems spanning train--valid / train--test / valid--test / all three & 76 / 157 / 15 / 22 \\
+Validation images sharing a stem with training & 102 / 284 (35.9\%) \\
+Test images sharing a stem with training & 200 / 512 (39.1\%) \\
+Stem groups with conflicting labels & 0 \\
+\botrule
+\end{tabular}
+\end{table}
+
+\paragraph{Effect on saved validation scores.} \pending{A2 table: macro-F1 on shared vs independent validation images for every saved T0 run, with bootstrap CIs; class-mix and source-family checks}.
+
+\subsection{Representation selection on T0 and T1}\label{sec:res-rep}
+Table~\ref{tab:rep} places the original T0 results beside the T1 rerun. On T0, SigLIP2 had the highest ten-seed probe mean (0.731 $\pm$ 0.021), followed by CLIP ViT-B/32 (0.715 $\pm$ 0.016) and EfficientNet-B0 (0.705 $\pm$ 0.010); after adaptation, partially fine-tuned CLIP reached 0.830 $\pm$ 0.006 over five seeds and partially fine-tuned SigLIP2 0.820 $\pm$ 0.016. \pending{T1 values, Kendall $\tau$ between probe rankings, adaptation gains on T1, finalist comparison with image-level paired bootstrap and McNemar}.
+
+\begin{table}[t]
+\caption{Validation macro-F1 (mean $\pm$ SD over seeds) on the hash-grouped split T0 (archived results) and the source-grouped split T1. Probe: 10 seeds; adapted: 3 seeds (finalists 5).}\label{tab:rep}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & \multicolumn{2}{c}{T0 (archived)} & \multicolumn{2}{c}{T1} \\
+Encoder & Probe & Best adaptation & Probe & Best adaptation \\
+\midrule
+SigLIP2 ViT-B/16 & 0.731 $\pm$ 0.021 & partial 0.816 $\pm$ 0.015 & \pending{} & \pending{} \\
+CLIP ViT-B/32 & 0.715 $\pm$ 0.016 & partial 0.830 $\pm$ 0.004 & \pending{} & \pending{} \\
+EfficientNet-B0 & 0.705 $\pm$ 0.010 & full 0.798 $\pm$ 0.027 & \pending{} & \pending{} \\
+ConvNeXt-Tiny & 0.701 $\pm$ 0.011 & -- & \pending{} & \pending{} \\
+ViT-B/16 & 0.682 $\pm$ 0.014 & -- & \pending{} & \pending{} \\
+MobileNetV3-Small & 0.681 $\pm$ 0.012 & -- & \pending{} & \pending{} \\
+DenseNet-121 & 0.635 $\pm$ 0.009 & -- & \pending{} & \pending{} \\
+DINOv2 ViT-S/14 & 0.635 $\pm$ 0.019 & -- & \pending{} & \pending{} \\
+ResNet-18 & 0.625 $\pm$ 0.011 & -- & \pending{} & \pending{} \\
+\botrule
+\end{tabular}
+\end{table}
+
+\subsection{Single test evaluation}\label{sec:res-test}
+\pending{B4: test macro-F1 of the selected configuration (seed ensemble) with image-level 95\% CI, per-class F1, comparison with the runner-up and with a linear probe of the same encoder}.
+
+\subsection{Mask validity}\label{sec:res-mask}
+On the T0 training and validation images, A0 assigned an acceptable state to 2,577 of 2,883 images (89.4\%). Its acceptance rule requires only that at least 0.1\% of pixels are foreground. \pending{C1: frozen-V2 holdout review---share of usable masks judged good, by group, with Wilson CIs, excluding holdout images that share a source with development images (A6)}. \pending{C3/C4: Fig.~mask F1 by method and regime with CIs; paired V2-vs-baseline comparisons; inter-annotator agreement}.
+
+\subsection{Propagation into features}\label{sec:res-feat}
+The extractor produces 51 numeric columns; two describe the mask builder itself, leaving 49 drawing features, of which only the three canvas-geometry features do not depend on the mask. \pending{per-feature ICC(2,1) and MAE between reference-mask and automatic-mask features for each method}.
+
+\subsection{Do assessability states predict error?}\label{sec:res-gate}
+\pending{AUROC and AURC of V2 measurement policy, V2 support confidence and A0 state; risk at 80\% coverage; risk--coverage figure}.
+
+%% ============================================================================
+\section{Discussion}\label{sec:discussion}
+\pending{Write after results: what leakage did to scores and selection; which measurements survive human reference; whether withholding works; general lessons for drawing benchmarks; negative findings stated as such.}
+
+\section{Limitations and threats to validity}\label{sec:limits}
+Labels come from folder names of combined sources and carry unknown psychological validity. Grouping by source stems and image similarity controls copies of the same image, not different drawings by the same child; the data contain no child identifiers, so independence is image-level, not subject-level. Reference masks begin from the annotator's own colour threshold, which resembles a Lab-distance extractor and may favour such methods; a second annotator and boundary metrics are the check. Static images do not record pressure, stroke order or timing. \pending{add limitations revealed by the results}.
+
+\section{Conclusion}\label{sec:conclusion}
+\pending{write after results.}
+
+\backmatter
+
+\bmhead{Supplementary information} Pre-registration, code, manifests (without images) and all result tables are available in the repository at \authorinput{public commit or archive DOI}.
+
+\bmhead{Acknowledgements} \authorinput{acknowledgements}
+
+\section*{Declarations}
+\begin{itemize}
+\item Funding: \authorinput{funding or ``no funding''}.
+\item Conflict of interest: \authorinput{statement}.
+\item Ethics approval and consent: \authorinput{ethics position for children's drawings from the named sources; whether institutional review was sought}.
+\item Data availability: \authorinput{where the images can be obtained under their original licences}; derived manifests and results are released with the code.
+\item Code availability: \authorinput{repository URL and commit}.
+\item Author contributions: \authorinput{CRediT statement}.
+\item Use of generative AI: \authorinput{update the disclosure from the previous draft; state which tools were used for code and text, and that all numbers come from executed scripts}.
+\end{itemize}
+
+\bibliography{references}
+
+\end{document}
