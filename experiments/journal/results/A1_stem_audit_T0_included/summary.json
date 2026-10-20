@@ -1,0 +1,93 @@
+{
+  "audit": {
+    "exposure_by_split": {
+      "test": {
+        "by_class": {
+          "Angry": 47,
+          "Fear": 35,
+          "Happy": 55,
+          "Sad": 63
+        },
+        "fraction": 0.390625,
+        "n": 512,
+        "share_rf_stem_with_train": 200
+      },
+      "train": {
+        "by_class": {},
+        "fraction": null,
+        "n": 2599,
+        "share_rf_stem_with_train": 0
+      },
+      "valid": {
+        "by_class": {
+          "Angry": 19,
+          "Fear": 11,
+          "Happy": 35,
+          "Sad": 37
+        },
+        "fraction": 0.3591549295774648,
+        "n": 284,
+        "share_rf_stem_with_train": 102
+      }
+    },
+    "n_images": 3395,
+    "n_rf_stems": 1300,
+    "n_roboflow_named": 2432,
+    "plain_names_matching_rf_source": 604,
+    "plain_names_matching_rf_source_in_other_split": 60,
+    "rf_group_size_distribution": {
+      "1": 670,
+      "2": 148,
+      "3": 463,
+      "4": 18,
+      "5": 1
+    },
+    "rf_stem_groups_with_class_conflict": 0,
+    "rf_stems_spanning_splits": {
+      "test-train": 157,
+      "test-train-valid": 22,
+      "test-valid": 15,
+      "train-valid": 76
+    },
+    "rf_stems_spanning_splits_total": 270
+  },
+  "metadata": {
+    "config": {
+      "manifests": [
+        "experiments/E1_visual_representation/raw/e1a_train_valid_manifest.csv",
+        "experiments/E1_visual_representation/raw/e1a_test_paths_LOCKED_DO_NOT_USE.csv"
+      ]
+    },
+    "config_sha256": "6b1eefc91b4d39e4c0f877b8eef8726c2c1e8d58a7ab7d82cf91bf40c4f218f2",
+    "git_commit": "eb832e43ec4ea8badb0b18000a30b77cd149c100",
+    "git_dirty": true,
+    "inputs": {
+      "manifest_0": {
+        "path": "experiments/E1_visual_representation/raw/e1a_train_valid_manifest.csv",
+        "sha256": "46a6512dcb2a1b04e42b80d79c3e56d6789bedba383fb603a9a2d6e79db8ac6e"
+      },
+      "manifest_1": {
+        "path": "experiments/E1_visual_representation/raw/e1a_test_paths_LOCKED_DO_NOT_USE.csv",
+        "sha256": "709489251942b18b9f9f3f527ebe2b4aacdb00e99a248cb8898cd7f1b5a73bce"
+      }
+    },
+    "packages": {
+      "Pillow": "12.3.0",
+      "numpy": "2.5.3",
+      "open-clip-torch": null,
+      "opencv-python": "5.0.0.93",
+      "opencv-python-headless": "5.0.0.93",
+      "pandas": "3.0.5",
+      "scikit-image": "0.26.0",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "timm": null,
+      "torch": null,
+      "torchvision": null
+    },
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "stage": "A1_stem_audit",
+    "utc": "2026-10-20T01:56:22+00:00"
+  }
+}

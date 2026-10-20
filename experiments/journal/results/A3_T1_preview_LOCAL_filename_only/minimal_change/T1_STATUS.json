@@ -1,0 +1,59 @@
+{
+  "status": "PREVIEW_NOT_T0",
+  "report": {
+    "ok": true,
+    "cross_split_edges_by_evidence": {},
+    "conflict_images_in_supervised_splits": 0,
+    "exposed_images_in_valid_or_test": 0,
+    "strategy": "minimal_change",
+    "seed": 42,
+    "split_ratios": [
+      0.7649132321041214,
+      0.08405639913232105,
+      0.1510303687635575
+    ],
+    "n_edges_by_evidence": {
+      "rf_stem": 1132
+    },
+    "n_groups": 2263,
+    "n_conflict_groups": 0,
+    "n_conflict_images": 0,
+    "split_counts": {
+      "train": 2758,
+      "valid": 187,
+      "test": 450
+    },
+    "split_class_counts": {
+      "test/Angry": 103,
+      "test/Fear": 72,
+      "test/Happy": 164,
+      "test/Sad": 111,
+      "train/Angry": 597,
+      "train/Fear": 496,
+      "train/Happy": 935,
+      "train/Sad": 730,
+      "valid/Angry": 47,
+      "valid/Fear": 34,
+      "valid/Happy": 60,
+      "valid/Sad": 46
+    },
+    "t0_to_t1_transitions": {
+      "test->test": 374,
+      "test->train": 135,
+      "test->valid": 3,
+      "train->test": 44,
+      "train->train": 2550,
+      "train->valid": 5,
+      "valid->test": 32,
+      "valid->train": 73,
+      "valid->valid": 179
+    }
+  },
+  "inputs": {
+    "t0_manifest": "/tmp/claude-0/preview_input.csv",
+    "t0_sha256": "cd3cd3af147bb91506c092273f4a42e6ba789bdcf8a5670be889d508e2db2f8e",
+    "extra_edges": {}
+  },
+  "manifest_sha256": "9e5348af808b62d4dc27be10ca26ca525162a6fc67a03e4165149b15c112c67b",
+  "created_utc": "2026-10-20T01:58:54+00:00"
+}
