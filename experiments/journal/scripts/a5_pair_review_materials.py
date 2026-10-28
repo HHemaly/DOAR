@@ -29,7 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from doar_journal import provenance  # noqa: E402
 from doar_journal.leakage import (REVIEW_VERDICTS, load_manifest, make_pair_sheets, path_of,  # noqa: E402
-                                  sample_review_pairs, score_review, split_of, write_review_template)
+                                  sample_review_pairs, score_review, source_key, split_of,
+                                  write_review_template)
 
 
 def _resolve_rel(row: dict) -> str:
@@ -40,11 +41,24 @@ def _resolve_rel(row: dict) -> str:
     return "/".join(parts[-3:])
 
 
+def already_grouped(a: dict, b: dict) -> bool:
+    """True if filename evidence or the T0 group already puts a and b together.
+    Such pairs are trivially 'same' and would inflate the precision of image
+    evidence, so only pairs that the image evidence ADDS are reviewed."""
+    if a.get("group_id") and a.get("group_id") == b.get("group_id"):
+        return True
+    ka, kb = source_key(path_of(a)), source_key(path_of(b))
+    if ka.rf_stem and ka.rf_stem == kb.rf_stem:
+        return True
+    return (not ka.is_roboflow) and (not kb.is_roboflow) and ka.name_key == kb.name_key
+
+
 def edge_pairs(edges_csv: str, rows: list[dict], n: int, seed: int) -> list[dict]:
     by = {r["image_id"]: r for r in rows}
     with open(edges_csv, newline="", encoding="utf-8") as f:
         edges = [e for e in csv.DictReader(f)
-                 if {split_of(by[e["a"]]), split_of(by[e["b"]])} <= {"train", "valid"}]
+                 if {split_of(by[e["a"]]), split_of(by[e["b"]])} == {"train", "valid"}
+                 and not already_grouped(by[e["a"]], by[e["b"]])]
     random.Random(seed).shuffle(edges)
     out = []
     for i, e in enumerate(edges[:n], start=1):
@@ -100,6 +114,13 @@ def main(argv=None) -> int:
         strata[name] = edge_pairs(e, rows, args.n_pairs, seed=20261022)
     out.mkdir(parents=True, exist_ok=True)
     for stratum, pairs in strata.items():
+        review = out / f"review_{stratum}.csv"
+        if review.exists():
+            with open(review, newline="", encoding="utf-8") as f:
+                answered = sum(r.get("verdict") in REVIEW_VERDICTS for r in csv.DictReader(f))
+            if answered:
+                print(f"{stratum}: kept your existing review ({answered} answers) - not regenerated")
+                continue
         if not pairs:
             print(f"{stratum}: no pairs available")
             continue

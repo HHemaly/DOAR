@@ -101,3 +101,13 @@ prediction. The four labels are benchmark categories of unknown origin.
   manifests showed the old routine puts every multi-copy group into train (validation and test then
   contain only un-augmented drawings; Cramér's V with source family 0.32); (3) T1 balance criteria,
   test-run protocol (checkpoint hashes, FAILED state) and the smoke test added.
+- 2026-10-28 (second entry, before any pair was reviewed) — clarifications of C1/C1b, no change of
+  scope or thresholds: (1) the image-evidence candidates shown for review are cross-split
+  train–valid pairs that are NOT already linked by a Roboflow stem, a plain-filename key or a T0
+  group, because those pairs are trivially "same" and would inflate the measured precision of the
+  image evidence; (2) UNSURE counts as not the same drawing; (3) plain-filename (`name_key`) edges
+  are accepted only if ≥ 90% of reviewed pairs are judged same AND ≤ 10% of controls are; (4) the
+  tighter thresholds (dHash ≤ 4, cosine ≥ 0.97) must pass their own blinded review before use;
+  if they also fail, that evidence type is not used and this is reported as a limitation;
+  (5) the rule is applied by `a5b_accepted_edges.py`, not by eye; any added group must still pass
+  the largest-group (chaining) check of the T1 balance criteria.

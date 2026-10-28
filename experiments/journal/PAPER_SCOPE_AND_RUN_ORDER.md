@@ -69,15 +69,15 @@ assumptions in place of evidence. If there is a hard deadline, tell me what it i
 | 3 | A4 (embeddings only now) | CPU 10–25 min, T4 ~2 min | | — |
 | 4 | A5 make | CPU | ~3 min | — |
 | 5 | Review cell, each `STRATUM` | CPU | 30–60 min total | **click verdicts** |
-| 6 | A5 score | CPU | seconds | send me the output |
-| 7 | A3 propose (+ list accepted edge files), A7 report | CPU | ~2 min | **send me STAGE_A_READINESS.md** |
+| 6 | A5 score, then A5b (applies the acceptance rule; writes ACCEPTED_EDGES.json) | CPU | seconds | if A5b says NEXT: review the `*_tight` group, re-score |
+| 7 | A3 propose (reads ACCEPTED_EDGES.json — nothing to edit), A7 report | CPU | ~2 min | **send me STAGE_A_READINESS.md** |
 | 8 | Freeze T1 | CPU | seconds | **approve (your name)** |
 | 9 | B0 smoke test | GPU | 5–10 min | must print `SMOKE PASSED` |
 | 10 | B1–B2 full run | A100 | ~6–12 h (est.), resumable | re-run cell after disconnects |
 | 11 | B3 analysis + freeze selection | CPU | minutes | — |
 | 12 | Holdout review (buttons), C1 | CPU | ~1 h | **click verdicts** |
-| 13 | C2 reference batch | CPU | 20–40 min | — |
-| 14 | Annotation app (local PC) | — | 4–8 h + second annotator 40 images | **draw masks** |
+| 13 | C2 reference batch, C2b annotation kit (zip in the batch folder) | CPU | 20–40 min | — |
+| 14 | Annotation app from the kit (local PC; Streamlit 1.61.1 + drawable-canvas 0.9.3) | — | 4–8 h + second annotator 40 images | **draw masks**, upload masks/ and records/ |
 | 15 | C3, C4 | CPU | ~15 min | — |
 | 16 | B4 single test | GPU | minutes, once | `CONFIRM = True` |
 | 17 | Export zip | CPU | 1 min | send to me |

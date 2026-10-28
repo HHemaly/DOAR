@@ -214,3 +214,89 @@ def test_regroup_full_spreads_copy_groups_across_splits():
     assert res["report"]["ok"]
     b = res["report"]["balance"]
     assert b["checks"]["class_shares"] and b["checks"]["split_fractions"]
+
+
+def _load_script(name):
+    import importlib.util
+    p = Path(__file__).resolve().parents[1] / "experiments/journal/scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_image_evidence_review_skips_pairs_already_linked_by_filename(tmp_path):
+    import csv
+    a5 = _load_script("a5_pair_review_materials")
+    edges = tmp_path / "dihedral_edges_candidates.csv"
+    with open(edges, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["a", "b", "evidence", "detail"])
+        w.writeheader()
+        w.writerow({"a": "id001", "b": "id002", "evidence": "dihedral", "detail": "hamming=1;transform=0"})  # same stem
+        w.writerow({"a": "id005", "b": "id006", "evidence": "dihedral", "detail": "hamming=0;transform=0"})  # same name
+        w.writerow({"a": "id004", "b": "id007", "evidence": "dihedral", "detail": "hamming=5;transform=2"})  # NEW pair
+        w.writerow({"a": "id001", "b": "id004", "evidence": "dihedral", "detail": "hamming=3;transform=0"})  # train-train
+        w.writerow({"a": "id002", "b": "id008", "evidence": "dihedral", "detail": "hamming=3;transform=0"})  # test
+    pairs = a5.edge_pairs(str(edges), ROWS, n=40, seed=1)
+    assert [(p["image_id_a"], p["image_id_b"]) for p in pairs] == [("id004", "id007")]
+
+
+def _scores(tmp_path, rates):
+    from doar_journal import provenance
+    rev = tmp_path / "A5_pair_review"
+    rev.mkdir(parents=True, exist_ok=True)
+    blk = lambda k, n: {"n": n, "judged_same": k, "unsure": 0, "transforms": {},  # noqa: E731
+                        "rate_same": stats.wilson(k, n).as_dict()}
+    sc = {"rf_stem": {"same_rf_stem": blk(39, 40), "control": blk(0, 20)},
+          "name_key": {"same_name_key": blk(*rates["name_key"]), "control": blk(1, 20)}}
+    for kind in ("dihedral", "embedding"):
+        if kind in rates:
+            sc[kind] = {f"candidate_{kind}": blk(*rates[kind])}
+        if f"{kind}_tight" in rates:
+            sc[f"{kind}_tight"] = {f"candidate_{kind}": blk(*rates[f"{kind}_tight"])}
+    provenance.write_json(rev / "review_scores.json", sc)
+    a4 = tmp_path / "A4_image_evidence"
+    a4.mkdir(exist_ok=True)
+    for kind, field, vals in (("dihedral", "hamming", (2, 6)), ("embedding", "cos", (0.99, 0.95))):
+        with open(a4 / f"{kind}_edges_candidates.csv", "w") as f:
+            f.write("a,b,evidence,detail,split_a,split_b,cross_split\n")
+            f.write(f"id004,id007,{kind},{field}={vals[0]},train,valid,True\n")
+            f.write(f"id004,id008,{kind},{field}={vals[1]},train,test,True\n")
+    return rev
+
+
+def test_accepted_edges_rule(tmp_path):
+    import csv
+    import json
+    man = tmp_path / "m.csv"
+    with open(man, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(ROWS[0]))
+        w.writeheader()
+        w.writerows(ROWS)
+    a5b = _load_script("a5b_accepted_edges")
+    # dihedral passes, embedding fails -> tighter file written, not accepted; name_key passes
+    rev = _scores(tmp_path, {"name_key": (37, 40), "dihedral": (38, 40), "embedding": (30, 40)})
+    a5b.main(["--manifest", str(man), "--root", str(tmp_path)])
+    acc = json.loads((rev / "ACCEPTED_EDGES.json").read_text())
+    names = sorted(Path(p).name for p in acc["accepted_edge_files"])
+    assert names == ["dihedral_edges_candidates.csv", "name_key_edges.csv"]
+    assert acc["decisions"]["rf_stem"]["confirmed"] is True
+    tight = list(csv.DictReader(open(rev / "embedding_tight_edges_candidates.csv")))
+    assert [(e["a"], e["b"]) for e in tight] == [("id004", "id007")]   # cos 0.99 kept, 0.95 dropped
+    ne = list(csv.DictReader(open(rev / "name_key_edges.csv")))
+    assert [(e["a"], e["b"]) for e in ne] == [("id005", "id006")]
+    t1_partition.load_edges(rev / "name_key_edges.csv")   # valid evidence type for A3
+    # tighter embedding review passes -> tighter file accepted; borderline name_key with bad controls rejected
+    _scores(tmp_path, {"name_key": (40, 40), "dihedral": (38, 40), "embedding": (30, 40),
+                       "embedding_tight": (37, 40)})
+    import doar_journal.provenance as prov
+    sc = json.loads((rev / "review_scores.json").read_text())
+    sc["name_key"]["control"] = {"n": 20, "judged_same": 5, "unsure": 0, "transforms": {},
+                                 "rate_same": stats.wilson(5, 20).as_dict()}
+    prov.write_json(rev / "review_scores.json", sc)
+    (rev / "name_key_edges.csv").unlink()
+    a5b.main(["--manifest", str(man), "--root", str(tmp_path)])
+    acc = json.loads((rev / "ACCEPTED_EDGES.json").read_text())
+    names = sorted(Path(p).name for p in acc["accepted_edge_files"])
+    assert names == ["dihedral_edges_candidates.csv", "embedding_tight_edges_candidates.csv"]
+    assert acc["decisions"]["name_key"]["accepted"] is False

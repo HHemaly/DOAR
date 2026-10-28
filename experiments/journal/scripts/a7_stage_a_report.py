@@ -26,6 +26,27 @@ def fmt_ci(d: dict) -> str:
     return f"{d['estimate']:.3f} [{d['ci_low']:.3f}, {d['ci_high']:.3f}]"
 
 
+def load_manifest_rows(t1: Path) -> list[dict]:
+    p = t1 / "t1_partition_manifest.csv"
+    if not p.exists():
+        return []
+    with open(p, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def largest_groups(t1: Path, k: int = 5) -> str:
+    rows = load_manifest_rows(t1)
+    by = {}
+    for m in rows:
+        g = by.setdefault(m["group_id"], {"n": 0, "split": m["new_split"], "classes": set(), "evidence": set()})
+        g["n"] += 1
+        g["classes"].add(m["class"])
+        g["evidence"].update(x for x in m.get("group_evidence", "").split(";") if x)
+    top = sorted(by.items(), key=lambda kv: -kv[1]["n"])[:k]
+    return "; ".join(f"{gid}: {g['n']} images, {g['split']}, class {'/'.join(sorted(g['classes']))}, "
+                     f"evidence {'+'.join(sorted(g['evidence'])) or '-'}" for gid, g in top) or "n/a"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", required=True)
@@ -96,21 +117,85 @@ def main(argv=None) -> int:
     else:
         L.append("- **OPEN**: do the review in the notebook, then run the score cell")
 
+    acc = load(root / "A5_pair_review" / "ACCEPTED_EDGES.json")
+    L += ["", "## A5b Evidence accepted for T1 (applied by rule, not by eye)"]
+    if acc:
+        for kind, d in acc["decisions"].items():
+            if "used_by_T1" in d:
+                state = {True: "USED, confirmed by review", False: "USED, NOT confirmed - discuss before approving",
+                         None: "USED, review not scored"}[d.get("confirmed")]
+            else:
+                state = "ACCEPTED" if d.get("accepted") else "not used"
+            L.append(f"- {kind}: {state} - {d['reason']}")
+        L.append(f"- Edge files given to A3: {[Path(x).name for x in acc['accepted_edge_files']] or 'none (filename stems + T0 groups only)'}")
+    else:
+        L.append("- **OPEN**: run the A5b cell after scoring the review")
+
     t1 = Path(a.t1) if a.t1 else root / "T1_proposal_regroup_full"
     st = load(t1 / "T1_STATUS.json")
     L += ["", f"## Proposed T1 split ({t1.name})"]
     if st:
         r = st["report"]
         b = r.get("balance", {})
-        L += [f"- Status: {st['status']}; strategy {r.get('strategy')}; seed {r.get('seed')}",
+        crit = b.get("criteria", {})
+        L += [f"- Status: {st['status']}; strategy {r.get('strategy')}; seed {r.get('seed')}; "
+              f"manifest SHA-256 {st.get('manifest_sha256', '')[:12]}...",
               f"- Evidence edges used: {r['n_edges_by_evidence']}",
-              f"- Cross-split detected edges: {r['cross_split_edges_by_evidence'] or 'none'}",
-              f"- Split sizes: {r['split_counts']}; groups per split: {b.get('groups_per_split')}",
-              f"- Largest group: {b.get('largest_group_size')} images; group sizes {b.get('group_size_distribution')}",
-              f"- Worst class-share deviation: {b.get('worst_class_share_deviation', float('nan')):.3f} (limit 0.03)",
-              f"- Source family vs split, Cramer's V: {b.get('source_family_cramers_v', float('nan')):.3f} (limit 0.10)",
-              f"- Balance checks: {b.get('checks')} -> {'ACCEPTABLE' if b.get('acceptable') else 'NOT acceptable'}",
-              "- Note: zero cross-split edges means zero DETECTED duplicates, not zero duplicates."]
+              f"- Edge files used: {[Path(x).name for x in st.get('inputs', {}).get('extra_edges', {})] or 'none'}",
+              "", "### Excluded records",
+              f"- Images considered: {len(load_manifest_rows(t1))}; duplicate/source groups: {r.get('n_groups')}",
+              f"- Excluded for label conflict (copies of one drawing with different labels): "
+              f"{r.get('n_conflict_images')} images in {r.get('n_conflict_groups')} groups",
+              f"- Final split counts (incl. excluded): {r['split_counts']}",
+              f"- Previously exposed images placed in valid/test: {r.get('exposed_images_in_valid_or_test')} (must be 0)",
+              f"- Conflict images in supervised splits: {r.get('conflict_images_in_supervised_splits')} (must be 0)",
+              f"- Detected duplicate edges crossing splits: {r['cross_split_edges_by_evidence'] or 'none'} (must be none)",
+              "", "### Group sizes",
+              f"- Groups per split: {b.get('groups_per_split')}",
+              f"- Group-size distribution (size: count): {b.get('group_size_distribution')}",
+              f"- Largest groups: {largest_groups(t1)}",
+              "", "### Class balance (share of each class within each split vs overall)"]
+        cs, ov = b.get("class_share_by_split", {}), b.get("overall_class_share", {})
+        if ov:
+            L.append("| split | " + " | ".join(ov) + " |")
+            L.append("|---|" + "---|" * len(ov))
+            for sp, d in cs.items():
+                L.append(f"| {sp} | " + " | ".join(f"{d[c]:.3f}" for c in ov) + " |")
+            L.append("| overall | " + " | ".join(f"{v:.3f}" for v in ov.values()) + " |")
+        L += ["", "### Source families by split (filename-based)"]
+        sf = b.get("source_family_by_split", {})
+        fams = sorted({f for d in sf.values() for f in d})
+        if fams:
+            L.append("| split | " + " | ".join(fams) + " |")
+            L.append("|---|" + "---|" * len(fams))
+            for sp, d in sf.items():
+                L.append(f"| {sp} | " + " | ".join(str(d.get(f, 0)) for f in fams) + " |")
+        frac, tgt = b.get("split_fraction", {}), b.get("target_fraction", {})
+        n_sup = b.get("n_supervised") or 1
+        values = {
+            "split_fractions": (max((abs(frac[s] - tgt[s]) for s in frac), default=float("nan")),
+                                crit.get("split_fraction_abs_dev_max"), "largest split-size deviation from target"),
+            "class_shares": (b.get("worst_class_share_deviation", float("nan")),
+                             crit.get("class_share_abs_dev_max"), "worst class-share deviation"),
+            "largest_group": (b.get("largest_group_size", 0) / n_sup, crit.get("largest_group_share_max"),
+                              "largest group / supervised images"),
+            "source_family_association": (b.get("source_family_cramers_v", float("nan")),
+                                          crit.get("source_family_cramers_v_max"), "Cramer's V split x source family"),
+        }
+        L += ["", "### Balance checks (pre-registered limits)", "| check | value | limit | result |", "|---|---|---|---|"]
+        for k, ok in b.get("checks", {}).items():
+            v, lim, what = values[k]
+            L.append(f"| {what} | {v:.3f} | {lim} | {'PASS' if ok else 'FAIL'} |")
+        reasons = [f"{values[k][2]} = {values[k][0]:.3f} exceeds the limit {values[k][1]}"
+                   for k, ok in b.get("checks", {}).items() if not ok]
+        if not r.get("ok"):
+            reasons.append("verification failed: a detected duplicate group crosses splits, or conflict/exposed "
+                           "images are in a supervised or evaluation split")
+        L += ["", f"**Verdict: {'ACCEPTABLE - all checks pass' if not reasons else 'REJECTED as proposed'}**"]
+        L += [f"- Reason: {x}" for x in reasons]
+        if reasons:
+            L.append("- Do NOT redraw with another seed. Send this report; a written deviation or a joint decision is needed.")
+        L.append("- Note: zero cross-split edges means zero DETECTED duplicates, not zero duplicates.")
     else:
         L.append("- **OPEN**: run A3 propose")
     frozen = load(root / "T1" / "FROZEN.json")

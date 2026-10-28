@@ -32,7 +32,8 @@ branch `journal/mva-2026`, `colab/journal/DOAR_Journal_Validation_2026.ipynb`),
 then:
 
 1. **CPU runtime**: cells 0.1–0.2, then Stage A (A1, A2, A6, A4, A5 make).
-2. **You**: blinded pair review (A5), then the A5 score cell.
+2. **You**: blinded pair review (A5), then the A5 score and A5b cells. A5b applies the
+   pre-registered acceptance rule and the A3 cell reads its decision; nothing is chosen by eye.
 3. **CPU**: A3 propose. **You**: choose and approve a T1 proposal; run the freeze cell.
 4. **GPU (A100) runtime**: Stage B (B1–B2, then B3). Expect several GPU hours;
    re-run the cell after any disconnect.

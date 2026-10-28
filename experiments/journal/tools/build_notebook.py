@@ -19,7 +19,9 @@ OUT_STANDALONE = ROOT / "colab/journal/DOAR_Journal_Validation_2026_STANDALONE.i
 # Files embedded in the standalone notebook (everything the journal scripts import).
 BUNDLE_GLOBS = ("src/doar/__init__.py", "src/doar/partition.py", "src/doar/dataset.py", "src/doar/deep/*.py",
                 "src/doar_journal/*.py", "experiments/journal/scripts/*.py",
-                "experiments/E1_visual_representation/scripts/e1a2_common.py")
+                "experiments/E1_visual_representation/scripts/e1a2_common.py",
+                "src/doar/phase2c6/__init__.py", "src/doar/phase2c6/canvas_compat.py",
+                "experiments/journal/annotation/*")
 
 
 def make_bundle() -> tuple[str, list[str], str]:
@@ -135,7 +137,9 @@ run('a4_image_evidence.py', *args)
 
 code("""
 # A5 Blinded pair-review materials (train-valid pairs only; the locked test split is never shown)
+# Safe to re-run: groups you have already reviewed are kept, never overwritten.
 edges = [OUT / 'A4_image_evidence' / f for f in ('dihedral_edges_candidates.csv', 'embedding_edges_candidates.csv')]
+edges += sorted((OUT / 'A5_pair_review').glob('*_tight_edges_candidates.csv'))   # only if A5b asked for them
 run('a5_pair_review_materials.py', 'make', '--manifest', T0_MANIFEST, '--dataset-root', DATASET_ROOT,
     '--out', OUT / 'A5_pair_review', *sum([['--edges', e] for e in edges if e.exists()], []))
 """)
@@ -145,13 +149,16 @@ md("""
 Put your initials in `REVIEWER`, choose a group in `STRATUM`, run the cell. For each pair click
 **Same Drawing**, **Different Drawing** or **Unsure** (if same, first pick what changed, e.g. rotation).
 Every click is saved to Drive at once; you can stop any time and re-run the cell to continue.
-Do the groups one by one: `rf_stem`, `name_key`, then `dihedral` and `embedding` (these two exist
-only after A4 finished and the A5 make cell was run again). Then run the score cell.
+Do the groups one by one: `rf_stem`, `name_key`, `dihedral`, `embedding` (the last two exist
+only if A4 finished before the A5 make cell ran). Judge only what you see: **Same Drawing** means
+the same physical drawing (possibly rotated, flipped, cropped, recoloured or noisier) — not merely
+a similar style, subject or child. When in doubt choose **Unsure**; it counts as *not* the same.
+Then run the score cell.
 """)
 
 code("""
 REVIEWER = ''          # your initials, e.g. 'HE'
-STRATUM  = 'rf_stem'   # then 'name_key', 'dihedral', 'embedding'
+STRATUM  = 'rf_stem'   # then 'name_key', 'dihedral', 'embedding' (and '*_tight' only if A5b asks)
 from doar_journal.review_widgets import pair_review
 pair_review(OUT / 'A5_pair_review', DATASET_ROOT, STRATUM, REVIEWER)
 """)
@@ -161,10 +168,25 @@ run('a5_pair_review_materials.py', 'score', '--out', OUT / 'A5_pair_review')
 """)
 
 code("""
+# A5b Apply the pre-registered acceptance rule to every evidence type (no decision by eye).
+# Writes A5_pair_review/ACCEPTED_EDGES.json, which the A3 cell reads.
+run('a5b_accepted_edges.py', '--manifest', T0_MANIFEST, '--root', OUT)
+""")
+
+code("""
 # A3 Propose the PRIMARY T1 split (regroup_full, seed 42; pre-registered).
-# Image-evidence edges are added only for evidence types that passed the blinded review
-# (PREREGISTRATION.md C1b: >= 90% of reviewed candidates judged the same drawing).
-ACCEPTED_EDGE_FILES = []   # e.g. [OUT/'A4_image_evidence'/'dihedral_edges_candidates.csv']
+# Roboflow stems and T0 groups are always used. Extra edge files are exactly those that
+# passed the blinded review, as decided by A5b (ACCEPTED_EDGES.json). Do not edit this list.
+import json
+_acc = OUT / 'A5_pair_review' / 'ACCEPTED_EDGES.json'
+assert _acc.exists(), 'run the A5 score and A5b cells first'
+_acc = json.loads(_acc.read_text())
+ACCEPTED_EDGE_FILES = _acc['accepted_edge_files']
+print('Extra evidence used:', ACCEPTED_EDGE_FILES or 'none')
+_open = [k for k, d in _acc['decisions'].items() if 'not scored' in d['reason'] or 'NEXT:' in d['reason']]
+if _open:
+    print('WARNING: review still open for', _open, '- this proposal is provisional; finish those groups, '
+          'run A5 score, A5b and this cell again before approving anything.')
 RUN_SENSITIVITY_SPLIT = False   # optional: also propose minimal_change (sensitivity analysis only)
 for strategy in ('regroup_full',) + (('minimal_change',) if RUN_SENSITIVITY_SPLIT else ()):
     run('a3_build_t1.py', 'propose', '--t0-manifest', T0_MANIFEST, '--strategy', strategy,
@@ -274,12 +296,34 @@ run('c2_reference_batch.py', '--manifest', T0_MANIFEST, '--dataset-root', DATASE
     '--out', OUT / 'C2_reference_batch', '--n', 120, '--n-double', 40)
 """)
 
+code("""
+# C2b Annotation kit: the mask-drawing app and its protocol, packed into the batch folder so you
+# can run it on your own PC (it needs a mouse/pen and a browser window; it does not run in Colab).
+import zipfile
+kit = OUT / 'C2_reference_batch' / 'annotation_kit.zip'
+files = ['experiments/journal/annotation/reference_mask_app.py', 'experiments/journal/annotation/ANNOTATION_PROTOCOL.md',
+         'src/doar/__init__.py', 'src/doar/phase2c6/__init__.py', 'src/doar/phase2c6/canvas_compat.py',
+         'src/doar_journal/__init__.py', 'src/doar_journal/annotation.py']
+readme = ('1. Install Python 3.10+ and run:  pip install streamlit==1.61.1 streamlit-drawable-canvas==0.9.3 pillow numpy\\n'
+          '2. Unzip this kit to a folder, e.g. C:/doar_kit\\n'
+          '3. Download DOAR_JOURNAL_2026/C2_reference_batch from Drive WITHOUT key_PRIVATE.csv\\n'
+          '4. In the kit folder run:  streamlit run experiments/journal/annotation/reference_mask_app.py -- --batch <batch folder>\\n'
+          '5. Follow ANNOTATION_PROTOCOL.md. Upload masks/ and records/ back into the same Drive folder.\\n')
+with zipfile.ZipFile(kit, 'w') as z:
+    for f in files:
+        z.write(REPO / f, f)
+    z.writestr('README_FIRST.txt', readme)
+print('annotation kit written to', kit)
+""")
+
 md("""
-### ✋ Your task 2: reference masks
-Download `DOAR_JOURNAL_2026/C2_reference_batch/` **without** `key_PRIVATE.csv`, annotate with
-`experiments/journal/annotation/reference_mask_app.py` following `ANNOTATION_PROTOCOL.md`,
-then upload `masks/` and `records/` back into the same Drive folder.
-Set the annotator initials below.
+### ✋ Your task 2: reference masks (on your own PC, not in Colab)
+1. From Drive, download `DOAR_JOURNAL_2026/C2_reference_batch/` **without** `key_PRIVATE.csv`
+   (the key links tasks to filenames and classes; seeing it would un-blind you).
+2. Unzip `annotation_kit.zip` and follow `README_FIRST.txt` and `ANNOTATION_PROTOCOL.md`.
+3. Upload the app's `masks/` and `records/` folders back into the same Drive folder.
+4. A second person annotates the 40 double-annotation tasks independently, with their own initials.
+Then set the initials below and run C3/C4.
 """)
 
 code("""
