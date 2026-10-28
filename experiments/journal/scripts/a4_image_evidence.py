@@ -6,7 +6,7 @@ PREREGISTRATION.md before the scan is run):
 
   dihedral   dHash distance <= 6 under any of 8 rotations/flips
   embedding  cosine >= 0.95 between frozen CLIP ViT-B/32 image embeddings
-             (pretrained OpenAI weights, no fine-tuned checkpoint is used)
+             (open_clip ViT-B-32-quickgelu, pretrained OpenAI weights, no fine-tuned checkpoint is used)
 
 The scan is label-blind: it never reads class labels or any model prediction,
 and it does not use the test images for anything but duplicate detection.
@@ -35,6 +35,9 @@ from doar_journal.leakage import (dihedral_dhashes, dihedral_near_pairs, embeddi
 
 DIHEDRAL_THRESHOLD = 6
 EMBEDDING_THRESHOLD = 0.95
+# Same open_clip config as E1 (e1a2_common.py): OpenAI weights need QuickGELU.
+CLIP_MODEL = "ViT-B-32-quickgelu"
+CLIP_PRETRAINED = "openai"
 
 
 def resolve(dataset_root: Path, row: dict) -> Path:
@@ -50,7 +53,7 @@ def clip_embeddings(paths: list[Path], device: str, batch: int = 64) -> np.ndarr
     import open_clip
     import torch
     from PIL import Image
-    model, _, preprocess = open_clip.create_model_and_transforms("ViT-B-32", pretrained="openai", device=device)
+    model, _, preprocess = open_clip.create_model_and_transforms(CLIP_MODEL, pretrained=CLIP_PRETRAINED, device=device)
     model.eval()
     out = []
     with torch.no_grad():
@@ -109,7 +112,7 @@ def main(argv=None) -> int:
 
     outputs = [out / "dihedral_edges_candidates.csv", cache]
     if not args.skip_embedding:
-        ecache = out / "clip_vitb32_openai_embeddings.npz"
+        ecache = out / f"clip_{CLIP_MODEL}_{CLIP_PRETRAINED}_embeddings.npz"  # name encodes the exact model
         ids = sorted(i for i in hashes)
         if ecache.exists():
             z = np.load(ecache, allow_pickle=False)
@@ -127,7 +130,8 @@ def main(argv=None) -> int:
 
     meta = provenance.run_metadata("A4_image_evidence", {"dihedral_threshold": DIHEDRAL_THRESHOLD,
                                    "embedding_threshold": EMBEDDING_THRESHOLD,
-                                   "skip_embedding": args.skip_embedding},
+                                   "skip_embedding": args.skip_embedding,
+                                   "clip_model": CLIP_MODEL, "clip_pretrained": CLIP_PRETRAINED},
                                    inputs={"t0_manifest": args.t0_manifest})
     meta["n_files_missing"] = len(missing)
     provenance.mark_done(out, meta, outputs)
