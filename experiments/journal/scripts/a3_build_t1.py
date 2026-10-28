@@ -35,17 +35,19 @@ def main(argv=None) -> int:
     p.add_argument("--extra-edges", action="append", default=[])
     p.add_argument("--out", required=True)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--strategy", choices=("minimal_change", "regroup_full"), default="minimal_change")
+    p.add_argument("--strategy", choices=("regroup_full", "minimal_change", "t0_procedure"), default="regroup_full",
+                   help="regroup_full = pre-registered PRIMARY split; minimal_change = optional sensitivity analysis")
     p.add_argument("--allow-non-t0", action="store_true",
                    help="preview on a manifest that is not the frozen T0 file (never for training)")
     f = sub.add_parser("freeze")
     f.add_argument("--out", required=True)
     f.add_argument("--approved-by", required=True)
     f.add_argument("--note", default="")
+    f.add_argument("--deviation", default="", help="required if the split fails a balance criterion")
     args = ap.parse_args(argv)
 
     if args.cmd == "freeze":
-        print(json.dumps(freeze(args.out, args.approved_by, args.note), indent=2))
+        print(json.dumps(freeze(args.out, args.approved_by, args.note, args.deviation), indent=2))
         return 0
 
     sha = sha256_file(args.t0_manifest)

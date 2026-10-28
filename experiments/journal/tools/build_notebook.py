@@ -61,7 +61,8 @@ The original notebook `DOAR_21_8_26_V1.ipynb` is left untouched.
 |---|---|---|
 | 0 Setup | CPU | — |
 | A Dataset integrity (A1, A2, A6, A4, A5) | CPU (A4 embeddings: GPU optional) | **Yes**: blinded pair review (A5) |
-| A3 Propose / freeze T1 split | CPU | **Yes**: approve the split before freezing |
+| A3 Propose T1 (regroup_full), A7 readiness report, freeze | CPU | **Yes**: approve the exact split |
+| B0 Engineering smoke test | GPU | — |
 | B Representation rerun on T1 | **GPU (A100 recommended)** | — |
 | B3 Freeze selection | CPU | — |
 | B4 Single test evaluation | GPU | **Yes**: explicit confirmation, runs once |
@@ -112,7 +113,7 @@ run('a1_stem_audit.py', '--manifest', T0_MANIFEST, '--out', OUT / 'A1_stem_audit
 code("""
 # A2 (X1) Re-score SAVED validation predictions: shared-source vs independent images. No training.
 run('a2_rescore_saved_predictions.py', '--manifest', T0_MANIFEST, '--runs-root', E1_HISTORY,
-    '--out', OUT / 'A2_rescoring')
+    '--out', OUT / 'A2_rescoring_groupboot')
 """)
 
 code("""
@@ -160,30 +161,58 @@ run('a5_pair_review_materials.py', 'score', '--out', OUT / 'A5_pair_review')
 """)
 
 code("""
-# A3 Propose T1 (both strategies). Image-evidence edges are added only for evidence types
-# that passed review (PREREGISTRATION.md, C1b): list the accepted files here.
+# A3 Propose the PRIMARY T1 split (regroup_full, seed 42; pre-registered).
+# Image-evidence edges are added only for evidence types that passed the blinded review
+# (PREREGISTRATION.md C1b: >= 90% of reviewed candidates judged the same drawing).
 ACCEPTED_EDGE_FILES = []   # e.g. [OUT/'A4_image_evidence'/'dihedral_edges_candidates.csv']
-for strategy in ('minimal_change', 'regroup_full'):
+RUN_SENSITIVITY_SPLIT = False   # optional: also propose minimal_change (sensitivity analysis only)
+for strategy in ('regroup_full',) + (('minimal_change',) if RUN_SENSITIVITY_SPLIT else ()):
     run('a3_build_t1.py', 'propose', '--t0-manifest', T0_MANIFEST, '--strategy', strategy,
         '--out', OUT / f'T1_proposal_{strategy}', *sum([['--extra-edges', e] for e in ACCEPTED_EDGE_FILES], []))
 """)
 
+code("""
+# A7 Stage A readiness report: everything Stage A found, in one page (also saved as STAGE_A_READINESS.md)
+run('a7_stage_a_report.py', '--root', OUT)
+""")
+
 md("""
-### ✋ Your decision: approve one T1 proposal
-Compare `T1_proposal_*/T1_STATUS.json` (split sizes, class counts, T0→T1 moves).
-`minimal_change` keeps most images where they were (best for a paired T0-vs-T1 comparison;
-validation/test shrink). `regroup_full` re-draws all splits at T0's proportions.
-Copy the approved folder to `DOAR_JOURNAL_2026/T1`, put your name below and run the cell.
+### ✋ Your decision: approve the exact T1 split
+Read the report above (also `DOAR_JOURNAL_2026/STAGE_A_READINESS.md`). Approve only if:
+1. the pair review supports the evidence types used,
+2. no detected duplicate group crosses splits,
+3. all four balance checks pass (split sizes, class shares, largest group, source families).
+
+If a balance check fails, do **not** re-draw the split with another seed. Either record a written
+deviation (it is reported in the paper) or tell me and we decide together. Send me the report
+before freezing if anything looks odd. Freezing copies the proposal to `DOAR_JOURNAL_2026/T1`.
 """)
 
 code("""
-APPROVED_BY = ''          # your full name; freezing is refused if empty
-APPROVED_FOLDER = OUT / 'T1'
+APPROVED_BY = ''            # your full name; freezing is refused if empty
+DEVIATION   = ''            # only if a balance check failed: why you still accept the split
+import shutil
 assert APPROVED_BY, 'type your name to approve the split'
-run('a3_build_t1.py', 'freeze', '--out', APPROVED_FOLDER, '--approved-by', APPROVED_BY)
+PROPOSAL, T1_DIR = OUT / 'T1_proposal_regroup_full', OUT / 'T1'
+if not T1_DIR.exists():
+    shutil.copytree(PROPOSAL, T1_DIR)
+run('a3_build_t1.py', 'freeze', '--out', T1_DIR, '--approved-by', APPROVED_BY, '--deviation', DEVIATION)
 """)
 
-md("## Stage B — representation experiments on T1 (GPU)")
+md("""
+## Stage B — representation experiments on T1 (GPU)
+
+### B0 Engineering smoke test (A100 or T4, ~5–10 min) — run first
+Two pretrained models, 64 training / 32 validation images, 1 epoch. It checks paths, model downloads,
+GPU memory, training and checkpoint writing. **Its numbers are not results and are never reported.**
+Run the full B1–B2 cell only after it prints `SMOKE PASSED`.
+""")
+
+code("""
+assert torch.cuda.is_available(), 'switch the runtime to GPU'
+run('b1_b2_e1_rerun.py', '--smoke', '--smoke-manifest', T0_MANIFEST, '--dataset-root', DATASET_ROOT,
+    '--out', OUT / 'SMOKE_ENGINEERING_ONLY')
+""")
 
 code("""
 # B1-B2 probe (9 encoders x 10 seeds) -> adaptation (shortlist x 3 modes x 3 seeds) -> confirm (finalists x 2 seeds)
@@ -194,14 +223,16 @@ run('b1_b2_e1_rerun.py', '--t1-dir', OUT / 'T1', '--dataset-root', DATASET_ROOT,
 
 code("""
 # B3 Tables, T0-vs-T1 comparison and the frozen selection (CPU is fine)
-run('b3_e1_analysis.py', '--t1-out', OUT / 'E1_T1', '--t0-root', E1_HISTORY, '--out', OUT / 'B3_E1_analysis',
-    '--freeze-selection')
+run('b3_e1_analysis.py', '--t1-out', OUT / 'E1_T1', '--t1-dir', OUT / 'T1', '--t0-root', E1_HISTORY,
+    '--t0-manifest', T0_MANIFEST, '--out', OUT / 'B3_E1_analysis', '--freeze-selection')
 """)
 
 md("""
 ### ✋ Single test evaluation
-Run the next cell **only** when every analysis decision is final. It can run once; a lock file
-prevents a second run. Set `CONFIRM = True` to proceed.
+Run the next cell **only** when every analysis decision is final. Before reading any test image it
+checks that the frozen split and every selected checkpoint still have the SHA-256 recorded at
+selection time. It runs once: a COMPLETE run can never be repeated, and a FAILED run (e.g. a Colab
+disconnect) only with a written reason that is reported in the paper. Set `CONFIRM = True` to proceed.
 """)
 
 code("""

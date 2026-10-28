@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from doar_journal import provenance  # noqa: E402
-from doar_journal.leakage import load_manifest, path_of, split_of  # noqa: E402
+from doar_journal.leakage import evaluation_groups, load_manifest, path_of, split_of  # noqa: E402
 from doar_journal.rescoring import (find_runs, macro_f1_from_rows, read_predictions,  # noqa: E402
                                     rescore_run, shared_source_valid_ids, source_family)
 
@@ -37,6 +37,7 @@ def main(argv=None) -> int:
 
     rows = load_manifest(args.manifest)
     shared, indep = shared_source_valid_ids(rows, evidence=args.evidence)
+    groups = evaluation_groups(rows)  # cluster bootstrap unit: T0 group + Roboflow stem
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -58,12 +59,12 @@ def main(argv=None) -> int:
     results, table = {}, []
     for k, p in enumerate(paths, start=1):
         run = str(p.parent.relative_to(args.runs_root))
-        cache = cache_dir / (run.replace("/", "__") + f".boot{args.n_boot}.json")
+        cache = cache_dir / (run.replace("/", "__") + f".groupboot{args.n_boot}.json")
         if cache.exists():  # finished before a disconnect
             r = json.loads(cache.read_text(encoding="utf-8"))
         else:
             preds = read_predictions(p)
-            r = rescore_run(preds, shared, indep, n_boot=args.n_boot)
+            r = rescore_run(preds, shared, indep, n_boot=args.n_boot, groups=groups)
             r["recomputed_macro_f1_all"] = macro_f1_from_rows(preds)
             provenance.write_json(cache, r)
         print(f"[{k}/{len(paths)}] ", end="")

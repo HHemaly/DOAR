@@ -132,6 +132,12 @@ def test_c3_c4_pipeline_smoke(tmp_path):
                         "--out", tmp_path / "c4"], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-2000:]
     assert (tmp_path / "c4" / "F_risk_coverage.pdf").exists()
+    import pandas as pd
+    pol = pd.read_csv(tmp_path / "c4" / "T_reporting_policies.csv").set_index("policy")
+    assert pol.loc["report_all", "coverage"] == 1.0
+    assert pol.loc["report_all", "non_assessable_reported"] == 1      # the one full-canvas image
+    assert (tmp_path / "c4" / "T_feature_agreement_FOCUS.csv").exists()
+    assert (tmp_path / "c4" / "T_applicability_vs_v2_policy.csv").exists()
 
 
 def test_annotation_proposal_and_strokes():

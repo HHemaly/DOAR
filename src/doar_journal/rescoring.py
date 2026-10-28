@@ -63,7 +63,9 @@ def read_predictions(path: str | Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def rescore_run(pred_rows: list[dict], shared: set[str], indep: set[str], n_boot: int = 10_000) -> dict:
+def rescore_run(pred_rows: list[dict], shared: set[str], indep: set[str], n_boot: int = 10_000,
+                groups: dict[str, str] | None = None) -> dict:
+    """`groups` (image_id -> group) switches all intervals to a cluster bootstrap."""
     ids = {r["image_id"] for r in pred_rows}
     if not ids <= (shared | indep):
         unknown = sorted(ids - shared - indep)[:5]
@@ -71,17 +73,22 @@ def rescore_run(pred_rows: list[dict], shared: set[str], indep: set[str], n_boot
     by = {r["image_id"]: r for r in pred_rows}
     def arr(sub):
         sub = sorted(sub & ids)
+        g = None if groups is None else [groups.get(i, i) for i in sub]
         return (np.array([by[i]["true_class"] for i in sub]),
-                np.array([by[i]["predicted_class"] for i in sub]))
-    ya, pa = arr(shared)
-    yb, pb = arr(indep)
-    yall, pall = arr(shared | indep)
+                np.array([by[i]["predicted_class"] for i in sub]), g)
+    ya, pa, ga = arr(shared)
+    yb, pb, gb = arr(indep)
+    yall, pall, gall = arr(shared | indep)
     out = {
         "n_all": len(yall), "n_shared": len(ya), "n_independent": len(yb),
-        "macro_f1_all": bootstrap_metric(yall, pall, n_boot=n_boot).as_dict(),
-        "macro_f1_shared": bootstrap_metric(ya, pa, n_boot=n_boot).as_dict(),
-        "macro_f1_independent": bootstrap_metric(yb, pb, n_boot=n_boot).as_dict(),
-        "diff_shared_minus_independent": unpaired_bootstrap_diff(ya, pa, yb, pb, n_boot=n_boot),
+        "n_groups_all": len(set(gall)) if gall is not None else len(yall),
+        "macro_f1_all": bootstrap_metric(yall, pall, n_boot=n_boot, groups=gall).as_dict(),
+        "macro_f1_shared": bootstrap_metric(ya, pa, n_boot=n_boot, groups=ga).as_dict(),
+        "macro_f1_independent": bootstrap_metric(yb, pb, n_boot=n_boot, groups=gb).as_dict(),
+        "diff_shared_minus_independent": unpaired_bootstrap_diff(ya, pa, yb, pb, n_boot=n_boot,
+                                                                 groups_a=ga, groups_b=gb),
+        "interpretation": ("exploratory association: shared-source and independent validation images may "
+                           "also differ in class mix, source family and difficulty"),
         "accuracy_shared": float((ya == pa).mean()) if len(ya) else None,
         "accuracy_independent": float((yb == pb).mean()) if len(yb) else None,
     }

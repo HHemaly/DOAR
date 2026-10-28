@@ -5,9 +5,11 @@ Pre-registered rules (PREREGISTRATION.md, C4):
 * finalists  = the 2 (encoder, mode) configurations with the highest 3-seed
                mean adaptation macro-F1; each gets 2 further seeds (11, 37)
 * selection  = highest 5-seed mean validation macro-F1; tie -> lower SD
-* model uncertainty = SD over seeds; evaluation uncertainty = image-level
-  bootstrap of the seed-ensemble (mean probability over seeds) predictions;
-  finalist comparison = paired bootstrap + exact McNemar on the ensembles
+* model uncertainty = SD over seeds; evaluation uncertainty = CLUSTER
+  bootstrap (unit = duplicate/source group from the manifest) of the
+  seed-ensemble (mean probability over seeds) predictions;
+  finalist comparison = group-paired bootstrap (inference) + McNemar counts
+  (descriptive only, because images within a group are not independent)
 """
 
 from __future__ import annotations
@@ -56,7 +58,7 @@ def ensemble(paths: list[Path]) -> tuple[list[str], np.ndarray, np.ndarray]:
     return ids, truth, np.array(CLASSES)[probs.argmax(axis=1)]
 
 
-def config_table(runs: dict, n_boot: int = 10_000) -> list[dict]:
+def config_table(runs: dict, n_boot: int = 10_000, groups: dict[str, str] | None = None) -> list[dict]:
     rows = []
     for (model, mode), seeds in sorted(runs.items()):
         f1s = []
@@ -64,12 +66,14 @@ def config_table(runs: dict, n_boot: int = 10_000) -> list[dict]:
             r = read_preds(p)
             f1s.append(macro_f1([v["true_class"] for v in r.values()], [v["predicted_class"] for v in r.values()]))
         ids, y, yhat = ensemble([seeds[s] for s in sorted(seeds)])
-        ci = bootstrap_metric(y, yhat, n_boot=n_boot)
+        g = None if groups is None else [groups.get(i, i) for i in ids]
+        ci = bootstrap_metric(y, yhat, n_boot=n_boot, groups=g)
         rows.append({"model": model, "mode": mode, "n_seeds": len(f1s), "seeds": ";".join(map(str, sorted(seeds))),
                      "mean_macro_f1": float(np.mean(f1s)), "sd_macro_f1": float(np.std(f1s, ddof=1)) if len(f1s) > 1 else 0.0,
                      "min_macro_f1": float(np.min(f1s)), "max_macro_f1": float(np.max(f1s)),
                      "ensemble_macro_f1": ci.estimate, "ensemble_ci_low": ci.low, "ensemble_ci_high": ci.high,
-                     "n_valid": len(ids)})
+                     "n_valid": len(ids), "n_groups": len(set(g)) if g else len(ids),
+                     "resampling_unit": "group" if g else "image"})
     return rows
 
 
@@ -100,14 +104,16 @@ def select(final_rows: list[dict]) -> tuple[str, str]:
     return best["model"], best["mode"]
 
 
-def compare_finalists(runs: dict, a: tuple[str, str], b: tuple[str, str], n_boot: int = 10_000) -> dict:
+def compare_finalists(runs: dict, a: tuple[str, str], b: tuple[str, str], n_boot: int = 10_000,
+                      groups: dict[str, str] | None = None) -> dict:
     ids_a, y_a, p_a = ensemble([runs[a][s] for s in sorted(runs[a])])
     ids_b, y_b, p_b = ensemble([runs[b][s] for s in sorted(runs[b])])
     if ids_a != ids_b or not np.array_equal(y_a, y_b):
         raise ValueError("finalists were evaluated on different validation images")
+    g = None if groups is None else [groups.get(i, i) for i in ids_a]
     return {"a": "/".join(a), "b": "/".join(b),
-            "paired_bootstrap_macro_f1": paired_bootstrap_diff(y_a, p_a, p_b, n_boot=n_boot),
-            "mcnemar_exact": mcnemar_exact(p_a == y_a, p_b == y_b)}
+            "paired_bootstrap_macro_f1": paired_bootstrap_diff(y_a, p_a, p_b, n_boot=n_boot, groups=g),
+            "mcnemar_counts_descriptive": mcnemar_exact(p_a == y_a, p_b == y_b)}
 
 
 def ranking_agreement(rows_t0: list[dict], rows_t1: list[dict], mode: str = "probe") -> dict:

@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 from scipy import stats as st  # noqa: E402
 
 from doar_journal import provenance  # noqa: E402
-from doar_journal.measurement import feature_agreement  # noqa: E402
+from doar_journal.measurement import FOCUS_FEATURES, SIMPLE_RULE_FRACTION, feature_agreement, policy_reports  # noqa: E402
 from doar_journal.risk_coverage import (A0_QC_SCORE, CONFIDENCE_SCORE, POLICY_SCORE,  # noqa: E402
                                         auroc_bad, risk_at_coverage, risk_coverage)
 from doar_journal.stats import holm  # noqa: E402
@@ -119,7 +119,45 @@ def main(argv=None) -> int:
     pd.DataFrame(gate_rows).to_csv(out / "T_gate_validity.csv", index=False)
     provenance.write_json(out / "risk_coverage_curves.json", curves)
 
-    # 5. Figures
+    # 5. Three levels kept separate (applicability -> mask correctness -> feature reliability)
+    v2frac = pm[pm["method"] == "v2"].set_index("task_id")["pred_fraction"]
+    gi["v2_fraction"] = gi["task_id"].map(v2frac)
+    applic = pd.crosstab(gi["assessability"], gi["v2_policy"], margins=True)
+    applic.to_csv(out / "T_applicability_vs_v2_policy.csv")
+
+    # feature error per image on the focused features: |auto - ref| / IQR(ref across images)
+    v2feat = fw[["task_id", "feature", "reference", "v2"]].dropna(subset=["reference"])
+    v2feat = v2feat[v2feat["feature"].isin(FOCUS_FEATURES)]
+    iqr = v2feat.groupby("feature")["reference"].agg(lambda x: np.subtract(*np.nanpercentile(x, [75, 25])))
+    v2feat = v2feat.assign(norm_err=(v2feat["v2"] - v2feat["reference"]).abs()
+                           / v2feat["feature"].map(iqr).replace(0, np.nan))
+    img_err = v2feat.groupby("task_id")["norm_err"].median()
+    gi["feature_error"] = gi["task_id"].map(img_err)
+    # images a human judged not assessable have no valid measurement: maximal risk if reported
+    gi["feature_risk"] = np.where(gi["assessability"] != "ASSESSABLE", 1.0, gi["feature_error"].clip(upper=1.0))
+    pol_rows = []
+    for _, r in gi.iterrows():
+        rep = policy_reports(r["v2_policy"], float(r["v2_fraction"]))
+        for name, reported in rep.items():
+            pol_rows.append({"task_id": r["task_id"], "policy": name, "reported": reported,
+                             "assessable": r["assessability"] == "ASSESSABLE",
+                             "bad_mask": (r["assessability"] != "ASSESSABLE") or (float(r["v2_f1"] or 0) < BAD_F1),
+                             "feature_risk": r["feature_risk"]})
+    pol = pd.DataFrame(pol_rows)
+    summary = []
+    for name, g in pol.groupby("policy"):
+        rep = g[g["reported"]]
+        summary.append({"policy": name, "coverage": len(rep) / len(g),
+                        "mean_feature_risk_reported": float(rep["feature_risk"].mean()) if len(rep) else np.nan,
+                        "non_assessable_reported": int((~rep["assessable"]).sum()),
+                        "bad_masks_reported": int(rep["bad_mask"].sum()),
+                        "bad_masks_withheld": int(g[~g["reported"]]["bad_mask"].sum())})
+    pd.DataFrame(summary).to_csv(out / "T_reporting_policies.csv", index=False)
+    focus = pd.read_csv(out / "T_feature_agreement.csv")
+    focus = focus[focus["feature"].isin(FOCUS_FEATURES)].assign(construct=lambda d: d["feature"].map(FOCUS_FEATURES))
+    focus.to_csv(out / "T_feature_agreement_FOCUS.csv", index=False)
+
+    # 6. Figures
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -145,12 +183,15 @@ def main(argv=None) -> int:
     fig.savefig(out / "F_risk_coverage.pdf")
     fig.savefig(out / "F_risk_coverage.png", dpi=200)
 
-    meta = provenance.run_metadata("C4_measurement_analysis", {"bad_f1": BAD_F1, "n_boot": N_BOOT},
+    meta = provenance.run_metadata("C4_measurement_analysis", {"bad_f1": BAD_F1, "n_boot": N_BOOT,
+                                   "simple_rule_fraction": SIMPLE_RULE_FRACTION,
+                                   "focus_features": sorted(FOCUS_FEATURES)},
                                    inputs={"per_image_method": c3 / "per_image_method.csv"})
     provenance.mark_done(out, meta, [out / "T_mask_accuracy.csv", out / "T_paired_v2_vs_methods.csv",
                                      out / "T_feature_agreement.csv", out / "T_gate_validity.csv"])
     print(overall[["method", "n", "f1_mean", "f1_lo", "f1_hi"]].to_string(index=False))
     print(pd.DataFrame(gate_rows).to_string(index=False))
+    print(pd.DataFrame(summary).to_string(index=False))
     return 0
 
 

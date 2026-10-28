@@ -102,6 +102,55 @@ def test_e1_analysis_rules(tmp_path):
     rows = [r for r in ea.config_table(runs, n_boot=200) if (r["model"], r["mode"]) in fin]
     assert ea.select(rows) == ("clip_vit_b32", "partial")
     cmp = ea.compare_finalists(runs, fin[0], fin[1], n_boot=200)
-    assert cmp["paired_bootstrap_macro_f1"]["estimate"] > 0
+    assert cmp["paired_bootstrap_macro_f1"]["estimate"] > 0 and "mcnemar_counts_descriptive" in cmp
     _write_preds(tmp_path / "a2r" / "runs" / "resnet18" / "seed_7" / "best_valid_predictions.csv", truth, truth)
     assert ("resnet18", "probe") in ea.collect_runs(tmp_path / "a2r")
+
+
+def _load_script(name):
+    import importlib.util
+    p = Path(__file__).resolve().parents[1] / "experiments/journal/scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_b4_test_lock_protocol(tmp_path, monkeypatch):
+    from doar_journal import provenance, t1_partition
+    b4 = _load_script("b4_single_test_evaluation")
+    rows = [{"image_id": f"i{i}", "path": f"C:\\d\\{s}\\Happy\\x{i}.jpg", "relative_path": "", "class": "Happy",
+             "split": s, "new_split": s, "original_split": s, "group_id": "", "sha256": "", "dhash": ""}
+            for i, s in enumerate(["train", "valid", "test", "test"])]
+    t1 = tmp_path / "T1"
+    t1_partition.write_t1(t1_partition.build_t1(rows, strategy="minimal_change"), t1, inputs={})
+    t1_partition.freeze(t1, approved_by="tester", deviation="toy data in a unit test")
+    ck = tmp_path / "best.pt"
+    ck.write_bytes(b"weights")
+    sel = {"t1_manifest_sha256": provenance.sha256_file(t1 / "t1_partition_manifest.csv"),
+           "checkpoints": {"m/partial/19": {"path": str(ck), "sha256": provenance.sha256_file(ck)}}}
+    selp = tmp_path / "SELECTION_FROZEN.json"
+    selp.write_text(json.dumps(sel))
+    args = ["--t1-dir", str(t1), "--selection", str(selp), "--probe-root", "x", "--dataset-root", "x",
+            "--out", str(tmp_path / "out")]
+    with pytest.raises(SystemExit):
+        b4.main(args)                                            # no confirmation flag
+    calls = {"n": 0}
+    def boom(*a, **k):
+        calls["n"] += 1
+        raise RuntimeError("GPU died")
+    monkeypatch.setattr(b4, "evaluate", boom)
+    with pytest.raises(RuntimeError):
+        b4.main(args + ["--confirm-single-test-run"])
+    lock = json.loads((tmp_path / "out" / "TEST_RUN_LOCK.json").read_text())
+    assert lock["state"] == "FAILED" and "GPU died" in lock["traceback"]
+    with pytest.raises(SystemExit):
+        b4.main(args + ["--confirm-single-test-run"])           # failed run is not silently retried
+    monkeypatch.setattr(b4, "evaluate", lambda *a, **k: {"results": {}, "files_sha256": {}})
+    assert b4.main(args + ["--confirm-single-test-run", "--rerun-justification", "Colab disconnect"]) == 0
+    lock = json.loads((tmp_path / "out" / "TEST_RUN_LOCK.json").read_text())
+    assert lock["state"] == "COMPLETE" and lock["history"][0]["state"] == "FAILED"
+    with pytest.raises(SystemExit):
+        b4.main(args + ["--confirm-single-test-run", "--rerun-justification", "again"])  # COMPLETE is final
+    ck.write_bytes(b"tampered")
+    assert b4.preflight(sel, str(t1 / "t1_partition_manifest.csv"))   # changed checkpoint detected

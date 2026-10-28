@@ -90,3 +90,31 @@ def feature_agreement(ref: list[dict[str, float]], est: list[dict[str, float]]) 
                   "median_rel_err": float(np.nanmedian(rel)) if np.isfinite(rel).any() else None,
                   "icc_2_1": icc_2_1(p), "n_missing_only_in_estimate": n_nan_est}
     return out
+
+
+# Focused journal subset: one or two mask-dependent features per visual construct.
+# All 49 features are still computed and reported in the supplement.
+FOCUS_FEATURES = {
+    "foreground_fraction": "coverage",
+    "bbox_area_ratio": "extent",
+    "centroid_x_ratio": "placement (horizontal)",
+    "centroid_y_ratio": "placement (vertical)",
+    "occupied_grid_fraction_4x4": "spatial spread",
+    "thickness_proxy_mean_ratio": "apparent stroke thickness",
+    "foreground_mean_darkness": "mark darkness",
+    "foreground_mean_saturation": "colour saturation",
+    "foreground_hue_entropy": "colour variety",
+    "vertical_symmetry_iou": "symmetry",
+    "connected_component_count": "fragmentation",
+}
+
+# Pre-registered reporting policies compared in C4 (PREREGISTRATION.md, C9).
+SIMPLE_RULE_FRACTION = (0.005, 0.60)   # V2 foreground fraction outside this range -> withhold
+
+
+def policy_reports(v2_policy: str, v2_fraction: float) -> dict[str, bool]:
+    """Whether each policy would REPORT the measurements of an image."""
+    lo, hi = SIMPLE_RULE_FRACTION
+    return {"report_all": True,
+            "v2_policy": v2_policy == "MASK_USABLE",
+            "simple_fraction_rule": lo <= v2_fraction <= hi}

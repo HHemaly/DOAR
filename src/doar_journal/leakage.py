@@ -347,3 +347,36 @@ def stem_overlap(ids_a: list[str], ids_b: list[str], rows: list[dict]) -> list[d
         elif k.name_key in names_a:
             out.append({"image_id": i, "overlap": "name_key", "key": k.name_key})
     return out
+
+
+def evaluation_groups(rows: list[dict], use_group_id: bool = True, use_rf_stem: bool = True) -> dict[str, str]:
+    """image_id -> resampling group for cluster bootstraps.
+
+    Union of (a) the manifest's own `group_id` (T0: exact + dHash<=2 groups;
+    T1: all accepted duplicate evidence) and (b) Roboflow source stems, so
+    copies of one drawing are never treated as independent evaluation images.
+    Images with no relation form singleton groups."""
+    parent = {r["image_id"]: r["image_id"] for r in rows}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+
+    buckets = defaultdict(list)
+    for r in rows:
+        if use_group_id and r.get("group_id"):
+            buckets["g:" + r["group_id"]].append(r["image_id"])
+        k = source_key(path_of(r))
+        if use_rf_stem and k.rf_stem:
+            buckets["s:" + k.rf_stem].append(r["image_id"])
+    for members in buckets.values():
+        for m in members[1:]:
+            union(members[0], m)
+    return {i: "eg_" + find(i) for i in parent}

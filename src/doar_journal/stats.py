@@ -1,11 +1,17 @@
 """Statistics used throughout the journal analyses.
 
 Design rules (pre-registered in experiments/journal/PREREGISTRATION.md):
-* Uncertainty about a score on a fixed evaluation set is estimated by
-  resampling IMAGES (bootstrap), never by resampling training seeds. Seed
-  variation is reported separately as model variance.
-* Model-vs-model comparisons on the same images are PAIRED (paired bootstrap
-  of the metric difference, exact McNemar on per-image correctness).
+* Uncertainty about a score on a fixed evaluation set is estimated by a
+  CLUSTER bootstrap: the resampling unit is the duplicate/source GROUP (all
+  images that are copies of one drawing stay together), never the training
+  seed. With `groups=None` every image is its own group (plain image-level
+  bootstrap); that is used only where no grouping exists. Seed variation is
+  reported separately as model variance.
+* Estimand: the metric (e.g. macro-F1) on the evaluation set as sampled;
+  the interval describes sampling variability of that set at the group level.
+* Model-vs-model comparisons on the same images are PAIRED (the same group
+  resamples for both models). Exact McNemar treats images as independent, so
+  with clustered images it is reported only as a descriptive count table.
 * Proportions use Wilson intervals. Families of tests use Holm correction.
 """
 
@@ -49,80 +55,115 @@ def _codes(labels, classes=CLASSES) -> np.ndarray:
     return np.array([lookup.get(str(v), -1) for v in np.asarray(labels).tolist()], dtype=np.int64)
 
 
-def macro_f1_resamples(y_true, y_pred, idx: np.ndarray, classes=CLASSES) -> np.ndarray:
-    """Macro-F1 for every row of the resample index matrix `idx` (n_boot x n),
-    computed from per-resample confusion counts in one vectorised pass.
-    Identical to `macro_f1` (sklearn, fixed labels, zero_division=0) on each
-    resample -- checked in tests -- but ~1000x faster than calling it in a loop.
-    Labels outside `classes` are never counted as a true positive."""
+def draw_resamples(n: int, groups=None, n_boot: int = 10_000, seed: int = 20261020):
+    """Bootstrap draws as (rows, flat): resample b contains images flat[rows == b].
+
+    groups=None -> image-level bootstrap (n images with replacement).
+    groups given -> cluster bootstrap: G groups drawn with replacement, every
+    member of a drawn group enters the resample (resample sizes vary)."""
+    rng = np.random.default_rng(seed)
+    if groups is None:
+        idx = rng.integers(0, n, size=(n_boot, n))
+        return np.repeat(np.arange(n_boot), n), idx.ravel()
+    groups = np.asarray([str(g) for g in groups])
+    if len(groups) != n:
+        raise ValueError("groups must have one entry per image")
+    uniq, inv = np.unique(groups, return_inverse=True)
+    order = np.argsort(inv, kind="stable")
+    sizes = np.bincount(inv, minlength=len(uniq))
+    starts = np.concatenate([[0], np.cumsum(sizes)[:-1]])
+    picks = rng.integers(0, len(uniq), size=(n_boot, len(uniq)))      # groups per resample
+    lens = sizes[picks]                                                  # images per picked group
+    rows = np.repeat(np.repeat(np.arange(n_boot), len(uniq)), lens.ravel())
+    # offsets within each picked group
+    tot = lens.ravel()
+    within = np.arange(tot.sum()) - np.repeat(np.cumsum(tot) - tot, tot)
+    flat = order[np.repeat(starts[picks].ravel(), tot) + within]
+    return rows, flat
+
+
+def macro_f1_draws(y_true, y_pred, rows: np.ndarray, flat: np.ndarray, n_boot: int,
+                   classes=CLASSES) -> np.ndarray:
+    """Macro-F1 of every resample, from confusion counts in one vectorised pass.
+    Identical to `macro_f1` (sklearn, fixed labels, zero_division=0) per resample
+    (tested). Labels outside `classes` never count as a true positive."""
     k = len(classes)
-    y = _codes(y_true, classes)[idx]
-    p = _codes(y_pred, classes)[idx]
-    b = idx.shape[0]
-    rows = np.repeat(np.arange(b), idx.shape[1])
-    yf, pf = y.ravel(), p.ravel()
+    yf = _codes(y_true, classes)[flat]
+    pf = _codes(y_pred, classes)[flat]
+
     def counts(mask, cls):
-        return np.bincount(rows[mask] * k + cls[mask], minlength=b * k).reshape(b, k).astype(float)
+        return np.bincount(rows[mask] * k + cls[mask], minlength=n_boot * k).reshape(n_boot, k).astype(float)
     tp = counts((yf == pf) & (yf >= 0), yf)
-    n_true = counts(yf >= 0, yf)
-    n_pred = counts(pf >= 0, pf)
-    denom = n_true + n_pred
+    denom = counts(yf >= 0, yf) + counts(pf >= 0, pf)
     f1 = np.divide(2 * tp, denom, out=np.zeros_like(tp), where=denom > 0)
     return f1.mean(axis=1)
 
 
-def _resample(metric, y_true, y_pred, idx):
+def macro_f1_resamples(y_true, y_pred, idx: np.ndarray, classes=CLASSES) -> np.ndarray:
+    """Macro-F1 for every row of an (n_boot x n) index matrix (image-level draws)."""
+    b, n = idx.shape
+    return macro_f1_draws(y_true, y_pred, np.repeat(np.arange(b), n), idx.ravel(), b, classes)
+
+
+def _resample(metric, y_true, y_pred, draws, n_boot):
+    rows, flat = draws
     if metric is macro_f1:
-        return macro_f1_resamples(y_true, y_pred, idx)
-    return np.array([metric(y_true[i], y_pred[i]) for i in idx])
+        return macro_f1_draws(y_true, y_pred, rows, flat, n_boot)
+    y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
+    return np.array([metric(y_true[flat[rows == b]], y_pred[flat[rows == b]]) for b in range(n_boot)])
+
+
+def _unit(groups) -> str:
+    return "image" if groups is None else "duplicate/source group"
 
 
 def bootstrap_metric(y_true, y_pred, metric=macro_f1, n_boot: int = 10_000,
-                     alpha: float = 0.05, seed: int = 20261020) -> Interval:
-    """Percentile bootstrap CI of `metric` over images."""
+                     alpha: float = 0.05, seed: int = 20261020, groups=None) -> Interval:
+    """Percentile bootstrap CI of `metric`; resampling unit = group (or image)."""
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     n = len(y_true)
-    rng = np.random.default_rng(seed)
-    idx = rng.integers(0, n, size=(n_boot, n))
-    samples = _resample(metric, y_true, y_pred, idx)
+    samples = _resample(metric, y_true, y_pred, draw_resamples(n, groups, n_boot, seed), n_boot)
     lo, hi = _percentile_ci(samples, alpha)
-    return Interval(metric(y_true, y_pred), lo, hi, n, f"percentile bootstrap, {n_boot} image resamples")
+    n_units = n if groups is None else len(set(map(str, groups)))
+    return Interval(metric(y_true, y_pred), lo, hi, n,
+                    f"percentile bootstrap, {n_boot} resamples of {n_units} {_unit(groups)}s")
 
 
 def paired_bootstrap_diff(y_true, pred_a, pred_b, metric=macro_f1, n_boot: int = 10_000,
-                          alpha: float = 0.05, seed: int = 20261020) -> dict:
-    """metric(a) - metric(b) on the SAME images, resampled jointly.
+                          alpha: float = 0.05, seed: int = 20261020, groups=None) -> dict:
+    """metric(a) - metric(b) on the SAME images; both models see the same resamples.
 
     Returns the estimate, percentile CI and a two-sided bootstrap p-value
     (2 x the smaller tail mass of the resampled differences around 0).
     """
     y_true, pred_a, pred_b = map(np.asarray, (y_true, pred_a, pred_b))
     n = len(y_true)
-    rng = np.random.default_rng(seed)
-    idx = rng.integers(0, n, size=(n_boot, n))
-    diffs = _resample(metric, y_true, pred_a, idx) - _resample(metric, y_true, pred_b, idx)
+    d = draw_resamples(n, groups, n_boot, seed)
+    diffs = _resample(metric, y_true, pred_a, d, n_boot) - _resample(metric, y_true, pred_b, d, n_boot)
     lo, hi = _percentile_ci(diffs, alpha)
     p = 2 * min((diffs <= 0).mean(), (diffs >= 0).mean())
     return {"estimate": metric(y_true, pred_a) - metric(y_true, pred_b), "ci_low": lo,
             "ci_high": hi, "p_bootstrap": float(min(1.0, p)), "n": n,
-            "method": f"paired percentile bootstrap, {n_boot} image resamples"}
+            "resampling_unit": _unit(groups),
+            "method": f"paired percentile bootstrap, {n_boot} resamples by {_unit(groups)}"}
 
 
 def unpaired_bootstrap_diff(y_true_a, pred_a, y_true_b, pred_b, metric=macro_f1,
-                            n_boot: int = 10_000, alpha: float = 0.05, seed: int = 20261020) -> dict:
+                            n_boot: int = 10_000, alpha: float = 0.05, seed: int = 20261020,
+                            groups_a=None, groups_b=None) -> dict:
     """metric(subset A) - metric(subset B) for two DISJOINT image subsets,
-    each resampled within itself (stratified bootstrap)."""
+    each resampled within itself (by group when groups are given)."""
     ya, pa, yb, pb = map(np.asarray, (y_true_a, pred_a, y_true_b, pred_b))
-    rng = np.random.default_rng(seed)
-    ia = rng.integers(0, len(ya), size=(n_boot, len(ya)))
-    ib = rng.integers(0, len(yb), size=(n_boot, len(yb)))
-    diffs = _resample(metric, ya, pa, ia) - _resample(metric, yb, pb, ib)
+    da = draw_resamples(len(ya), groups_a, n_boot, seed)
+    db = draw_resamples(len(yb), groups_b, n_boot, seed + 1)
+    diffs = _resample(metric, ya, pa, da, n_boot) - _resample(metric, yb, pb, db, n_boot)
     lo, hi = _percentile_ci(diffs, alpha)
     p = 2 * min((diffs <= 0).mean(), (diffs >= 0).mean())
     return {"estimate": metric(ya, pa) - metric(yb, pb), "ci_low": lo, "ci_high": hi,
             "p_bootstrap": float(min(1.0, p)), "n_a": len(ya), "n_b": len(yb),
-            "method": f"two-sample percentile bootstrap, {n_boot} resamples per subset"}
+            "resampling_unit": _unit(groups_a),
+            "method": f"two-sample percentile bootstrap, {n_boot} resamples by {_unit(groups_a)}"}
 
 
 def wilson(k: int, n: int, alpha: float = 0.05) -> Interval:
@@ -137,7 +178,11 @@ def wilson(k: int, n: int, alpha: float = 0.05) -> Interval:
 
 
 def mcnemar_exact(correct_a, correct_b) -> dict:
-    """Exact two-sided McNemar test on per-image correctness of two models."""
+    """Exact two-sided McNemar test on per-image correctness of two models.
+
+    Assumes independent images. When images are clustered (duplicate groups),
+    report the discordant counts descriptively and use the group-paired
+    bootstrap p-value for inference."""
     a = np.asarray(correct_a, dtype=bool)
     b = np.asarray(correct_b, dtype=bool)
     if a.shape != b.shape:

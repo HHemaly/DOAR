@@ -87,7 +87,9 @@ def test_t1_freeze_requires_unchanged_manifest(tmp_path):
     t1_partition.write_t1(res, tmp_path, inputs={})
     with pytest.raises(RuntimeError):
         t1_partition.require_frozen(tmp_path)
-    t1_partition.freeze(tmp_path, approved_by="tester")
+    with pytest.raises(RuntimeError):            # 8 toy images cannot meet the balance criteria
+        t1_partition.freeze(tmp_path, approved_by="tester")
+    t1_partition.freeze(tmp_path, approved_by="tester", deviation="toy data in a unit test")
     assert t1_partition.require_frozen(tmp_path).endswith("t1_partition_manifest.csv")
     with pytest.raises(RuntimeError):
         t1_partition.write_t1(res, tmp_path, inputs={})
@@ -161,3 +163,54 @@ def test_review_widget_logic_and_construction(tmp_path):
     assert scored["same_rf_stem"]["judged_same"] == 1 and scored["control"]["judged_same"] == 0
     pytest.importorskip("ipywidgets")
     rw.pair_review(rd, tmp_path / "data", "rf_stem", "HE")  # builds and displays without error
+
+
+def test_cluster_bootstrap_keeps_groups_together_and_widens_ci():
+    groups = np.array([f"g{i // 3}" for i in range(60)])          # 20 groups of 3 copies
+    rows, flat = stats.draw_resamples(60, groups, n_boot=50, seed=1)
+    for b in range(50):
+        members = flat[rows == b]
+        from collections import Counter
+        assert all(c % 3 == 0 for c in Counter(groups[members]).values())  # whole groups only
+        assert len(members) == 60                                          # equal group sizes -> fixed size
+    C = np.array(stats.CLASSES)
+    rng = np.random.default_rng(0)
+    base_y = C[rng.integers(0, 4, 20)]
+    base_ok = rng.random(20) < 0.7
+    y = np.repeat(base_y, 3)
+    p = np.where(np.repeat(base_ok, 3), y, np.roll(y, 1))
+    img = stats.bootstrap_metric(y, p, n_boot=2000)
+    grp = stats.bootstrap_metric(y, p, n_boot=2000, groups=groups)
+    assert grp.estimate == img.estimate
+    assert (grp.high - grp.low) > 1.3 * (img.high - img.low)  # copies are not independent evidence
+    assert "group" in grp.method
+
+
+def test_cluster_draws_match_slow_metric():
+    C = np.array(stats.CLASSES)
+    rng = np.random.default_rng(5)
+    n = 50
+    y = C[rng.integers(0, 4, n)]
+    p = np.where(rng.random(n) < 0.6, y, C[rng.integers(0, 4, n)])
+    groups = rng.integers(0, 20, n)
+    rows, flat = stats.draw_resamples(n, groups, n_boot=100, seed=3)
+    fast = stats.macro_f1_draws(y, p, rows, flat, 100)
+    slow = np.array([stats.macro_f1(y[flat[rows == b]], p[flat[rows == b]]) for b in range(100)])
+    assert np.allclose(fast, slow)
+
+
+def test_regroup_full_spreads_copy_groups_across_splits():
+    rows = []
+    k = 0
+    for src in range(300):
+        cls = ["Angry", "Fear", "Happy", "Sad"][src % 4]
+        for c in range(3 if src % 2 else 1):
+            rows.append(_row(k, f"{cls}_{src}_1_jpg.rf.{k:08x}aa.jpg", "train", cls))
+            k += 1
+    res = t1_partition.build_t1(rows, strategy="regroup_full")
+    m = res["manifest"]
+    multi = {s: sum(1 for r in m if r["new_split"] == s and r["group_size"] > 1) for s in ("train", "valid", "test")}
+    assert multi["valid"] > 0 and multi["test"] > 0       # the old largest-first routine gave 0 here
+    assert res["report"]["ok"]
+    b = res["report"]["balance"]
+    assert b["checks"]["class_shares"] and b["checks"]["split_fractions"]
