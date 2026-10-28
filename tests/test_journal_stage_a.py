@@ -132,3 +132,32 @@ def test_vectorised_macro_f1_matches_sklearn():
         fast = stats.macro_f1_resamples(y, p, idx)
         slow = np.array([stats.macro_f1(y[i], p[i]) for i in idx])
         assert np.allclose(fast, slow, atol=1e-12)
+
+
+def test_review_widget_logic_and_construction(tmp_path):
+    from PIL import Image
+    from doar_journal import review_widgets as rw
+    pairs = [{"pair_id": "P001", "pair_type_hidden": "control", "path_a": "train/Happy/a.png",
+              "path_b": "valid/Happy/b.png"},
+             {"pair_id": "P002", "pair_type_hidden": "same_rf_stem", "path_a": "train/Happy/a.png",
+              "path_b": "valid/Happy/b.png"}]
+    for rel in ("train/Happy/a.png", "valid/Happy/b.png"):
+        p = tmp_path / "data" / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(np.zeros((20, 30, 3), np.uint8)).save(p)
+    rd = tmp_path / "A5"
+    rd.mkdir()
+    import csv
+    with open(rd / "pairs_rf_stem.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(pairs[0])); w.writeheader(); w.writerows(pairs)
+    leakage.write_review_template(pairs, rd / "review_rf_stem.csv")
+    fields, rows = rw.read_rows(rd / "review_rf_stem.csv")
+    assert rw.first_open(rows, rw.pair_done) == 0
+    rw.record_pair(rows, 0, "DIFFERENT_DRAWING", "rotation", "HE")
+    assert rows[0]["transform_seen"] == "not_applicable"
+    rw.record_pair(rows, 1, "SAME_DRAWING", "flip", "HE")
+    rw.write_rows(rd / "review_rf_stem.csv", fields, rows)
+    scored = leakage.score_review(pairs, rd / "review_rf_stem.csv")
+    assert scored["same_rf_stem"]["judged_same"] == 1 and scored["control"]["judged_same"] == 0
+    pytest.importorskip("ipywidgets")
+    rw.pair_review(rd, tmp_path / "data", "rf_stem", "HE")  # builds and displays without error

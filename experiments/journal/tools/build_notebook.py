@@ -14,6 +14,30 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 OUT = ROOT / "colab/journal/DOAR_Journal_Validation_2026.ipynb"
+OUT_STANDALONE = ROOT / "colab/journal/DOAR_Journal_Validation_2026_STANDALONE.ipynb"
+
+# Files embedded in the standalone notebook (everything the journal scripts import).
+BUNDLE_GLOBS = ("src/doar/__init__.py", "src/doar/partition.py", "src/doar/dataset.py", "src/doar/deep/*.py",
+                "src/doar_journal/*.py", "experiments/journal/scripts/*.py",
+                "experiments/E1_visual_representation/scripts/e1a2_common.py")
+
+
+def make_bundle() -> tuple[str, list[str], str]:
+    import base64
+    import hashlib
+    import io
+    import subprocess
+    import zipfile
+    files = sorted({str(p.relative_to(ROOT)) for g in BUNDLE_GLOBS for p in ROOT.glob(g)})
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for f in files:
+            info = zipfile.ZipInfo(f, date_time=(2026, 1, 1, 0, 0, 0))  # fixed time: reproducible bytes
+            info.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(info, (ROOT / f).read_bytes())
+    data = buf.getvalue()
+    commit = subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], text=True).strip()
+    return base64.b64encode(data).decode(), files, f"{commit}/{hashlib.sha256(data).hexdigest()[:12]}"
 
 CELLS: list[tuple[str, str]] = []
 
@@ -75,46 +99,8 @@ for p in (DATASET_ROOT, T0_MANIFEST, E1_HISTORY, E2_HISTORY):
     print(('OK      ' if p.exists() else 'MISSING ') + str(p))
 """)
 
-code("""
-# 0.2 Get the code at the journal branch and install what Colab lacks
-import subprocess, sys
-if not REPO.exists():
-    subprocess.run(['git', 'clone', '--branch', BRANCH, 'https://github.com/HHemaly/DOAR.git', str(REPO)], check=True)
-else:
-    subprocess.run(['git', '-C', str(REPO), 'fetch', 'origin', BRANCH], check=True)
-    subprocess.run(['git', '-C', str(REPO), 'checkout', BRANCH], check=True)
-    subprocess.run(['git', '-C', str(REPO), 'pull', '--ff-only'], check=True)
-COMMIT = subprocess.check_output(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], text=True).strip()
-print('code commit:', COMMIT)
-subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'open_clip_torch', 'timm',
-                'scikit-image', 'opencv-python-headless'], check=True)
-sys.path.insert(0, str(REPO / 'src'))
-
-import datetime, time
-LOGS = OUT / 'logs'
-LOGS.mkdir(exist_ok=True)
-
-def run(script, *args):
-    \"\"\"Run a journal script and show its output LIVE in this cell (Colab does not
-    display a child process's output unless it is piped through Python), also
-    saving it to DOAR_JOURNAL_2026/logs/. Stops the notebook on failure.\"\"\"
-    cmd = [sys.executable, '-u', str(REPO / 'experiments/journal/scripts' / script), *map(str, args)]
-    log = LOGS / f\"{script.removesuffix('.py')}_{datetime.datetime.now():%Y%m%dT%H%M%S}.log\"
-    print('$', ' '.join(cmd), '\\nlog:', log, flush=True)
-    t0 = time.time()
-    with open(log, 'w', encoding='utf-8') as fh:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-        for line in p.stdout:
-            print(line, end='', flush=True)
-            fh.write(line)
-        p.wait()
-    print(f'-- {script} finished in {(time.time() - t0) / 60:.1f} min, exit code {p.returncode}')
-    if p.returncode != 0:
-        raise RuntimeError(f'{script} failed with exit code {p.returncode}; see {log}')
-
-import torch
-print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none (CPU runtime)')
-""")
+SETUP_CELL_INDEX = len(CELLS)
+code("__SETUP__")
 
 md("## Stage A — dataset integrity (CPU)")
 
@@ -154,12 +140,19 @@ run('a5_pair_review_materials.py', 'make', '--manifest', T0_MANIFEST, '--dataset
 """)
 
 md("""
-### ✋ Your task: blinded pair review
-Open `DOAR_JOURNAL_2026/A5_pair_review/review_sheet_*.pdf`. For each pair id fill
-the matching row of `review_*.csv`: `verdict` = SAME_DRAWING / DIFFERENT_DRAWING / UNSURE,
-`transform_seen` (none, rotation, flip, crop_or_zoom, noise, brightness_or_colour, multiple,
-not_applicable), your initials in `reviewer`. **Do not open `pairs_*.csv` before you finish** —
-it reveals which pairs are controls. Then run the next cell.
+### ✋ Your task: blinded pair review (click buttons below — no files to edit)
+Put your initials in `REVIEWER`, choose a group in `STRATUM`, run the cell. For each pair click
+**Same Drawing**, **Different Drawing** or **Unsure** (if same, first pick what changed, e.g. rotation).
+Every click is saved to Drive at once; you can stop any time and re-run the cell to continue.
+Do the groups one by one: `rf_stem`, `name_key`, then `dihedral` and `embedding` (these two exist
+only after A4 finished and the A5 make cell was run again). Then run the score cell.
+""")
+
+code("""
+REVIEWER = ''          # your initials, e.g. 'HE'
+STRATUM  = 'rf_stem'   # then 'name_key', 'dihedral', 'embedding'
+from doar_journal.review_widgets import pair_review
+pair_review(OUT / 'A5_pair_review', DATASET_ROOT, STRATUM, REVIEWER)
 """)
 
 code("""
@@ -223,10 +216,15 @@ run('b4_single_test_evaluation.py', '--t1-dir', OUT / 'T1',
 md("""
 ## Stage C — foreground and measurement validation (CPU)
 
-### ✋ Your task 1: finish the existing holdout review
-Fill every row of
-`DOAR_GPU_RESULTS/E2/E2A_INTERPRETABLE_FEATURES/E2A0_R1_V2_UNSEEN_HOLDOUT/tables/E2A0_R1_V2_HOLDOUT_VISUAL_REVIEW.csv`
-using the frozen rubric (see `docs/E2_FROZEN_HOLDOUT_RUN_GUIDE.md`), then run the next cell.
+### ✋ Your task 1: finish the existing holdout review (click buttons below)
+For each of the 80 holdout images you see the original, the A0 mask and the frozen V2 mask
+(white = drawing marks). Judge the **V2** mask with one button; optionally say whether V2's
+support regime is right. Every click is saved at once; re-run to continue.
+""")
+
+code("""
+from doar_journal.review_widgets import holdout_review
+holdout_review(E2_HISTORY / 'E2A0_R1_V2_UNSEEN_HOLDOUT/tables/E2A0_R1_V2_HOLDOUT_VISUAL_REVIEW.csv', DATASET_ROOT)
 """)
 
 code("""
@@ -280,20 +278,55 @@ print('wrote', zpath, round(zpath.stat().st_size / 1e6, 2), 'MB')
 """)
 
 
-def main() -> int:
-    nb = {"cells": [], "metadata": {"accelerator": "GPU", "colab": {"provenance": [], "name": OUT.name},
+SETUP_GIT = '# 0.2 Get the code at the journal branch and install what Colab lacks\nimport subprocess, sys\nif not REPO.exists():\n    subprocess.run([\'git\', \'clone\', \'--branch\', BRANCH, \'https://github.com/HHemaly/DOAR.git\', str(REPO)], check=True)\nelse:\n    subprocess.run([\'git\', \'-C\', str(REPO), \'fetch\', \'origin\', BRANCH], check=True)\n    subprocess.run([\'git\', \'-C\', str(REPO), \'checkout\', BRANCH], check=True)\n    subprocess.run([\'git\', \'-C\', str(REPO), \'pull\', \'--ff-only\'], check=True)\nCOMMIT = subprocess.check_output([\'git\', \'-C\', str(REPO), \'rev-parse\', \'HEAD\'], text=True).strip()\nprint(\'code commit:\', COMMIT)\nsubprocess.run([sys.executable, \'-m\', \'pip\', \'install\', \'-q\', \'open_clip_torch\', \'timm\',\n                \'scikit-image\', \'opencv-python-headless\'], check=True)\nsys.path.insert(0, str(REPO / \'src\'))\n\nimport datetime, time\nLOGS = OUT / \'logs\'\nLOGS.mkdir(exist_ok=True)\n\ndef run(script, *args):\n    """Run a journal script and show its output LIVE in this cell (Colab does not\n    display a child process\'s output unless it is piped through Python), also\n    saving it to DOAR_JOURNAL_2026/logs/. Stops the notebook on failure."""\n    cmd = [sys.executable, \'-u\', str(REPO / \'experiments/journal/scripts\' / script), *map(str, args)]\n    log = LOGS / f"{script.removesuffix(\'.py\')}_{datetime.datetime.now():%Y%m%dT%H%M%S}.log"\n    print(\'$\', \' \'.join(cmd), \'\\nlog:\', log, flush=True)\n    t0 = time.time()\n    with open(log, \'w\', encoding=\'utf-8\') as fh:\n        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)\n        for line in p.stdout:\n            print(line, end=\'\', flush=True)\n            fh.write(line)\n        p.wait()\n    print(f\'-- {script} finished in {(time.time() - t0) / 60:.1f} min, exit code {p.returncode}\')\n    if p.returncode != 0:\n        raise RuntimeError(f\'{script} failed with exit code {p.returncode}; see {log}\')\n\nimport torch\nprint(\'GPU:\', torch.cuda.get_device_name(0) if torch.cuda.is_available() else \'none (CPU runtime)\')\n'
+
+
+def _standalone_setup(bundle_id: str) -> str:
+    head = SETUP_GIT.split("if not REPO.exists():")[0]
+    tail = SETUP_GIT.split("print('code commit:', COMMIT)")[1]
+    body = (
+        "# All code is embedded in this notebook (cell 0.2a); nothing is downloaded from GitHub.\n"
+        "import base64, io, shutil, zipfile\n"
+        "if REPO.exists():\n"
+        "    shutil.rmtree(REPO)\n"
+        "zipfile.ZipFile(io.BytesIO(base64.b64decode(CODE_BUNDLE))).extractall(REPO)\n"
+        f"COMMIT = '{bundle_id}'\n"
+        "print('embedded code version:', COMMIT)\n")
+    return head.replace("# 0.2 Get the code at the journal branch", "# 0.2 Unpack the embedded code") + body + tail
+
+
+def _write(path: Path, cells: list[tuple[str, str]]) -> None:
+    nb = {"cells": [], "metadata": {"accelerator": "GPU", "colab": {"provenance": [], "name": path.name},
                                     "kernelspec": {"display_name": "Python 3", "name": "python3"},
                                     "language_info": {"name": "python"}},
           "nbformat": 4, "nbformat_minor": 0}
-    for kind, text in CELLS:
+    for kind, text in cells:
         cell = {"cell_type": kind, "metadata": {}, "source": text.splitlines(keepends=True)}
         if kind == "code":
             cell.update({"execution_count": None, "outputs": []})
             compile(text, "<cell>", "exec")
         nb["cells"].append(cell)
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"wrote {OUT} ({len(CELLS)} cells)")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"wrote {path} ({len(cells)} cells, {path.stat().st_size / 1e3:.0f} kB)")
+
+
+def main() -> int:
+    git_cells = list(CELLS)
+    git_cells[SETUP_CELL_INDEX] = ("code", SETUP_GIT)
+    _write(OUT, git_cells)
+
+    b64, files, bundle_id = make_bundle()
+    sa = list(CELLS)
+    sa[SETUP_CELL_INDEX] = ("code", _standalone_setup(bundle_id))
+    sa.insert(SETUP_CELL_INDEX, ("code",
+              f"# 0.2a Embedded code ({len(files)} files, version {bundle_id}). Do not edit; just run.\n"
+              f"CODE_BUNDLE = '{b64}'"))
+    sa[0] = ("markdown", sa[0][1].replace(
+        "This notebook **runs** the journal experiments; all logic lives in the GitHub",
+        "**Standalone version:** all code is embedded in cell 0.2a, so this notebook needs only your "
+        "Google Drive (dataset and results), not GitHub. It is a snapshot of the GitHub"))
+    _write(OUT_STANDALONE, sa)
     return 0
 
 
