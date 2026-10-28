@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from doar_journal import provenance  # noqa: E402
-from doar_journal.leakage import (load_manifest, make_pair_sheets, path_of,  # noqa: E402
+from doar_journal.leakage import (REVIEW_VERDICTS, load_manifest, make_pair_sheets, path_of,  # noqa: E402
                                   sample_review_pairs, score_review, split_of, write_review_template)
 
 
@@ -72,14 +72,21 @@ def main(argv=None) -> int:
     out = Path(args.out)
 
     if args.cmd == "score":
-        results = {}
+        results, open_strata = {}, {}
         for key in sorted(out.glob("pairs_*.csv")):
             stratum = key.stem.removeprefix("pairs_")
             with open(key, newline="", encoding="utf-8") as f:
                 pairs = list(csv.DictReader(f))
+            with open(out / f"review_{stratum}.csv", newline="", encoding="utf-8") as f:
+                answered = sum(r.get("verdict") in REVIEW_VERDICTS for r in csv.DictReader(f))
+            if answered < len(pairs):
+                open_strata[stratum] = f"{answered} of {len(pairs)} answered"
+                continue
             results[stratum] = score_review(pairs, out / f"review_{stratum}.csv")
         provenance.write_json(out / "review_scores.json", results)
         print(json.dumps(results, indent=2))
+        for stratum, msg in open_strata.items():
+            print(f"NOT YET SCORED: {stratum} ({msg}) - finish it in the review cell, then run this cell again")
         return 0
 
     rows = load_manifest(args.manifest)

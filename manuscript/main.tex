@@ -19,7 +19,7 @@
 
 \begin{document}
 
-\title[Benchmark and measurement validity in children's drawing analysis]{Benchmark and measurement validity in children's drawing analysis: augmentation-copy leakage, model selection, and the reliability of objective visual features}
+\title[Benchmark and measurement validity in children's drawing analysis]{Benchmark and measurement validity in children's drawing analysis: leakage-controlled representation learning and reliable visual features}
 
 \author*[1]{\fnm{\authorinput{first name}} \sur{\authorinput{surname}}}\email{\authorinput{email}}
 \author[1]{\fnm{\authorinput{first name}} \sur{\authorinput{surname}}}\email{\authorinput{email}}
@@ -93,7 +93,7 @@ We evaluate three frozen extractors from the original analysis and five standard
 About 120 train/validation images, excluding the development and holdout images and their stem siblings, are sampled by largest-remainder allocation across V2 support regime $\times$ A0 state. Annotators see neither labels, file names nor method masks. For each image they first judge whether marks and support can be separated (or mark the image as full canvas, photographed scene, not a child's drawing, or blank), then build a reference mask from their own paper samples and a threshold, corrected with add and erase brush strokes. Forty images are annotated independently by a second annotator. \pending{annotator roles and agreement}.
 
 \subsection{Metrics and statistics}\label{sec:m-stats}
-Mask agreement uses pixel F1, IoU and boundary F1 with a 2-pixel tolerance \cite{csurka2013good}. Feature agreement between features computed on the reference mask and on each method's mask uses mean absolute error and ICC(2,1) \cite{shrout1979icc,koo2016icc}. Gate validity uses the AUROC of each state for detecting a bad measurement (F1 $<0.5$ on an assessable image, or an image a human judged not assessable) and the area under the risk--coverage curve \cite{geifman2017selective}. Uncertainty about a score on a fixed image set is estimated by 10,000 image-level bootstrap resamples \cite{efron1994bootstrap}; seed variation is reported separately as model variance. Paired comparisons use paired bootstraps and exact McNemar tests; families of tests are Holm-corrected \cite{holm1979simple}; proportions carry Wilson intervals.
+Mask agreement uses pixel F1, IoU and boundary F1 with a 2-pixel tolerance \cite{csurka2013good}. Feature agreement between features computed on the reference mask and on each method's mask uses mean absolute error and ICC(2,1) \cite{shrout1979icc,koo2016icc}. Gate validity uses the AUROC of each state for detecting a bad measurement (F1 $<0.5$ on an assessable image, or an image a human judged not assessable) and the area under the risk--coverage curve \cite{geifman2017selective}. Uncertainty about a score on a fixed image set is estimated by a cluster bootstrap with 10,000 resamples whose unit is the duplicate/source group, so copies of one drawing never count as independent evidence \cite{efron1994bootstrap}; seed variation is reported separately as model variance. Paired comparisons use group-paired bootstraps (McNemar counts are reported descriptively only); families of tests are Holm-corrected \cite{holm1979simple}; proportions carry Wilson intervals.
 
 %% ============================================================================
 \section{Results}\label{sec:results}
