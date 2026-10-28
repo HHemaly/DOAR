@@ -127,7 +127,8 @@ def pair_review(review_dir: str | Path, dataset_root: str | Path, stratum: str, 
         pid = rows[i]["pair_id"]
         a, b = paths[pid]
         title.value = (f"<h3>{stratum} — pair {pid} ({i + 1} of {len(rows)}; {done} answered)</h3>"
-                       "<p>Same child's drawing (possibly rotated, flipped, cropped, noisy)?</p>")
+                       "<p>Is this the SAME physical drawing (possibly rotated, flipped, cropped, recoloured, noisy)? "
+                       "A similar style, subject or child is NOT enough. If unsure, click Unsure.</p>")
         left.value = _png(load_rgb(_resolve(dataset_root, a)))
         right.value = _png(load_rgb(_resolve(dataset_root, b)))
         prev = rows[i].get("verdict")
@@ -136,6 +137,9 @@ def pair_review(review_dir: str | Path, dataset_root: str | Path, stratum: str, 
 
     def answer(verdict):
         def _(_btn):
+            if state["i"] >= len(rows):   # all pairs done: ignore extra clicks (use Previous to change one)
+                show()
+                return
             record_pair(rows, state["i"], verdict, transform.value, reviewer, notes.value)
             write_rows(form_path, fields, rows)
             transform.value = "none"
@@ -190,6 +194,9 @@ def holdout_review(review_csv: str | Path, dataset_root: str | Path):
 
     def answer(q):
         def _(_btn):
+            if state["i"] >= len(rows):   # all images done: ignore extra clicks
+                show()
+                return
             record_holdout(rows, state["i"], q, support.value, notes.value)
             write_rows(review_csv, fields, rows)
             support.value = "UNCERTAIN"

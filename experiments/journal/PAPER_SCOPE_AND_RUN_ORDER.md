@@ -71,6 +71,7 @@ assumptions in place of evidence. If there is a hard deadline, tell me what it i
 | 5 | Review cell, each `STRATUM` | CPU | 30–60 min total | **click verdicts** |
 | 6 | A5 score, then A5b (applies the acceptance rule; writes ACCEPTED_EDGES.json) | CPU | seconds | if A5b says NEXT: review the `*_tight` group, re-score |
 | 7 | A3 propose (reads ACCEPTED_EDGES.json — nothing to edit), A7 report | CPU | ~2 min | **send me STAGE_A_READINESS.md** |
+| 7b | A5c (what each evidence type would add), A6b (do earlier result files mention T0 test images?) | CPU | A6b a few min on Drive | send summary.json of both |
 | 8 | Freeze T1 | CPU | seconds | **approve (your name)** |
 | 9 | B0 smoke test | GPU | 5–10 min | must print `SMOKE PASSED` |
 | 10 | B1–B2 full run | A100 | ~6–12 h (est.), resumable | re-run cell after disconnects |

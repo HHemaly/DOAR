@@ -198,6 +198,18 @@ code("""
 run('a7_stage_a_report.py', '--root', OUT)
 """)
 
+code("""
+# A5c What each evidence type would ADD to the proposed T1 (counts only; decides nothing)
+run('a5c_edge_novelty.py', '--manifest', T0_MANIFEST, '--root', OUT)
+""")
+
+code("""
+# A6b Read-only check: do any earlier result files mention T0 TEST images?
+run('a6b_test_exposure_check.py', '--manifest', T0_MANIFEST,
+    '--t1', OUT / 'T1_proposal_regroup_full' / 't1_partition_manifest.csv',
+    '--scan', MASTERS / 'DOAR_GPU_RESULTS', '--out', OUT / 'A6b_test_exposure')
+""")
+
 md("""
 ### ✋ Your decision: approve the exact T1 split
 Read the report above (also `DOAR_JOURNAL_2026/STAGE_A_READINESS.md`). Approve only if:

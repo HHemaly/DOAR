@@ -300,3 +300,25 @@ def test_accepted_edges_rule(tmp_path):
     names = sorted(Path(p).name for p in acc["accepted_edge_files"])
     assert names == ["dihedral_edges_candidates.csv", "embedding_tight_edges_candidates.csv"]
     assert acc["decisions"]["name_key"]["accepted"] is False
+
+
+def test_pair_widget_ignores_clicks_after_last_pair(tmp_path):
+    from doar_journal import review_widgets as rw
+    rows = [{"pair_id": "P001", "verdict": "", "transform_seen": "", "notes": "", "reviewer": ""}]
+    rw.record_pair(rows, 0, "SAME_DRAWING", "rotation", "HE")
+    assert rw.first_open(rows, rw.pair_done) >= len(rows)   # nothing open -> widget index past the end
+
+
+def test_edge_novelty_counts():
+    a5c = _load_script("a5c_edge_novelty")
+    t1 = {r["image_id"]: {**r, "group_id": g, "new_split": s} for r, g, s in
+          zip(ROWS, ["g1", "g1", "g1", "g2", "g3", "g4", "g5", "g6"],
+              ["train", "train", "train", "test", "train", "valid", "valid", "test"])}
+    t0 = {r["image_id"]: r["split"] for r in ROWS}
+    edges = [{"a": "id001", "b": "id002", "detail": ""},   # redundant (same T1 group)
+             {"a": "id005", "b": "id006", "detail": ""},   # new, crosses T1 train-valid, reviewable
+             {"a": "id004", "b": "id008", "detail": ""}]   # new, test-test, different class
+    s, detail = a5c.analyse(edges, t1, t0)
+    assert (s["edges_redundant"], s["edges_new"], s["new_cross_t1_split"]) == (1, 2, 1)
+    assert s["new_different_class"] == 1 and s["reviewable_pool"] == 1
+    assert s["images_that_would_be_newly_excluded"] == 2   # Sad+Fear merged -> conflict
