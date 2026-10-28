@@ -99,6 +99,7 @@ def main(argv=None) -> int:
         hashes[r["image_id"]] = dihedral_dhashes(p)
         if len(hashes) % 250 == 0:
             provenance.write_json(cache, hashes)
+            print(f"hashed {len(hashes)}/{len(rows)} images", flush=True)
     provenance.write_json(cache, hashes)
     if missing:
         print(f"WARNING: {len(missing)} files not found, e.g. {missing[:3]}")
@@ -115,6 +116,7 @@ def main(argv=None) -> int:
             assert list(z["ids"]) == ids, "embedding cache was built for a different image list"
             emb = z["emb"]
         else:
+            print(f"computing CLIP embeddings for {len(ids)} images on {args.device} ...", flush=True)
             emb = clip_embeddings([resolve(root, {r["image_id"]: r for r in rows}[i]) for i in ids], args.device)
             np.savez(ecache, ids=np.array(ids), emb=emb)
         emb_pairs = embedding_near_pairs(ids, emb, EMBEDDING_THRESHOLD)

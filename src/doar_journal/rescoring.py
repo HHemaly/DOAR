@@ -93,8 +93,19 @@ def rescore_run(pred_rows: list[dict], shared: set[str], indep: set[str], n_boot
 
 
 def find_runs(root: str | Path) -> list[Path]:
-    """All `best_valid_predictions.csv` below `root` (E1-A2 probe outputs, E1-B runs, E1-C runs)."""
-    return sorted(Path(root).rglob("best_valid_predictions.csv"))
+    """All `best_valid_predictions.csv` below `root` (E1-A2 probe outputs, E1-B runs, E1-C runs).
+
+    Walks the tree once and does not descend into folders that only hold
+    embeddings, figures or qualitative images: listing those on a mounted
+    Google Drive is slow and they never contain prediction files."""
+    import os
+    skip = {"embeddings", "figures", "qualitative", "REPORTS", "panels", "contact_sheets"}
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip]
+        if "best_valid_predictions.csv" in filenames:
+            found.append(Path(dirpath) / "best_valid_predictions.csv")
+    return sorted(found)
 
 
 def macro_f1_from_rows(rows: list[dict]) -> float:

@@ -43,6 +43,14 @@ The original notebook `DOAR_21_8_26_V1.ipynb` is left untouched.
 | B4 Single test evaluation | GPU | **Yes**: explicit confirmation, runs once |
 | C Foreground validation | CPU | **Yes**: holdout review + reference masks |
 
+**Runtime:** use a CPU (or T4) runtime for Stages A and C — they do not need an A100, which
+uses compute units much faster. Switch to an A100 only for Stage B and B4.
+
+Typical durations (CPU runtime, Drive-mounted dataset): A1 < 1 min · A2 2–5 min ·
+A6 < 1 min · A4 20–40 min (first read of ~3,700 images from Drive; GPU makes the
+embedding part faster) · A5 make 2–5 min · C2 20–40 min. Every script prints progress
+lines; if a cell shows nothing for more than ~5 minutes, check `DOAR_JOURNAL_2026/logs/`.
+
 Every stage writes to `DOAR_JOURNAL_2026/` on your Drive, writes `DONE.json`
 when finished, and is skipped on re-run. After a disconnect just run the
 setup cells again and continue from the stage you were at.
@@ -82,13 +90,27 @@ subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'open_clip_torch',
                 'scikit-image', 'opencv-python-headless'], check=True)
 sys.path.insert(0, str(REPO / 'src'))
 
+import datetime, time
+LOGS = OUT / 'logs'
+LOGS.mkdir(exist_ok=True)
+
 def run(script, *args):
-    \"\"\"Run a journal script, streaming its output; stop the notebook on failure.\"\"\"
-    cmd = [sys.executable, str(REPO / 'experiments/journal/scripts' / script), *map(str, args)]
-    print('$', ' '.join(cmd))
-    p = subprocess.run(cmd, text=True)
+    \"\"\"Run a journal script and show its output LIVE in this cell (Colab does not
+    display a child process's output unless it is piped through Python), also
+    saving it to DOAR_JOURNAL_2026/logs/. Stops the notebook on failure.\"\"\"
+    cmd = [sys.executable, '-u', str(REPO / 'experiments/journal/scripts' / script), *map(str, args)]
+    log = LOGS / f\"{script.removesuffix('.py')}_{datetime.datetime.now():%Y%m%dT%H%M%S}.log\"
+    print('$', ' '.join(cmd), '\\nlog:', log, flush=True)
+    t0 = time.time()
+    with open(log, 'w', encoding='utf-8') as fh:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        for line in p.stdout:
+            print(line, end='', flush=True)
+            fh.write(line)
+        p.wait()
+    print(f'-- {script} finished in {(time.time() - t0) / 60:.1f} min, exit code {p.returncode}')
     if p.returncode != 0:
-        raise RuntimeError(f'{script} failed with exit code {p.returncode}')
+        raise RuntimeError(f'{script} failed with exit code {p.returncode}; see {log}')
 
 import torch
 print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none (CPU runtime)')

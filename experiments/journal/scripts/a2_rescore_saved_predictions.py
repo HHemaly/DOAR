@@ -47,12 +47,26 @@ def main(argv=None) -> int:
         for i in sorted(shared | indep):
             w.writerow([i, "shared" if i in shared else "independent", fam.get(i, "")])
 
+    if provenance.is_done(out):
+        print(f"A2 already complete in {out} (delete DONE.json to recompute)")
+        return 0
+    print(f"searching {args.runs_root} for saved validation predictions ...", flush=True)
+    paths = find_runs(args.runs_root)
+    print(f"found {len(paths)} prediction files", flush=True)
+    cache_dir = out / "per_run"
+    cache_dir.mkdir(exist_ok=True)
     results, table = {}, []
-    for p in find_runs(args.runs_root):
+    for k, p in enumerate(paths, start=1):
         run = str(p.parent.relative_to(args.runs_root))
-        preds = read_predictions(p)
-        r = rescore_run(preds, shared, indep, n_boot=args.n_boot)
-        r["recomputed_macro_f1_all"] = macro_f1_from_rows(preds)
+        cache = cache_dir / (run.replace("/", "__") + f".boot{args.n_boot}.json")
+        if cache.exists():  # finished before a disconnect
+            r = json.loads(cache.read_text(encoding="utf-8"))
+        else:
+            preds = read_predictions(p)
+            r = rescore_run(preds, shared, indep, n_boot=args.n_boot)
+            r["recomputed_macro_f1_all"] = macro_f1_from_rows(preds)
+            provenance.write_json(cache, r)
+        print(f"[{k}/{len(paths)}] ", end="")
         results[run] = r
         d = r["diff_shared_minus_independent"]
         table.append({"run": run, "n_shared": r["n_shared"], "n_independent": r["n_independent"],
@@ -63,7 +77,7 @@ def main(argv=None) -> int:
                       "diff_ci_high": round(d["ci_high"], 4), "p_bootstrap": round(d["p_bootstrap"], 4)})
         print(f"{run:60s} all={r['macro_f1_all']['estimate']:.4f} shared={r['macro_f1_shared']['estimate']:.4f} "
               f"indep={r['macro_f1_independent']['estimate']:.4f} diff={d['estimate']:+.4f} "
-              f"[{d['ci_low']:+.4f},{d['ci_high']:+.4f}]")
+              f"[{d['ci_low']:+.4f},{d['ci_high']:+.4f}]", flush=True)
     if not table:
         raise SystemExit(f"no best_valid_predictions.csv found under {args.runs_root}")
     with open(out / "rescoring_by_run.csv", "w", newline="", encoding="utf-8") as f:

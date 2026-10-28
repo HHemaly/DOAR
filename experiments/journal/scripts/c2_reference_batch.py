@@ -108,6 +108,7 @@ def main(argv=None) -> int:
                                 "a0_state": "OK" if a0 >= 0.001 else "FLAGGED"}
         if i % 200 == 0:
             provenance.write_json(cache_p, cache)
+            print(f"V2 regime computed for {len(cache)}/{len(pool)} pool images", flush=True)
     provenance.write_json(cache_p, cache)
 
     strata = defaultdict(list)

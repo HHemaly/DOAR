@@ -119,3 +119,16 @@ def test_stats_basics():
     assert ci.estimate == 1.0 and ci.low == 1.0
     d = stats.paired_bootstrap_diff(y, y, np.roll(y, 1), n_boot=200)
     assert d["estimate"] == 1.0 and d["ci_low"] > 0.9
+
+
+def test_vectorised_macro_f1_matches_sklearn():
+    rng = np.random.default_rng(3)
+    C = np.array(stats.CLASSES)
+    for n in (5, 40, 284):
+        y = C[rng.integers(0, 4, n)]
+        p = np.where(rng.random(n) < 0.6, y, C[rng.integers(0, 4, n)])
+        p[0] = "Unknown"  # a label outside the class set must never count as correct
+        idx = rng.integers(0, n, size=(300, n))
+        fast = stats.macro_f1_resamples(y, p, idx)
+        slow = np.array([stats.macro_f1(y[i], p[i]) for i in idx])
+        assert np.allclose(fast, slow, atol=1e-12)
