@@ -160,7 +160,10 @@ code("""
 REVIEWER = ''          # your initials, e.g. 'HE'
 STRATUM  = 'rf_stem'   # then 'name_key', 'dihedral', 'embedding' (and '*_tight' only if A5b asks)
 from doar_journal.review_widgets import pair_review
-pair_review(OUT / 'A5_pair_review', DATASET_ROOT, STRATUM, REVIEWER)
+if REVIEWER:
+    pair_review(OUT / 'A5_pair_review', DATASET_ROOT, STRATUM, REVIEWER)
+else:
+    print('Set REVIEWER to your initials to show the review buttons (skipped).')
 """)
 
 code("""
@@ -226,8 +229,13 @@ code("""
 APPROVED_BY = ''            # your full name; freezing is refused if empty
 DEVIATION   = ''            # only if a balance check failed: why you still accept the split
 import shutil
-assert APPROVED_BY, 'type your name to approve the split'
+from doar_journal.leakage import stage_a_open_items
 PROPOSAL, T1_DIR = OUT / 'T1_proposal_regroup_full', OUT / 'T1'
+if (T1_DIR / 'FROZEN.json').exists():
+    raise SystemExit(f'T1 is already frozen ({T1_DIR}); nothing to do. It is never re-frozen or overwritten.')
+_open = stage_a_open_items(OUT)
+assert not _open, 'Freezing refused - Stage A is not complete:\\n- ' + '\\n- '.join(_open)
+assert APPROVED_BY, 'type your name to approve the split'
 if not T1_DIR.exists():
     shutil.copytree(PROPOSAL, T1_DIR)
 run('a3_build_t1.py', 'freeze', '--out', T1_DIR, '--approved-by', APPROVED_BY, '--deviation', DEVIATION)
@@ -244,6 +252,9 @@ Run the full B1–B2 cell only after it prints `SMOKE PASSED`.
 
 code("""
 assert torch.cuda.is_available(), 'switch the runtime to GPU'
+from doar_journal.leakage import stage_a_open_items
+_open = stage_a_open_items(OUT)
+assert not _open, 'Stage B refused - Stage A is not complete:\\n- ' + '\\n- '.join(_open)
 run('b1_b2_e1_rerun.py', '--smoke', '--smoke-manifest', T0_MANIFEST, '--dataset-root', DATASET_ROOT,
     '--out', OUT / 'SMOKE_ENGINEERING_ONLY')
 """)
@@ -252,6 +263,14 @@ code("""
 # B1-B2 probe (9 encoders x 10 seeds) -> adaptation (shortlist x 3 modes x 3 seeds) -> confirm (finalists x 2 seeds)
 # Resumable: re-run this cell after a disconnect; finished runs are skipped.
 assert torch.cuda.is_available(), 'switch the runtime to GPU'
+import json
+from doar_journal.leakage import stage_a_open_items
+_open = stage_a_open_items(OUT)
+assert not _open, 'Stage B refused - Stage A is not complete:\\n- ' + '\\n- '.join(_open)
+_acc = sorted(Path(p).name for p in json.loads((OUT / 'A5_pair_review/ACCEPTED_EDGES.json').read_text())['accepted_edge_files'])
+_used = sorted(Path(p).name for p in json.loads((OUT / 'T1/T1_STATUS.json').read_text())['inputs'].get('extra_edges', {}))
+assert _acc == _used, (f'Stage B refused - the frozen T1 used extra evidence {_used}, but A5b now accepts {_acc}. '
+                       'Stop and send the A5b output: T1 must be rebuilt before any training.')
 run('b1_b2_e1_rerun.py', '--t1-dir', OUT / 'T1', '--dataset-root', DATASET_ROOT, '--out', OUT / 'E1_T1', '--stage', 'all')
 """)
 

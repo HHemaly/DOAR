@@ -322,3 +322,30 @@ def test_edge_novelty_counts():
     assert (s["edges_redundant"], s["edges_new"], s["new_cross_t1_split"]) == (1, 2, 1)
     assert s["new_different_class"] == 1 and s["reviewable_pool"] == 1
     assert s["images_that_would_be_newly_excluded"] == 2   # Sad+Fear merged -> conflict
+
+
+def test_stage_a_open_items_blocks_unscored_reviews(tmp_path):
+    import csv
+    import json
+    import os
+    import time
+    rev = tmp_path / "A5_pair_review"
+    rev.mkdir()
+    for st, ans in (("rf_stem", True), ("dihedral", True)):
+        with open(rev / f"pairs_{st}.csv", "w", newline="") as f:
+            f.write("pair_id,pair_type_hidden\nP001,x\n")
+        with open(rev / f"review_{st}.csv", "w", newline="") as f:
+            f.write("pair_id,verdict,transform_seen,notes,reviewer\n")
+            f.write(f"P001,{'SAME_DRAWING' if ans else ''},none,,HE\n")
+    (rev / "review_scores.json").write_text(json.dumps({"rf_stem": {}}))
+    time.sleep(0.01)
+    (rev / "ACCEPTED_EDGES.json").write_text(json.dumps({"decisions": {
+        "dihedral": {"reason": "review not scored yet (or A4 not finished)"}}}))
+    items = leakage.stage_a_open_items(tmp_path)
+    assert any("'dihedral' is complete but not scored" in x for x in items)
+    assert any("still open" in x for x in items)
+    (rev / "review_scores.json").write_text(json.dumps({"rf_stem": {}, "dihedral": {}}))
+    os.utime(rev / "ACCEPTED_EDGES.json", (time.time() - 100, time.time() - 100))
+    assert any("older than the latest scoring" in x for x in leakage.stage_a_open_items(tmp_path))
+    (rev / "ACCEPTED_EDGES.json").write_text(json.dumps({"decisions": {"dihedral": {"reason": "judged same 20% of 40"}}}))
+    assert leakage.stage_a_open_items(tmp_path) == []

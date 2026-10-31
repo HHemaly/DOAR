@@ -121,9 +121,15 @@ def pair_review(review_dir: str | Path, dataset_root: str | Path, stratum: str, 
         i = state["i"]
         done = sum(pair_done(r) for r in rows)
         if i >= len(rows):
-            title.value = f"<h3>{stratum}: all {len(rows)} pairs reviewed ✓ — run the score cell</h3>"
-            left.value = right.value = b""
+            title.value = (f"<h3>{stratum}: all {len(rows)} pairs reviewed ✓ — run the score cell</h3>"
+                           "<p>Nothing left to show. To change an answer, click ◀ Previous.</p>")
+            left.layout.display = right.layout.display = "none"
+            for b in buttons:
+                b.disabled = True
             return
+        left.layout.display = right.layout.display = ""
+        for b in buttons:
+            b.disabled = False
         pid = rows[i]["pair_id"]
         a, b = paths[pid]
         title.value = (f"<h3>{stratum} — pair {pid} ({i + 1} of {len(rows)}; {done} answered)</h3>"
@@ -179,8 +185,13 @@ def holdout_review(review_csv: str | Path, dataset_root: str | Path):
         i = state["i"]
         done = sum(holdout_done(r) for r in rows)
         if i >= len(rows):
-            title.value = f"<h3>All {len(rows)} holdout images reviewed ✓ — run the C1 cell</h3>"
+            title.value = (f"<h3>All {len(rows)} holdout images reviewed ✓ — run the C1 cell</h3>"
+                           "<p>Nothing left to show. To change an answer, click ◀ Previous.</p>")
+            for im in ims:
+                im.layout.display = "none"
             return
+        for im in ims:
+            im.layout.display = ""
         r = rows[i]
         img = fg.load_rgb(_resolve(dataset_root, r["relative_path"]))
         a0 = fg.a0(img).mask

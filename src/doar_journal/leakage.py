@@ -380,3 +380,40 @@ def evaluation_groups(rows: list[dict], use_group_id: bool = True, use_rf_stem: 
         for m in members[1:]:
             union(members[0], m)
     return {i: "eg_" + find(i) for i in parent}
+
+
+def stage_a_open_items(root: str | Path) -> list[str]:
+    """Reasons the Stage A evidence decision is not final yet (empty list = complete).
+
+    Checked before T1 is frozen and before Stage B starts or resumes: every
+    review group must be fully answered AND scored, and A5b must have been run
+    after the last scoring, so the split reflects every pre-registered decision."""
+    import json
+    root = Path(root)
+    rev = root / "A5_pair_review"
+    items = []
+    scores_p, acc_p = rev / "review_scores.json", rev / "ACCEPTED_EDGES.json"
+    scores = json.loads(scores_p.read_text(encoding="utf-8")) if scores_p.exists() else {}
+    for key in sorted(rev.glob("pairs_*.csv")):
+        stratum = key.stem.removeprefix("pairs_")
+        with open(key, newline="", encoding="utf-8") as f:
+            total = sum(1 for _ in csv.DictReader(f))
+        form = rev / f"review_{stratum}.csv"
+        answered = 0
+        if form.exists():
+            with open(form, newline="", encoding="utf-8") as f:
+                answered = sum(r.get("verdict") in REVIEW_VERDICTS for r in csv.DictReader(f))
+        if answered < total:
+            items.append(f"review '{stratum}': {answered} of {total} answered - finish it in the review cell")
+        elif stratum not in scores:
+            items.append(f"review '{stratum}' is complete but not scored - run the A5 score cell")
+    if not acc_p.exists():
+        items.append("A5b has not been run - run the A5b cell")
+    else:
+        if scores_p.exists() and acc_p.stat().st_mtime < scores_p.stat().st_mtime:
+            items.append("A5b is older than the latest scoring - run the A5b cell again")
+        acc = json.loads(acc_p.read_text(encoding="utf-8"))
+        for kind, d in acc.get("decisions", {}).items():
+            if "not scored" in d.get("reason", "") or "NEXT:" in d.get("reason", ""):
+                items.append(f"A5b decision for '{kind}' is still open: {d['reason']}")
+    return items
