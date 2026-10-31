@@ -38,3 +38,10 @@ T1 used different extra evidence than A5b now accepts.
   checks pass) can be frozen only after the `dihedral_tight` review is scored. All Stage B runs
   on the superseded T1 (`E1_T1/`) are kept for this report and are not used as results;
   Stage B is repeated on the new version (`E1_T1_v2/`).
+- 2026-10-31 final A5b: `dihedral_tight` (dHash ≤ 4) 23 of 40 judged same (57%, 95% CI 42–71%)
+  → also < 90%: dihedral evidence is **not used** and is reported as a limitation. At the tighter
+  threshold A5c counted 334 candidate links not explained by the accepted evidence, 87 of them
+  across the proposed splits (47 touching test); given the 57% review rate, some of these are
+  probably real duplicates that remain undetected (residual leakage, to be stated in the paper).
+- Stage A complete. Proposal 5c2fc755… passes all four balance checks; to be frozen as T1_v2,
+  superseding T1 (6868aed0…).
