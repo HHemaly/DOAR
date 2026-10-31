@@ -349,3 +349,33 @@ def test_stage_a_open_items_blocks_unscored_reviews(tmp_path):
     assert any("older than the latest scoring" in x for x in leakage.stage_a_open_items(tmp_path))
     (rev / "ACCEPTED_EDGES.json").write_text(json.dumps({"decisions": {"dihedral": {"reason": "judged same 20% of 40"}}}))
     assert leakage.stage_a_open_items(tmp_path) == []
+
+
+def test_t1_versioning_supersede_and_output_binding(tmp_path):
+    import json
+    from doar_journal import provenance
+    tp = t1_partition
+    for name, sha in (("T1", "a" * 64), ("T1_v2", "b" * 64)):
+        d = tmp_path / name
+        d.mkdir()
+        (d / "t1_partition_manifest.csv").write_text(name)
+        provenance.write_json(d / "FROZEN.json", {"manifest_sha256": provenance.sha256_file(d / "t1_partition_manifest.csv")})
+    assert [p.name for p in tp.t1_versions(tmp_path)] == ["T1", "T1_v2"]
+    assert tp.next_t1_dir(tmp_path).name == "T1_v3"
+    with pytest.raises(RuntimeError):
+        tp.supersede(tmp_path / "T1", tmp_path / "T1_v2", "", "HE")
+    tp.supersede(tmp_path / "T1", tmp_path / "T1_v2", "embedding evidence accepted after freeze", "HE")
+    assert tp.current_t1(tmp_path).name == "T1_v2"
+    with pytest.raises(RuntimeError, match="SUPERSEDED"):
+        tp.require_frozen(tmp_path / "T1")
+    tp.require_frozen(tmp_path / "T1_v2")
+    # a results folder made on the old split (no binding file) is refused for the new split
+    old = tmp_path / "E1_T1" / "probe" / "runs" / "m__probe__seed_7"
+    old.mkdir(parents=True)
+    (old / "result.json").write_text(json.dumps({"status": "complete", "manifest_sha256": "a" * 64}))
+    with pytest.raises(RuntimeError, match="already holds runs"):
+        tp.bind_output(tmp_path / "E1_T1", "b" * 64)
+    tp.bind_output(tmp_path / "E1_T1_v2", "b" * 64)
+    tp.bind_output(tmp_path / "E1_T1_v2", "b" * 64)
+    with pytest.raises(RuntimeError, match="holds results"):
+        tp.bind_output(tmp_path / "E1_T1_v2", "c" * 64)

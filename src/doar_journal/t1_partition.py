@@ -346,8 +346,72 @@ def require_frozen(out_dir: str | Path) -> str:
     frozen = out / "FROZEN.json"
     if not frozen.exists():
         raise RuntimeError(f"T1 at {out} is not frozen; get approval and run freeze() first")
+    if (out / "SUPERSEDED.json").exists():
+        rec = json.loads((out / "SUPERSEDED.json").read_text(encoding="utf-8"))
+        raise RuntimeError(f"T1 at {out} was SUPERSEDED by {rec.get('superseded_by')}: {rec.get('reason')}")
     rec = json.loads(frozen.read_text(encoding="utf-8"))
     path = out / "t1_partition_manifest.csv"
     if sha256_file(path) != rec["manifest_sha256"]:
         raise RuntimeError("frozen T1 manifest hash mismatch")
     return str(path)
+
+
+def t1_versions(root: str | Path) -> list[Path]:
+    """Frozen T1 folders in version order: T1, T1_v2, T1_v3, ..."""
+    root = Path(root)
+    found = [p for p in root.glob("T1*") if p.is_dir() and (p / "FROZEN.json").exists()
+             and (p.name == "T1" or p.name.removeprefix("T1_v").isdigit())]
+    return sorted(found, key=lambda p: 1 if p.name == "T1" else int(p.name.removeprefix("T1_v")))
+
+
+def current_t1(root: str | Path) -> Path:
+    """The latest frozen T1 that has not been superseded (what Stage B must use)."""
+    live = [p for p in t1_versions(root) if not (p / "SUPERSEDED.json").exists()]
+    if not live:
+        raise RuntimeError("no frozen, non-superseded T1 - run the freeze cell")
+    return live[-1]
+
+
+def next_t1_dir(root: str | Path) -> Path:
+    v = t1_versions(root)
+    if not v:
+        return Path(root) / "T1"
+    last = v[-1].name
+    n = 1 if last == "T1" else int(last.removeprefix("T1_v"))
+    return Path(root) / f"T1_v{n + 1}"
+
+
+def supersede(old_dir: str | Path, new_dir: str | Path, reason: str, approved_by: str) -> dict:
+    """Mark a frozen T1 as replaced. Its manifest and any results made on it are kept
+    (for the deviation report) but every Stage B/C script refuses to use it."""
+    if not reason.strip() or not approved_by.strip():
+        raise RuntimeError("superseding a frozen T1 needs a written reason and an approver")
+    rec = {"status": "SUPERSEDED", "superseded_by": Path(new_dir).name, "reason": reason, "approved_by": approved_by,
+           "superseded_utc": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")}
+    write_json(Path(old_dir) / "SUPERSEDED.json", rec)
+    return rec
+
+
+def bind_output(out_dir: str | Path, manifest_sha: str) -> None:
+    """Tie a results folder to one manifest; refuse to mix runs from two splits
+    (resumable scripts skip finished runs, so a reused folder would silently mix them)."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    p = out / "BOUND_MANIFEST.json"
+    if p.exists():
+        bound = json.loads(p.read_text(encoding="utf-8"))["manifest_sha256"]
+        if bound != manifest_sha:
+            raise RuntimeError(f"{out} holds results for manifest {bound[:12]}, not {manifest_sha[:12]}; "
+                               "use the results folder of the current T1")
+    else:
+        # older folders have no binding file: check the manifests recorded by finished runs
+        for res in list(out.glob("probe/runs/*/result.json")) + list(out.glob("adapt/runs/*/*.json")):
+            try:
+                rec = json.loads(res.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            sha = (rec.get("manifest_sha256") or rec.get("manifest_sha") or rec.get("t0_sha")) if isinstance(rec, dict) else None
+            if sha and sha != manifest_sha:
+                raise RuntimeError(f"{out} already holds runs for manifest {sha[:12]} ({res.parent.name}), not "
+                                   f"{manifest_sha[:12]}; use the results folder of the current T1")
+        write_json(p, {"manifest_sha256": manifest_sha})

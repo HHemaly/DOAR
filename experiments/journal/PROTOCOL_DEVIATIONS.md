@@ -27,3 +27,14 @@ Resolution rule (fixed before the two groups are scored):
 Safeguard added: the freeze, smoke-test and B1–B2 cells now refuse to run while any review group
 is unanswered or unscored, while A5b is older than the latest scoring, or (B1–B2) while the frozen
 T1 used different extra evidence than A5b now accepts.
+
+### D1 outcome (2026-10-31, A5 score + A5b on the verdicts recorded before the freeze)
+- `embedding`: 23 of 23 reviewed new pairs judged the same drawing → **accepted** (rule ≥ 90%).
+- `dihedral` (dHash ≤ 6): 15 of 40 judged same (38%) → not accepted; the pre-registered tighter
+  threshold (dHash ≤ 4) was written and must pass its own blinded review (`dihedral_tight`).
+- `name_key`: 0 of 16 → not accepted.
+- Consequence under the rule above: the T1 frozen on 2026-10-29 (manifest 6868aed0…) is
+  **superseded**. The new proposal with embedding edges (manifest 5c2fc755…, all four balance
+  checks pass) can be frozen only after the `dihedral_tight` review is scored. All Stage B runs
+  on the superseded T1 (`E1_T1/`) are kept for this report and are not used as results;
+  Stage B is repeated on the new version (`E1_T1_v2/`).

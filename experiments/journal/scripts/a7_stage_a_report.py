@@ -198,8 +198,24 @@ def main(argv=None) -> int:
         L.append("- Note: zero cross-split edges means zero DETECTED duplicates, not zero duplicates.")
     else:
         L.append("- **OPEN**: run A3 propose")
-    frozen = load(root / "T1" / "FROZEN.json")
-    L += ["", "## Approval", f"- T1 frozen: {'yes, by ' + frozen['approved_by'] if frozen else 'NO (needs your approval)'}"]
+    from doar_journal.leakage import stage_a_open_items
+    from doar_journal.t1_partition import t1_versions
+    L += ["", "## Stage A completeness"]
+    open_items = stage_a_open_items(root)
+    L += [f"- OPEN: {x}" for x in open_items] or ["- complete: every review group answered and scored; A5b up to date"]
+    L += ["", "## Approval"]
+    prop_sha = st.get("manifest_sha256") if st else None
+    versions = t1_versions(root)
+    for v in versions:
+        fz = load(v / "FROZEN.json")
+        sup = load(v / "SUPERSEDED.json")
+        state = f"SUPERSEDED by {sup['superseded_by']}" if sup else ("matches this proposal" if fz["manifest_sha256"] == prop_sha
+                                                                     else "DIFFERS from this proposal")
+        L.append(f"- {v.name}: frozen by {fz['approved_by']} at {fz['frozen_utc']}, manifest {fz['manifest_sha256'][:12]} - {state}")
+    if not versions:
+        L.append("- No T1 frozen yet (needs your approval)")
+    elif not any(load(v / "FROZEN.json")["manifest_sha256"] == prop_sha and not load(v / "SUPERSEDED.json") for v in versions):
+        L.append("- **The current proposal is NOT frozen.** Stage B must not run until it is (freeze cell).")
 
     out = root / "STAGE_A_READINESS.md"
     out.write_text("\n".join(L) + "\n", encoding="utf-8")

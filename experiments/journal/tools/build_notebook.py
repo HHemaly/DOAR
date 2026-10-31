@@ -222,23 +222,37 @@ Read the report above (also `DOAR_JOURNAL_2026/STAGE_A_READINESS.md`). Approve o
 
 If a balance check fails, do **not** re-draw the split with another seed. Either record a written
 deviation (it is reported in the paper) or tell me and we decide together. Send me the report
-before freezing if anything looks odd. Freezing copies the proposal to `DOAR_JOURNAL_2026/T1`.
+before freezing if anything looks odd. Freezing copies the proposal to `DOAR_JOURNAL_2026/T1` (or
+`T1_v2`, `T1_v3` ... if an earlier frozen split has to be replaced; the old one is kept and marked SUPERSEDED).
 """)
 
 code("""
 APPROVED_BY = ''            # your full name; freezing is refused if empty
 DEVIATION   = ''            # only if a balance check failed: why you still accept the split
+SUPERSEDE_REASON = ''       # only if an EARLIER frozen T1 must be replaced: why (reported in the paper)
 import shutil
 from doar_journal.leakage import stage_a_open_items
-PROPOSAL, T1_DIR = OUT / 'T1_proposal_regroup_full', OUT / 'T1'
-if (T1_DIR / 'FROZEN.json').exists():
-    raise SystemExit(f'T1 is already frozen ({T1_DIR}); nothing to do. It is never re-frozen or overwritten.')
+from doar_journal.provenance import sha256_file
+from doar_journal.t1_partition import next_t1_dir, supersede, t1_versions
+PROPOSAL = OUT / 'T1_proposal_regroup_full'
 _open = stage_a_open_items(OUT)
 assert not _open, 'Freezing refused - Stage A is not complete:\\n- ' + '\\n- '.join(_open)
-assert APPROVED_BY, 'type your name to approve the split'
-if not T1_DIR.exists():
+_live = [p for p in t1_versions(OUT) if not (p / 'SUPERSEDED.json').exists()]
+_new_sha = sha256_file(PROPOSAL / 't1_partition_manifest.csv')
+if _live and sha256_file(_live[-1] / 't1_partition_manifest.csv') == _new_sha:
+    print(f'This proposal is already frozen as {_live[-1].name}; nothing to do.')
+else:
+    assert APPROVED_BY, 'type your name to approve the split'
+    T1_DIR = next_t1_dir(OUT)
+    if _live:
+        assert SUPERSEDE_REASON, (f'{_live[-1].name} is frozen with a DIFFERENT split. Freezing this proposal '
+                                  f'replaces it (results on it are kept but no longer used). Write SUPERSEDE_REASON.')
     shutil.copytree(PROPOSAL, T1_DIR)
-run('a3_build_t1.py', 'freeze', '--out', T1_DIR, '--approved-by', APPROVED_BY, '--deviation', DEVIATION)
+    run('a3_build_t1.py', 'freeze', '--out', T1_DIR, '--approved-by', APPROVED_BY, '--deviation', DEVIATION)
+    for old in _live:
+        supersede(old, T1_DIR, SUPERSEDE_REASON, APPROVED_BY)
+        print(f'{old.name} marked SUPERSEDED by {T1_DIR.name}')
+    print('Frozen:', T1_DIR)
 """)
 
 md("""
@@ -268,16 +282,21 @@ from doar_journal.leakage import stage_a_open_items
 _open = stage_a_open_items(OUT)
 assert not _open, 'Stage B refused - Stage A is not complete:\\n- ' + '\\n- '.join(_open)
 _acc = sorted(Path(p).name for p in json.loads((OUT / 'A5_pair_review/ACCEPTED_EDGES.json').read_text())['accepted_edge_files'])
-_used = sorted(Path(p).name for p in json.loads((OUT / 'T1/T1_STATUS.json').read_text())['inputs'].get('extra_edges', {}))
+from doar_journal.t1_partition import current_t1
+T1_DIR = current_t1(OUT)
+print('Using', T1_DIR.name, '->', 'E1_' + T1_DIR.name)
+_used = sorted(Path(p).name for p in json.loads((T1_DIR / 'T1_STATUS.json').read_text())['inputs'].get('extra_edges', {}))
 assert _acc == _used, (f'Stage B refused - the frozen T1 used extra evidence {_used}, but A5b now accepts {_acc}. '
                        'Stop and send the A5b output: T1 must be rebuilt before any training.')
-run('b1_b2_e1_rerun.py', '--t1-dir', OUT / 'T1', '--dataset-root', DATASET_ROOT, '--out', OUT / 'E1_T1', '--stage', 'all')
+run('b1_b2_e1_rerun.py', '--t1-dir', T1_DIR, '--dataset-root', DATASET_ROOT, '--out', OUT / f'E1_{T1_DIR.name}', '--stage', 'all')
 """)
 
 code("""
 # B3 Tables, T0-vs-T1 comparison and the frozen selection (CPU is fine)
-run('b3_e1_analysis.py', '--t1-out', OUT / 'E1_T1', '--t1-dir', OUT / 'T1', '--t0-root', E1_HISTORY,
-    '--t0-manifest', T0_MANIFEST, '--out', OUT / 'B3_E1_analysis', '--freeze-selection')
+from doar_journal.t1_partition import current_t1
+T1_DIR = current_t1(OUT)
+run('b3_e1_analysis.py', '--t1-out', OUT / f'E1_{T1_DIR.name}', '--t1-dir', T1_DIR, '--t0-root', E1_HISTORY,
+    '--t0-manifest', T0_MANIFEST, '--out', OUT / f'B3_{T1_DIR.name}', '--freeze-selection')
 """)
 
 md("""
@@ -291,10 +310,12 @@ disconnect) only with a written reason that is reported in the paper. Set `CONFI
 code("""
 CONFIRM = False
 assert CONFIRM, 'set CONFIRM = True only when everything else is frozen'
-run('b4_single_test_evaluation.py', '--t1-dir', OUT / 'T1',
-    '--selection', OUT / 'B3_E1_analysis' / 'SELECTION_FROZEN.json',
-    '--probe-root', OUT / 'E1_T1' / 'probe', '--dataset-root', DATASET_ROOT,
-    '--out', OUT / 'B4_TEST', '--confirm-single-test-run')
+from doar_journal.t1_partition import current_t1
+T1_DIR = current_t1(OUT)
+run('b4_single_test_evaluation.py', '--t1-dir', T1_DIR,
+    '--selection', OUT / f'B3_{T1_DIR.name}' / 'SELECTION_FROZEN.json',
+    '--probe-root', OUT / f'E1_{T1_DIR.name}' / 'probe', '--dataset-root', DATASET_ROOT,
+    '--out', OUT / f'B4_TEST_{T1_DIR.name}', '--confirm-single-test-run')
 """)
 
 md("""

@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 from doar_journal import e1_analysis as ea  # noqa: E402
 from doar_journal import e1_runner as er  # noqa: E402
 from doar_journal import provenance  # noqa: E402
-from doar_journal.t1_partition import require_frozen  # noqa: E402
+from doar_journal.t1_partition import bind_output, require_frozen  # noqa: E402
 
 
 def main(argv=None) -> int:
@@ -56,7 +56,7 @@ def main(argv=None) -> int:
     if missing:
         raise SystemExit(f"{len(missing)} image paths do not resolve, e.g. {missing[:2]}")
     out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
+    bind_output(out, rows["manifest_sha256"])
     commit = provenance.git_commit(Path(__file__).resolve().parents[3])
     provenance.write_json(out / f"run_metadata_{a.stage}.json",
                           provenance.run_metadata(f"E1_T1_{a.stage}", vars(a), inputs={"t1_manifest": manifest}))

@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 from doar_journal import e1_analysis as ea  # noqa: E402
 from doar_journal import provenance  # noqa: E402
 from doar_journal.leakage import evaluation_groups, load_manifest  # noqa: E402
-from doar_journal.t1_partition import require_frozen  # noqa: E402
+from doar_journal.t1_partition import bind_output, require_frozen  # noqa: E402
 
 
 def write(path: Path, rows: list[dict]) -> None:
@@ -51,6 +51,7 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     t1 = Path(a.t1_out)
     report = {"bootstrap_unit": "duplicate/source group (cluster bootstrap)"}
+    bind_output(t1, provenance.sha256_file(require_frozen(a.t1_dir)))   # refuse results from another split
     g1 = evaluation_groups(load_manifest(require_frozen(a.t1_dir)))
     g0 = evaluation_groups(load_manifest(a.t0_manifest)) if a.t0_manifest else None
 
