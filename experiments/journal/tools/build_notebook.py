@@ -414,6 +414,13 @@ run('c3_evaluate_references.py', *args)
 run('c4_measurement_analysis.py', '--c3', OUT / 'C3_reference_evaluation', '--out', OUT / 'C4_measurement_analysis')
 """)
 
+code("""
+# P1 Paper figures from the results that exist so far (CPU, read-only; re-run any time).
+# Writes PDF + PNG to DOAR_JOURNAL_2026/PAPER_FIGURES; figures whose inputs are not ready are skipped.
+run('p1_paper_figures.py', '--root', OUT, '--dataset-root', DATASET_ROOT,
+    '--e2-holdout-review', E2_HISTORY / 'E2A0_R1_V2_UNSEEN_HOLDOUT/tables/E2A0_R1_V2_HOLDOUT_VISUAL_REVIEW.csv')
+""")
+
 md("## Export results for the manuscript")
 
 code("""
