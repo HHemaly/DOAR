@@ -63,3 +63,19 @@ safeguards changed. Completed runs are reused only after the read-only audit (`b
 confirms they belong to T1_v2. To report: the DINOv2 adaptation implementation was written after
 the shortlist was known (it could not have been written for a model not shortlisted on T0), and
 its partial mode trains ~32% of the backbone (CLIP 32.7%, SigLIP2 30.5%).
+
+## D3 — Completed SigLIP2 adaptation runs without checkpoints (2026-11-01)
+
+The read-only audit of `E1_T1_v2` found 7 completed SigLIP2 adaptation runs (frozen 19/42/73,
+partial 19/42, full 19/42) whose `result.json` and validation predictions exist but whose
+`best.pt` (and `last.pt`) are absent; the other 11 completed runs have them. Cause still to be
+confirmed (most likely Google Drive storage: each SigLIP2 checkpoint holds the full OpenCLIP model).
+The audit's first version also flagged every run for a missing manifest hash in
+`epoch_history.csv`; that was an error in the audit (the archived code stores the hash in the
+checkpoint metadata, not in the CSV) and was corrected.
+
+Rule, fixed before the DINOv2 runs, the finalists or any test result exist: the test step needs
+the checkpoints of the two finalists for all 5 seeds, so the 7 runs are re-run once with the same
+seeds and settings after storage is fixed. Their original `result.json`/predictions are moved to
+`E1_T1_v2_ARCHIVED_RUNS_NO_CHECKPOINT/` (kept, not used) and the re-run results are used for
+selection and test. Original vs re-run validation macro-F1 are reported side by side.

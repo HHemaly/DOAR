@@ -247,6 +247,18 @@ def test_b1c_audit_flags_good_and_bad_folders(tmp_path):
     assert b1c.main(["--t1-dir", str(t1), "--out", str(out)]) == 0      # probe complete, adaptation all to run
     rep = json.loads(sorted(out.glob("AUDIT_*.json"))[-1].read_text())
     assert rep["probe"]["complete"] == 90 and len(rep["adapt"]["will_run"]) == 27
+    for m in rep["shortlist_by_rule"]:
+        for md in er.ADAPT_MODES:
+            for s in er.ADAPT_SEEDS:
+                d = out / "adapt" / "runs" / f"{m}__{md}__seed_{s}"
+                preds(d, [f"v{i}" for i in range(4)])
+                (d / "epoch_history.csv").write_text("epoch,train_loss\n1,0.5\n")    # archived CSV has no hash column
+                write_json(d / "result.json", {"status": "complete"})
+                if (m, md, s) != (rep["shortlist_by_rule"][0], "partial", 19):
+                    (d / "best.pt").write_bytes(b"x")
+    assert b1c.main(["--t1-dir", str(t1), "--out", str(out)]) == 0      # missing best.pt is a warning, not a stop
+    rep = json.loads(sorted(out.glob("AUDIT_*.json"))[-1].read_text())
+    assert rep["adapt"]["complete"] == 27 and len(rep["adapt"]["complete_but_best_pt_missing"]) == 1 and rep["warnings"]
     bad = out / "probe" / "runs" / f"{er.PROBE_MODELS[0]}__probe__seed_7"
     preds(bad, ["v0", "v1", "v2", "t1"])                                 # a test image in validation predictions
     assert b1c.main(["--t1-dir", str(t1), "--out", str(out)]) == 1

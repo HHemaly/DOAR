@@ -95,7 +95,7 @@ def main(argv=None) -> int:
                 problems.append(f"SHORTLIST.json {s_saved} != rule applied to probe results {shortlist}")
     report["shortlist_by_rule"] = shortlist
 
-    adapt_done, adapt_todo, incomplete = [], [], []
+    adapt_done, adapt_todo, incomplete, missing_ckpt = [], [], [], []
     for m in (shortlist or []):
         for mode in er.ADAPT_MODES:
             for s in er.ADAPT_SEEDS:
@@ -104,15 +104,11 @@ def main(argv=None) -> int:
                 if r.get("status") == "complete":
                     adapt_done.append(d.name)
                     if not (d / "best.pt").exists():
-                        problems.append(f"{d.name}: best.pt missing")
-                    eh = d / "epoch_history.csv"
-                    if eh.exists():
-                        with open(eh, newline="", encoding="utf-8") as f:
-                            hs = {row.get("t0_sha") for row in csv.DictReader(f)}
-                        if hs != {sha}:
-                            problems.append(f"{d.name}: epoch history manifest {hs} != T1")
-                    else:
+                        missing_ckpt.append(d.name)
+                    if not (d / "epoch_history.csv").exists():
                         problems.append(f"{d.name}: epoch_history.csv missing")
+                    # the archived code stores the manifest hash in the checkpoint metadata, not in the
+                    # CSVs; provenance here = folder binding + validation-only predictions (checked below)
                     check_preds(d, d.name)
                 else:
                     adapt_todo.append(d.name)
@@ -120,11 +116,15 @@ def main(argv=None) -> int:
                         incomplete.append({"run": d.name, "files": sorted(p.name for p in d.iterdir())})
     report["adapt"] = {"complete": len(adapt_done), "expected": 3 * len(er.ADAPT_MODES) * len(er.ADAPT_SEEDS),
                        "complete_runs": adapt_done, "will_run": adapt_todo,
-                       "started_but_incomplete": incomplete}
+                       "started_but_incomplete": incomplete,
+                       "complete_but_best_pt_missing": missing_ckpt}
     confirm = sorted((out / "adapt" / "runs").glob("*__seed_11")) + sorted((out / "adapt" / "runs").glob("*__seed_37"))
     report["confirm"] = {"existing": [p.name for p in confirm],
                          "note": "finalists are chosen only after all 27 adaptation runs exist (2 finalists x seeds 11,37 = 4 runs)"}
     report["problems"] = problems
+    report["warnings"] = ([f"{len(missing_ckpt)} complete run(s) have no best.pt: {missing_ckpt}. Their results are "
+                           "valid for analysis, but the test step needs the checkpoints of the two finalists "
+                           "(all 5 seeds). Check Drive storage before training further."] if missing_ckpt else [])
     report["verdict"] = "SAFE TO RESUME" if not problems else "DO NOT RESUME - see problems"
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     write_json(out / f"AUDIT_{stamp}.json", report)
@@ -137,6 +137,8 @@ def main(argv=None) -> int:
         print("  started but incomplete (will restart; any last.pt is resumed):", incomplete)
     print("confirmation runs existing:", report["confirm"]["existing"] or "none (4 to run after adaptation)")
     print("problems:", problems or "none")
+    for w in report["warnings"]:
+        print("WARNING:", w)
     print("VERDICT:", report["verdict"])
     return 0 if not problems else 1
 
