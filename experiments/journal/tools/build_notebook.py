@@ -310,12 +310,18 @@ _used = sorted(Path(p).name for p in json.loads((T1_DIR / 'T1_STATUS.json').read
 assert _acc == _used, (f'Stage B refused - the frozen T1 used extra evidence {_used}, but A5b now accepts {_acc}. '
                        'Stop and send the A5b output: T1 must be rebuilt before any training.')
 run('b1_b2_e1_rerun.py', '--t1-dir', T1_DIR, '--dataset-root', DATASET_ROOT, '--out', OUT / f'E1_{T1_DIR.name}', '--stage', 'all')
+# Make Google Drive finish uploading every checkpoint before anything records its fingerprint
+from google.colab import drive
+drive.flush_and_unmount(); drive.mount('/content/drive')
+print('Drive synced.')
 """)
 
 code("""
 # B3 Tables, T0-vs-T1 comparison and the frozen selection (CPU is fine)
 from doar_journal.t1_partition import current_t1
 T1_DIR = current_t1(OUT)
+from google.colab import drive   # sync Drive first: B3 records checkpoint fingerprints
+drive.flush_and_unmount(); drive.mount('/content/drive')
 run('b3_e1_analysis.py', '--t1-out', OUT / f'E1_{T1_DIR.name}', '--t1-dir', T1_DIR, '--t0-root', E1_HISTORY,
     '--t0-manifest', T0_MANIFEST, '--out', OUT / f'B3_{T1_DIR.name}', '--freeze-selection')
 """)

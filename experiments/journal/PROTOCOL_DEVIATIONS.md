@@ -92,3 +92,16 @@ for the OpenCLIP embedding size), and did not know DINOv2. It would have stopped
 `NameError: DEVICE` before producing any prediction. Fixed and covered by a CPU test that
 reloads EfficientNet-B0 and DINOv2 checkpoints. The fix uses no test label. No test image had
 been read when this was found; the single-test lock was never opened.
+
+## D5 — Stale checkpoint on Drive after a disconnect (2026-11-01)
+
+B4's pre-flight refused to start (no test image read, no lock created): the frozen selection
+recorded `clip_vit_b32/partial/37` best.pt with SHA-256 4e8c1ddd325a…, but the file on Drive was
+325c98603c84…. Its contents showed best-epoch index 0 (val macro-F1 0.710), while the run's
+result.json records best-epoch index 4 (0.827). Cause: the Colab runtime disconnected before Google
+Drive finished uploading the later saves of that file (it is saved each time validation improves).
+Remedy, decided before any test image was read: the stale run folder is archived and that single
+run is re-trained with the same seed and settings; B4 runs only if the re-trained checkpoint
+reproduces the recorded SHA-256. If it reproduces the validation result but not the hash, the
+selection record is amended with this deviation before B4. Prevention: the B1–B2 and B3 cells now
+force a Drive sync before checkpoints are fingerprinted.
