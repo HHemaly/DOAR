@@ -45,3 +45,21 @@ T1 used different extra evidence than A5b now accepts.
   probably real duplicates that remain undetected (residual leakage, to be stated in the paper).
 - Stage A complete. Proposal 5c2fc755… passes all four balance checks; to be frozen as T1_v2,
   superseding T1 (6868aed0…).
+
+## D2 — DINOv2 adaptation added to the archived E1-B code (2026-11-01)
+
+On T1_v2 the pre-registered shortlist rule (top-3 10-seed probe means) selected
+`siglip2_vit_b16`, `clip_vit_b32`, `dinov2_vits14`. The archived E1-B code supports only the T0
+shortlist (SigLIP2, CLIP, EfficientNet-B0) and stopped with `ValueError: dinov2_vits14` at
+`dinov2_vits14__frozen__seed_19`, after 90/90 probe runs and 18/27 adaptation runs had completed.
+
+Fix: `src/doar_journal/e1b_dinov2.py` adds DINOv2 without editing the archived file. It reuses
+the probe's backbone call (`torch.hub facebookresearch/dinov2 dinov2_vits14`), CLS-token features
+and eval preprocessing, the archived augmentation-insertion rule, and the archived
+OpenCLIP-tower trainability rule (partial = last blocks until ≥ 25% of backbone parameters +
+final norm). Optimiser, learning rates, epochs, patience, batch size, loss, early stopping and
+outputs are the archived code path. Nothing about the shortlist, seeds, T1_v2 or the test
+safeguards changed. Completed runs are reused only after the read-only audit (`b1c_audit_runs.py`)
+confirms they belong to T1_v2. To report: the DINOv2 adaptation implementation was written after
+the shortlist was known (it could not have been written for a model not shortlisted on T0), and
+its partial mode trains ~32% of the backbone (CLIP 32.7%, SigLIP2 30.5%).

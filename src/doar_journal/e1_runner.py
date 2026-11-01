@@ -105,6 +105,8 @@ def run_adaptation(rows: dict, out: str | Path, dataset_root: str | Path, source
                    models=ADAPT_MODELS, modes=ADAPT_MODES, seeds=ADAPT_SEEDS) -> list[dict]:
     """E1-B adaptation runs through the verbatim notebook `run_one` (resumable)."""
     from . import _frozen_e1b as e1b
+    from .e1b_dinov2 import install as _install_dinov2
+    _install_dinov2(e1b)   # adds dinov2_vits14; other models use the archived builder unchanged
     e1b.configure(train_rows=rows["train"], valid_rows=rows["valid"], out_root=Path(out) / "adapt",
                   dataset_root=dataset_root, manifest_sha=rows["manifest_sha256"],
                   source_commit=source_commit, device=device, MODELS=list(models), MODES=list(modes))

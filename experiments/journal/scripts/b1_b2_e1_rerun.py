@@ -45,6 +45,10 @@ def main(argv=None) -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--stage", choices=("probe", "adapt", "confirm", "all"), default="all")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--smoke-adapt-models", default="clip_vit_b32,efficientnet_b0",
+                    help="smoke only: comma list of models for the adaptation check")
+    ap.add_argument("--smoke-modes", default="partial", help="smoke only: comma list of adaptation modes")
+    ap.add_argument("--smoke-skip-probe", action="store_true", help="smoke only: skip the probe check")
     a = ap.parse_args(argv)
     if a.smoke:
         return smoke(a)
@@ -103,19 +107,24 @@ def smoke(a) -> int:
     print(f"OK image paths ({len(rows['train'])} train / {len(rows['valid'])} valid); test rows counted only: {rows['n_test']}")
     checks = {}
     t0 = time.time()
-    er.run_probe(rows, out, a.device, models=("clip_vit_b32", "efficientnet_b0"), seeds=(42,), max_epochs=1, patience=1)
-    checks["probe"] = f"ok in {time.time() - t0:.0f}s"
+    if not a.smoke_skip_probe:
+        er.run_probe(rows, out, a.device, models=("clip_vit_b32", "efficientnet_b0"), seeds=(42,), max_epochs=1, patience=1)
+        checks["probe"] = f"ok in {time.time() - t0:.0f}s"
     t0 = time.time()
     commit = provenance.git_commit(Path(__file__).resolve().parents[3]) or "unknown"
     from doar_journal import _frozen_e1b as e1b
+    from doar_journal.e1b_dinov2 import install as _install_dinov2
+    _install_dinov2(e1b)
     e1b.configure(train_rows=rows["train"], valid_rows=rows["valid"], out_root=out / "adapt",
                   dataset_root=a.dataset_root, manifest_sha=rows["manifest_sha256"], source_commit=commit,
                   device=a.device, MAX_EPOCHS=1, PATIENCE=1)
-    for model in ("clip_vit_b32", "efficientnet_b0"):
-        r = e1b.run_one(model, "partial", 19)
-        assert r.get("status") == "complete", r
-        assert (out / "adapt" / "runs" / f"{model}__partial__seed_19" / "best.pt").exists()
-    checks["adaptation_partial"] = f"ok in {time.time() - t0:.0f}s"
+    modes = [m for m in a.smoke_modes.split(",") if m]
+    for model in [m for m in a.smoke_adapt_models.split(",") if m]:
+        for mode in modes:
+            r = e1b.run_one(model, mode, 19)
+            assert r.get("status") == "complete", r
+            assert (out / "adapt" / "runs" / f"{model}__{mode}__seed_19" / "best.pt").exists()
+    checks["adaptation_" + "+".join(modes)] = f"ok in {time.time() - t0:.0f}s"
     try:
         import torch
         checks["gpu"] = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none"

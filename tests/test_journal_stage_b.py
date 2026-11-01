@@ -154,3 +154,99 @@ def test_b4_test_lock_protocol(tmp_path, monkeypatch):
         b4.main(args + ["--confirm-single-test-run", "--rerun-justification", "again"])  # COMPLETE is final
     ck.write_bytes(b"tampered")
     assert b4.preflight(sel, str(t1 / "t1_partition_manifest.csv"))   # changed checkpoint detected
+
+
+def _fake_dinov2():
+    import torch.nn as nn
+
+    class Block(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fc = nn.Linear(8, 8)
+
+        def forward(self, x):
+            return x + self.fc(x)
+
+    class FakeDino(nn.Module):              # same attribute API as DinoVisionTransformer
+        embed_dim = 8
+
+        def __init__(self):
+            super().__init__()
+            self.patch_embed = nn.Linear(3, 8)
+            self.blocks = nn.ModuleList([Block() for _ in range(12)])
+            self.norm = nn.LayerNorm(8)
+
+        def forward(self, x):
+            t = self.patch_embed(x.mean(dim=(2, 3)))
+            for b in self.blocks:
+                t = b(t)
+            return self.norm(t)
+
+    return FakeDino()
+
+
+def test_dinov2_extension_modes_and_routing(monkeypatch):
+    from doar_journal import _frozen_e1b as e1b
+    from doar_journal import e1b_dinov2 as d
+    monkeypatch.setattr(torch.hub, "load", lambda *a, **k: _fake_dinov2())
+    d.install(e1b)
+    d.install(e1b)                            # idempotent
+    pct = {}
+    for mode in ("frozen", "partial", "full"):
+        m, tr, ev, dim = e1b.build_model_and_transforms("dinov2_vits14", mode)
+        rep = e1b.parameter_report(m, "dinov2_vits14")
+        pct[mode] = rep["visual_trainable_percent"]
+        assert dim == 8 and [type(t).__name__ for t in ev.transforms] == ["Resize", "CenterCrop", "ToTensor", "Normalize"]
+        assert "RandomAffine" in [type(t).__name__ for t in tr.transforms]
+        groups = e1b.build_optimizer(m, "dinov2_vits14").param_groups
+        assert groups[0]["lr"] == e1b.HEAD_LR and len(groups[0]["params"]) == 2   # head weight + bias
+        assert m(torch.zeros(2, 3, 224, 224)).shape == (2, 4)
+    assert pct["frozen"] == 0 and pct["full"] == 100 and 25 <= pct["partial"] < 50
+    m, *_ = e1b.build_model_and_transforms("dinov2_vits14", "partial")
+    assert all(p.requires_grad for p in m.backbone.blocks[-1].parameters())
+    assert not any(p.requires_grad for p in m.backbone.blocks[0].parameters())
+    assert all(p.requires_grad for p in m.backbone.norm.parameters())
+    with pytest.raises(ValueError):
+        e1b.build_model_and_transforms("unknown_model", "frozen")   # other keys -> archived builder
+
+
+def test_b1c_audit_flags_good_and_bad_folders(tmp_path):
+    import importlib.util
+    from doar_journal import e1_runner as er
+    from doar_journal.provenance import sha256_file, write_json
+    t1 = tmp_path / "T1_v2"
+    t1.mkdir()
+    rows = [{"image_id": f"v{i}", "new_split": "valid", "class": "Sad"} for i in range(4)] + \
+           [{"image_id": "t1", "new_split": "test", "class": "Sad"}]
+    with open(t1 / "t1_partition_manifest.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    sha = sha256_file(t1 / "t1_partition_manifest.csv")
+    write_json(t1 / "FROZEN.json", {"manifest_sha256": sha})
+    out = tmp_path / "E1_T1_v2"
+    write_json(out / "BOUND_MANIFEST.json", {"manifest_sha256": sha})
+
+    def preds(d, ids):
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "best_valid_predictions.csv", "w", newline="") as f:
+            f.write("image_id,true_class,predicted_class,prob_Angry,prob_Fear,prob_Happy,prob_Sad\n"
+                    + "".join(f"{i},Sad,Sad,0.1,0.1,0.1,0.7\n" for i in ids))
+
+    for k, m in enumerate(er.PROBE_MODELS):
+        for s in er.PROBE_SEEDS:
+            d = out / "probe" / "runs" / f"{m}__probe__seed_{s}"
+            preds(d, [f"v{i}" for i in range(4)])
+            f1 = 0.5 + 0.01 * k
+            write_json(d / "result.json", {"status": "complete", "manifest_sha256": sha, "model": m, "mode": "probe",
+                                           "seed": s, "best_valid_macro_f1": f1})
+    spec = importlib.util.spec_from_file_location("b1c", Path(__file__).resolve().parents[1] /
+                                                  "experiments/journal/scripts/b1c_audit_runs.py")
+    b1c = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(b1c)
+    assert b1c.main(["--t1-dir", str(t1), "--out", str(out)]) == 0      # probe complete, adaptation all to run
+    rep = json.loads(sorted(out.glob("AUDIT_*.json"))[-1].read_text())
+    assert rep["probe"]["complete"] == 90 and len(rep["adapt"]["will_run"]) == 27
+    bad = out / "probe" / "runs" / f"{er.PROBE_MODELS[0]}__probe__seed_7"
+    preds(bad, ["v0", "v1", "v2", "t1"])                                 # a test image in validation predictions
+    assert b1c.main(["--t1-dir", str(t1), "--out", str(out)]) == 1

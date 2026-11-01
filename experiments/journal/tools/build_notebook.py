@@ -274,6 +274,27 @@ run('b1_b2_e1_rerun.py', '--smoke', '--smoke-manifest', T0_MANIFEST, '--dataset-
 """)
 
 code("""
+# B1c Read-only audit before (re)starting B1-B2: is every finished run on the current T1, and what
+# will be skipped vs run? Changes nothing. Must end with 'VERDICT: SAFE TO RESUME'.
+from doar_journal.t1_partition import current_t1
+T1_DIR = current_t1(OUT)
+if (OUT / f'E1_{T1_DIR.name}').exists():
+    run('b1c_audit_runs.py', '--t1-dir', T1_DIR, '--out', OUT / f'E1_{T1_DIR.name}')
+else:
+    print('No results yet for', T1_DIR.name, '- nothing to audit.')
+""")
+
+code("""
+# B0b Optional DINOv2 adaptation smoke test (engineering only, ~3 min on A100): frozen, partial and full
+# for 1 epoch on 64/32 images, written to a SMOKE folder. Its numbers are NOT results.
+RUN_DINOV2_SMOKE = False
+if RUN_DINOV2_SMOKE:
+    run('b1_b2_e1_rerun.py', '--smoke', '--smoke-manifest', T0_MANIFEST, '--dataset-root', DATASET_ROOT,
+        '--out', OUT / 'SMOKE_DINOV2_ENGINEERING_ONLY', '--smoke-skip-probe',
+        '--smoke-adapt-models', 'dinov2_vits14', '--smoke-modes', 'frozen,partial,full')
+""")
+
+code("""
 # B1-B2 probe (9 encoders x 10 seeds) -> adaptation (shortlist x 3 modes x 3 seeds) -> confirm (finalists x 2 seeds)
 # Resumable: re-run this cell after a disconnect; finished runs are skipped.
 assert torch.cuda.is_available(), 'switch the runtime to GPU'
