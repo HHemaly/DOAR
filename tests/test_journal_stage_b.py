@@ -280,3 +280,30 @@ def test_run_adaptation_removes_last_pt_only_after_completion(tiny_manifest, tmp
                                    models=["efficientnet_b0"], modes=["frozen"], seeds=[19])
     d = tmp_path / "E1" / "adapt" / "runs" / "efficientnet_b0__frozen__seed_19"
     assert res[0]["status"] == "complete" and (d / "best.pt").exists() and not (d / "last.pt").exists()
+
+
+def test_b4_predict_adapted_loads_checkpoints_incl_dinov2(tiny_manifest, tmp_path, monkeypatch):
+    """B4 must rebuild the trained model from best.pt (it previously relied on settings that only
+    a training run sets, and did not know DINOv2)."""
+    import importlib.util
+    from doar_journal import _frozen_e1b as e1b
+    real = e1b.models.efficientnet_b0
+    monkeypatch.setattr(e1b.models, "efficientnet_b0", lambda weights=None: real(weights=None))
+    monkeypatch.setattr(torch.hub, "load", lambda *a, **k: _fake_dinov2())
+    spec = importlib.util.spec_from_file_location("b4", Path(__file__).resolve().parents[1] /
+                                                  "experiments/journal/scripts/b4_single_test_evaluation.py")
+    b4 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(b4)
+    m, root = tiny_manifest
+    rows = [{"image_id": f"i{i:02d}", "path": str(p), "class": "Sad"}
+            for i, p in enumerate(sorted((root).rglob("*.png"))[:6])]
+    for key in ("efficientnet_b0", "dinov2_vits14"):
+        e1b.configure(train_rows=rows, valid_rows=rows, out_root=tmp_path, dataset_root=root, manifest_sha="x",
+                      source_commit="t", device="cpu")
+        model, *_ = e1b.build_model_and_transforms(key, "partial")
+        ck = tmp_path / f"{key}.pt"
+        torch.save({"model_state": model.state_dict()}, ck)
+        for g in ("DEVICE", "AMP_DTYPE", "train_rows"):            # simulate a fresh B4 process
+            monkeypatch.delitem(e1b.__dict__, g, raising=False)
+        ids, p = b4.predict_adapted(key, "partial", ck, rows, "cpu")
+        assert ids == [r["image_id"] for r in rows] and p.shape == (6, 4) and np.allclose(p.sum(1), 1, atol=1e-4)

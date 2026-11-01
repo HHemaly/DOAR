@@ -70,6 +70,16 @@ def predict_adapted(model_key, mode, ckpt, rows, device):
     from torch.utils.data import DataLoader
 
     from doar_journal import _frozen_e1b as e1b
+    from doar_journal.e1b_dinov2 import install as _install_dinov2
+    _install_dinov2(e1b)          # DINOv2 was shortlisted on T1; other models use the archived builder
+    # The archived builder and evaluate() read module settings that configure() sets (device, AMP,
+    # and one image path to infer the OpenCLIP embedding size). No test LABEL is used here: the
+    # class column is blanked to one value for configure()'s (unused) class weights.
+    import tempfile
+    neutral = [{**r, "class": e1b.CLASSES[0]} for r in rows[:1]]
+    e1b.configure(train_rows=neutral, valid_rows=neutral, out_root=tempfile.mkdtemp(prefix="b4_"),
+                  dataset_root=Path(rows[0]["path"]).parent, manifest_sha="b4-inference", source_commit="b4",
+                  device=device)
     model, _train_tf, eval_tf, _dim = e1b.build_model_and_transforms(model_key, mode)
     state = torch.load(ckpt, map_location=device, weights_only=False)
     model.load_state_dict(state["model_state"])

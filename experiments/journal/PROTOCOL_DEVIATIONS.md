@@ -83,3 +83,12 @@ selection and test. Original vs re-run validation macro-F1 are reported side by 
   smoke-test folders, `last.pt` of completed runs (used only to resume an interrupted run) and the
   checkpoints of the superseded `E1_T1` are deleted (all result files kept); from now on
   `run_adaptation` removes `last.pt` as soon as a run is complete and has `best.pt`.
+
+## D4 — Bug in the single-test script found and fixed before any test evaluation (2026-11-01)
+
+`b4_single_test_evaluation.py` rebuilt each trained model through the archived builder without
+first setting the archived module's runtime settings (device, mixed precision, a sample image
+for the OpenCLIP embedding size), and did not know DINOv2. It would have stopped with
+`NameError: DEVICE` before producing any prediction. Fixed and covered by a CPU test that
+reloads EfficientNet-B0 and DINOv2 checkpoints. The fix uses no test label. No test image had
+been read when this was found; the single-test lock was never opened.
