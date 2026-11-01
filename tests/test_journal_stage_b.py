@@ -262,3 +262,21 @@ def test_b1c_audit_flags_good_and_bad_folders(tmp_path):
     bad = out / "probe" / "runs" / f"{er.PROBE_MODELS[0]}__probe__seed_7"
     preds(bad, ["v0", "v1", "v2", "t1"])                                 # a test image in validation predictions
     assert b1c.main(["--t1-dir", str(t1), "--out", str(out)]) == 1
+
+
+def test_run_adaptation_removes_last_pt_only_after_completion(tiny_manifest, tmp_path, monkeypatch):
+    from doar_journal import _frozen_e1b as e1b
+    real = e1b.models.efficientnet_b0
+    monkeypatch.setattr(e1b.models, "efficientnet_b0", lambda weights=None: real(weights=None))
+    for name in ("empty_cache", "reset_peak_memory_stats"):
+        monkeypatch.setattr(torch.cuda, name, lambda *a, **k: None)
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda *a, **k: 0)
+    m, root = tiny_manifest
+    rows = e1_runner.load_rows(m, root)
+    monkeypatch.setattr(e1b, "MAX_EPOCHS", 1, raising=False)
+    orig = e1b.configure
+    monkeypatch.setattr(e1b, "configure", lambda **k: orig(**{**k, "MAX_EPOCHS": 1, "NUM_WORKERS": 0, "BATCH_SIZE": 8}))
+    res = e1_runner.run_adaptation(rows, tmp_path / "E1", root, "test", device="cpu",
+                                   models=["efficientnet_b0"], modes=["frozen"], seeds=[19])
+    d = tmp_path / "E1" / "adapt" / "runs" / "efficientnet_b0__frozen__seed_19"
+    assert res[0]["status"] == "complete" and (d / "best.pt").exists() and not (d / "last.pt").exists()

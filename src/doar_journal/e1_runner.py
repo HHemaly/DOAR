@@ -115,6 +115,11 @@ def run_adaptation(rows: dict, out: str | Path, dataset_root: str | Path, source
         for mode in modes:
             for seed in seeds:
                 r = e1b.run_one(model, mode, seed)
+                run_dir = Path(out) / "adapt" / "runs" / f"{model}__{mode}__seed_{seed}"
+                if r.get("status") == "complete" and (run_dir / "best.pt").exists() and (run_dir / "last.pt").exists():
+                    # last.pt only serves to resume an INTERRUPTED run; a complete run never reads it
+                    # again (run_one returns its result.json first). Removing it halves Drive use.
+                    (run_dir / "last.pt").unlink()
                 results.append({"model": model, "mode": mode, "seed": seed,
                                 "best_valid_macro_f1": r.get("best_valid_macro_f1"),
                                 "status": r.get("status")})

@@ -79,3 +79,7 @@ the checkpoints of the two finalists for all 5 seeds, so the 7 runs are re-run o
 seeds and settings after storage is fixed. Their original `result.json`/predictions are moved to
 `E1_T1_v2_ARCHIVED_RUNS_NO_CHECKPOINT/` (kept, not used) and the re-run results are used for
 selection and test. Original vs re-run validation macro-F1 are reported side by side.
+- 2026-11-01: cause confirmed — Google Drive was full (0.2 GB free of 107.4 GB). Storage fix: the
+  smoke-test folders, `last.pt` of completed runs (used only to resume an interrupted run) and the
+  checkpoints of the superseded `E1_T1` are deleted (all result files kept); from now on
+  `run_adaptation` removes `last.pt` as soon as a run is complete and has `best.pt`.
