@@ -105,3 +105,7 @@ run is re-trained with the same seed and settings; B4 runs only if the re-traine
 reproduces the recorded SHA-256. If it reproduces the validation result but not the hash, the
 selection record is amended with this deviation before B4. Prevention: the B1–B2 and B3 cells now
 force a Drive sync before checkpoints are fingerprinted.
+- D5 outcome (2026-11-01): the re-trained `clip_vit_b32__partial__seed_37` reproduced the recorded
+  run exactly (val macro-F1 0.8268, best-epoch index 4) and its best.pt reproduced the SHA-256
+  frozen in the selection record (4e8c1ddd325a…). The selection record was not changed. B4 then ran
+  once and COMPLETED.

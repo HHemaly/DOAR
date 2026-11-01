@@ -227,6 +227,40 @@ def f5_confusion(plt, root: Path, t1: str, out: Path):
     plt.close(fig)
 
 
+def t_test_summary(root: Path, t1: str, out: Path):
+    """Table of the single test result (macro-F1 with group-bootstrap CI, accuracy, per-class F1, paired diffs)."""
+    p = root / f"B4_TEST_{t1}" / "test_results.json"
+    if not p.exists():
+        return print("T_test skipped: test_results.json not found")
+    r = json.loads(p.read_text())
+    rows = []
+    for name in ("selected_ensemble", "comparator_ensemble", "probe_baseline"):
+        v = r[name]
+        m = v["macro_f1"]
+        rows.append({"system": name, "macro_f1": round(m["estimate"], 4), "ci_low": round(m["ci_low"], 4),
+                     "ci_high": round(m["ci_high"], 4), "accuracy": round(v["accuracy"], 4), "n": v["n"],
+                     "n_groups": v["n_groups"], **{f"f1_{c}": round(v["per_class_f1"][c], 4) for c in CLASSES}})
+    seeds = {role: [r[k]["macro_f1"]["estimate"] for k in r if k.startswith(f"{role}_seed_")]
+             for role in ("selected", "comparator")}
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / "T_test_summary.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    lines = ["system                 macro-F1 [95% CI, group bootstrap]   accuracy"]
+    lines += [f"{x['system']:22s} {x['macro_f1']:.3f} [{x['ci_low']:.3f}, {x['ci_high']:.3f}]           {x['accuracy']:.3f}"
+              for x in rows]
+    for role, v in seeds.items():
+        lines.append(f"{role} single seeds: mean {np.mean(v):.3f}, SD {np.std(v, ddof=1):.3f}, range {min(v):.3f}-{max(v):.3f}")
+    for k in ("selected_vs_comparator_ensemble", "selected_vs_probe_baseline"):
+        d = r[k]["paired_group_bootstrap"]
+        mc = r[k]["mcnemar_counts_descriptive"]
+        lines.append(f"{k}: diff {d['estimate']:+.3f} [{d['ci_low']:+.3f}, {d['ci_high']:+.3f}], "
+                     f"only-selected-right {mc['a_right_b_wrong']}, only-other-right {mc['a_wrong_b_right']}")
+    (out / "T_test_summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+
+
 def f6_gallery(plt, review_csv: Path | None, ds: Path, out: Path, per: int = 2):
     if review_csv is None or not review_csv.exists():
         return print("F6 skipped: holdout review CSV not given/found")
@@ -282,6 +316,7 @@ def main(argv=None) -> int:
     f3_probe(plt, root, a.t1, out)
     f4_adapt(plt, root, a.t1, out)
     f5_confusion(plt, root, a.t1, out)
+    t_test_summary(root, a.t1, out)
     f6_gallery(plt, Path(a.e2_holdout_review) if a.e2_holdout_review else None, ds, out)
     return 0
 
