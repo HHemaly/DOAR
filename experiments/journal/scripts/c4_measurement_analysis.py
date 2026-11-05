@@ -15,6 +15,7 @@ test, Holm-corrected across baselines.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -65,6 +66,26 @@ def main(argv=None) -> int:
             est, lo, hi = boot_mean(g[metric].to_numpy())
             rec.update({f"{metric}_mean": est, f"{metric}_lo": lo, f"{metric}_hi": hi})
         rows.append(rec)
+    # Pool-weighted estimate: C2 over-sampled rare image types, so an unweighted mean over the
+    # batch misstates the pool. Weight = pool share of the stratum / its share among assessable tasks.
+    c2sum = c3.parent / "C2_reference_batch" / "summary.json"
+    if c2sum.exists() and "sampling_stratum" in ass.columns:
+        pool = json.loads(c2sum.read_text())["summary"]["pool_strata"]
+        tot = sum(pool.values())
+        for method, g in ass.groupby("method"):
+            share = g["sampling_stratum"].value_counts(normalize=True)
+            w = g["sampling_stratum"].map(lambda k: (pool.get(k, 0) / tot) / share[k]).to_numpy()
+            rec = {"method": method, "regime": "ALL_POOL_WEIGHTED", "n": len(g)}
+            for metric in ("f1", "iou", "boundary_f1", "precision", "recall"):
+                x = g[metric].to_numpy()
+                ok = ~np.isnan(x)
+                rng = np.random.default_rng(RNG_SEED)
+                idx = rng.integers(0, ok.sum(), size=(N_BOOT, ok.sum()))
+                xs, ws = x[ok], w[ok]
+                bm = (xs[idx] * ws[idx]).sum(axis=1) / ws[idx].sum(axis=1)
+                rec.update({f"{metric}_mean": float((xs * ws).sum() / ws.sum()),
+                            f"{metric}_lo": float(np.percentile(bm, 2.5)), f"{metric}_hi": float(np.percentile(bm, 97.5))})
+            rows.append(rec)
     acc = pd.DataFrame(rows)
     acc.to_csv(out / "T_mask_accuracy.csv", index=False)
 

@@ -102,6 +102,7 @@ def test_c3_c4_pipeline_smoke(tmp_path):
     """End-to-end run of C3 and C4 on a synthetic batch (test data only)."""
     import csv
     import json
+    import json
     import subprocess
     from PIL import Image
     batch = tmp_path / "batch"
@@ -117,7 +118,8 @@ def test_c3_c4_pipeline_smoke(tmp_path):
         for who in ("AA", "BB"):
             Image.fromarray((ref * 255).astype(np.uint8)).save(batch / "masks" / f"{t}__{who}.png")
             (batch / "records" / f"{t}__{who}.json").write_text(json.dumps({"task_id": t, "assessability": assess}))
-        key.append({"task_id": t, "image_id": f"x{i}", "class": "Happy", "a0_state": "OK"})
+        key.append({"task_id": t, "image_id": f"x{i}", "class": "Happy", "a0_state": "OK",
+                    "v2_regime": "LIGHT_SUPPORT" if i % 2 else "DARK_SUPPORT"})
     with open(batch / "key_PRIVATE.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(key[0]))
         w.writeheader()
@@ -128,10 +130,16 @@ def test_c3_c4_pipeline_smoke(tmp_path):
                     "--secondary", "BB", "--out", tmp_path / "c3"], check=True, capture_output=True)
     ir = json.loads((tmp_path / "c3" / "inter_rater.json").read_text())
     assert ir["mask_f1_median"] == 1.0 and ir["assessability_agreement"] == 1.0
+    (tmp_path / "C2_reference_batch").mkdir(exist_ok=True)
+    (tmp_path / "C2_reference_batch" / "summary.json").write_text(json.dumps(
+        {"summary": {"pool_strata": {"LIGHT_SUPPORT|OK": 90, "DARK_SUPPORT|OK": 10}}}))
     r = subprocess.run([sys.executable, scripts / "c4_measurement_analysis.py", "--c3", tmp_path / "c3",
                         "--out", tmp_path / "c4"], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-2000:]
     assert (tmp_path / "c4" / "F_risk_coverage.pdf").exists()
+    import pandas
+    acc = pandas.read_csv(tmp_path / "c4" / "T_mask_accuracy.csv")
+    assert "ALL_POOL_WEIGHTED" in set(acc["regime"])
     import pandas as pd
     pol = pd.read_csv(tmp_path / "c4" / "T_reporting_policies.csv").set_index("policy")
     assert pol.loc["report_all", "coverage"] == 1.0

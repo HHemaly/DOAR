@@ -79,7 +79,8 @@ def main(argv=None) -> int:
         v2meta = results["v2"].meta
         base = {"task_id": task, "class": k["class"], "assessability": rec["assessability"],
                 "v2_regime": v2meta["support_regime"], "v2_confidence": v2meta["support_confidence"],
-                "v2_policy": v2meta["measurement_policy"], "a0_state": k["a0_state"]}
+                "v2_policy": v2meta["measurement_policy"], "a0_state": k["a0_state"],
+                "sampling_stratum": f"{k.get('v2_regime', '')}|{k['a0_state']}"}
         assessable = rec["assessability"] == "ASSESSABLE"
         ref = load_mask(batch, task, a.primary) if assessable else None
         if assessable:
