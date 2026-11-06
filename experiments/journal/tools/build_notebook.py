@@ -415,6 +415,12 @@ run('c4_measurement_analysis.py', '--c3', OUT / 'C3_reference_evaluation', '--ou
 """)
 
 code("""
+# R1 Source-shortcut and representation audit (CPU, ~10-20 min, read-only; post hoc / exploratory).
+# Uses saved embeddings (T1 train+valid), the A2 tables and the saved single-test predictions.
+run('r1_representation_audit.py', '--root', OUT, '--t0-runs', E1_HISTORY)
+""")
+
+code("""
 # P1 Paper figures from the results that exist so far (CPU, read-only; re-run any time).
 # Writes PDF + PNG to DOAR_JOURNAL_2026/PAPER_FIGURES; figures whose inputs are not ready are skipped.
 run('p1_paper_figures.py', '--root', OUT, '--dataset-root', DATASET_ROOT,

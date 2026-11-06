@@ -307,3 +307,25 @@ def test_b4_predict_adapted_loads_checkpoints_incl_dinov2(tiny_manifest, tmp_pat
             monkeypatch.delitem(e1b.__dict__, g, raising=False)
         ids, p = b4.predict_adapted(key, "partial", ck, rows, "cpu")
         assert ids == [r["image_id"] for r in rows] and p.shape == (6, 4) and np.allclose(p.sum(1), 1, atol=1e-4)
+
+
+def test_r1_knn_copy_measures():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("r1", Path(__file__).resolve().parents[1] /
+                                                  "experiments/journal/scripts/r1_representation_audit.py")
+    r1 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(r1)
+    rng = np.random.default_rng(0)
+    # 40 drawings x 2 copies; copies nearly identical, classes weakly separated
+    cls = np.repeat(np.arange(4), 10)
+    base = rng.normal(size=(40, 8)) + np.eye(4, 8)[cls] * 0.5
+    X = np.repeat(base, 2, axis=0) + rng.normal(scale=0.01, size=(80, 8))
+    X /= np.linalg.norm(X, axis=1, keepdims=True)
+    y = [r1.CLASSES[c] for c in np.repeat(cls, 2)]
+    g = [f"g{i}" for i in np.repeat(np.arange(40), 2)]
+    pa, pb, nn1 = r1.knn_scores(X, y, g, k=1)
+    assert all(g[nn1[i]] == g[i] for i in range(80))             # nearest neighbour is the copy
+    assert r1.stats.macro_f1(y, pa) == 1.0                         # copies make 1-NN perfect
+    assert r1.stats.macro_f1(y, pb) < 1.0                          # without copies it is not
+    assert r1.model_mode_of("E1A/runs/clip_vit_b32__probe__seed_7") == ("clip_vit_b32", "probe")
+    assert r1.model_mode_of("E1B/siglip2_vit_b16/partial/seed_19") == ("siglip2_vit_b16", "partial")
