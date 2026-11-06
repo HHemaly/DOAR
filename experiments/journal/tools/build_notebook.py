@@ -415,9 +415,18 @@ run('c4_measurement_analysis.py', '--c3', OUT / 'C3_reference_evaluation', '--ou
 """)
 
 code("""
-# R1 Source-shortcut and representation audit (CPU, ~10-20 min, read-only; post hoc / exploratory).
-# Uses saved embeddings (T1 train+valid), the A2 tables and the saved single-test predictions.
-run('r1_representation_audit.py', '--root', OUT, '--t0-runs', E1_HISTORY)
+# R1 Source-shortcut and representation audit (CPU, ~15-30 min, read-only; post hoc / exploratory).
+# Uses saved embeddings (T1 train+valid), the A2 tables and the saved single-test predictions;
+# adds the shuffled-source control and the simple pixel/size-statistics baseline (reads T1 train+valid images).
+run('r1_representation_audit.py', '--root', OUT, '--t0-runs', E1_HISTORY, '--dataset-root', DATASET_ROOT)
+""")
+
+code("""
+# M1 Transformation consistency of the explicit measurements (CPU, ~20-60 min, no labels, no models).
+# Archived 49-feature extractor, unchanged, on digital copies of the same drawing (T1 train+valid only).
+# Rules fixed in experiments/journal/M1_TRANSFORMATION_CONSISTENCY_PLAN.md. Resumable: if Colab
+# disconnects, just run 0.1 -> 0.2a -> 0.2 -> this cell again; finished pairs are not recomputed.
+run('m1_transformation_consistency.py', '--root', OUT, '--dataset-root', DATASET_ROOT)
 """)
 
 code("""

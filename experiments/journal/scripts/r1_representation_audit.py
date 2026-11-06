@@ -24,6 +24,12 @@ Hypotheses
                           locked test set, from the saved predictions (no model is run).
 Also: the A2 gap re-computed within class x source-family strata, so it is not explained by a
 different class mix or source mix of shared and independent images.
+Controls (added before the first real run):
+  * shuffled-source control: the source-family probe refitted with family labels permuted across
+    evaluation groups (group structure kept), 5 permutations, so chance level is measured, not assumed;
+  * simple-statistics baseline (needs --dataset-root): 12 global pixel/size statistics per image
+    (width, height, aspect, RGB channel means and stds, grey 5/50/95th percentiles), group-CV logistic
+    probes for source family and for the emotion label, plus the shuffled-source control.
 """
 
 from __future__ import annotations
@@ -138,17 +144,85 @@ def knn_scores(X, y, groups, k=10, chunk=512) -> tuple[list, list, np.ndarray]:
     return pa, pb, nn1
 
 
-def source_probe(X, fam, groups) -> float:
+def source_probe(X, fam, groups, standardise: bool = False) -> float:
+    """Group-CV logistic probe; macro-F1 over the label set of `fam` (source family or class)."""
     from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    if len(set(fam)) < 2:
+        return float("nan")
     folds = group_folds(groups)
     pred = np.empty(len(fam), dtype=object)
     fam = np.array(fam)
     for k in range(5):
         tr, te = folds != k, folds == k
         clf = LogisticRegression(max_iter=2000, C=1.0)
+        if standardise:
+            clf = make_pipeline(StandardScaler(), clf)
         clf.fit(X[tr], fam[tr])
         pred[te] = clf.predict(X[te])
     return stats.macro_f1(list(fam), list(pred), labels=sorted(set(fam)))
+
+
+def shuffle_by_group(labels, groups, seed: int) -> list:
+    """Permute labels across evaluation groups (each group keeps one label, structure kept)."""
+    first = {}
+    for lab, g in zip(labels, groups):
+        first.setdefault(g, lab)
+    keys = sorted(first)
+    perm = np.random.default_rng(seed).permutation(len(keys))
+    new = {g: first[keys[perm[i]]] for i, g in enumerate(keys)}
+    return [new[g] for g in groups]
+
+
+def shuffled_source_control(X, fam, groups, n: int = 5, standardise: bool = False) -> dict:
+    vals = [source_probe(X, shuffle_by_group(fam, groups, 1000 + i), groups, standardise) for i in range(n)]
+    return {"mean": round(float(np.mean(vals)), 4), "max": round(float(np.max(vals)), 4), "n_permutations": n}
+
+
+# ---------------------------------------------------------------- simple-statistics baseline
+STAT_COLUMNS = ["width", "height", "aspect", "mean_r", "mean_g", "mean_b", "std_r", "std_g", "std_b",
+                "gray_p05", "gray_p50", "gray_p95"]
+
+
+def image_stats(path: Path) -> list[float]:
+    from PIL import Image
+    with Image.open(path) as im:
+        w, h = im.size
+        im = im.convert("RGB")
+        im.thumbnail((256, 256))
+        a = np.asarray(im, dtype=np.float32)
+    g = a @ np.array([0.299, 0.587, 0.114], np.float32)
+    return [float(w), float(h), w / h, *a.reshape(-1, 3).mean(0), *a.reshape(-1, 3).std(0),
+            *np.percentile(g, [5, 50, 95])]
+
+
+def simple_stats_baseline(dataset_root: Path, man_rows: dict[str, dict], dev: dict[str, dict],
+                          groups_t1: dict[str, str], out: Path) -> dict:
+    cache_p = out / "simple_image_stats.csv"
+    cache = {}
+    if cache_p.exists():
+        cache = {r["image_id"]: [float(r[c]) for c in STAT_COLUMNS] for r in read(cache_p)}
+    todo = [i for i in dev if i not in cache]
+    for n, i in enumerate(todo):
+        cache[i] = image_stats(dataset_root / path_of(man_rows[i]).replace("\\", "/"))
+        if n % 500 == 499:
+            print(f"  image statistics {n + 1}/{len(todo)}", flush=True)
+    if todo:
+        write_csv(cache_p, [{"image_id": i, **dict(zip(STAT_COLUMNS, v))} for i, v in sorted(cache.items())])
+    ids = sorted(dev)
+    X = np.array([cache[i] for i in ids], dtype=np.float64)
+    g = [groups_t1[i] for i in ids]
+    fam = [dev[i]["family"] for i in ids]
+    y = [dev[i]["class"] for i in ids]
+    res = {"features": STAT_COLUMNS, "n_images": len(ids),
+           "source_family_probe_f1": round(source_probe(X, fam, g, standardise=True), 4),
+           "source_family_probe_f1_shuffled": shuffled_source_control(X, fam, g, standardise=True),
+           "emotion_probe_macro_f1": round(source_probe(X, y, g, standardise=True), 4)}
+    print(f"  simple statistics: source probe F1 {res['source_family_probe_f1']:.3f} "
+          f"(shuffled {res['source_family_probe_f1_shuffled']['mean']:.3f}), "
+          f"emotion probe macro-F1 {res['emotion_probe_macro_f1']:.3f}")
+    return res
 
 
 def embedding_diagnostics(e1: Path, meta: dict[str, dict], groups_t1: dict[str, str]) -> list[dict]:
@@ -169,13 +243,17 @@ def embedding_diagnostics(e1: Path, meta: dict[str, dict], groups_t1: dict[str, 
         has_copy = [i for i, s in enumerate(stems) if s and stem_n[s] >= 2]
         recall1 = float(np.mean([stems[nn1[i]] == stems[i] for i in has_copy])) if has_copy else float("nan")
         f1_a, f1_b = stats.macro_f1(y, pa), stats.macro_f1(y, pb)
+        fams = [meta[i]["family"] for i in ids]
+        shuf = shuffled_source_control(X, fams, g)
         out.append({"model": m, "n_images": len(ids), "n_with_rf_copy": len(has_copy),
                     "copy_recall_at_1": round(recall1, 4),
                     "knn_f1_with_copies": round(f1_a, 4), "knn_f1_without_copies": round(f1_b, 4),
                     "knn_copy_gain": round(f1_a - f1_b, 4),
-                    "source_family_probe_f1": round(source_probe(X, [meta[i]["family"] for i in ids], g), 4)})
+                    "source_family_probe_f1": round(source_probe(X, fams, g), 4),
+                    "source_family_probe_f1_shuffled_mean": shuf["mean"],
+                    "source_family_probe_f1_shuffled_max": shuf["max"]})
         print(f"  {m}: copy recall@1 {recall1:.3f}, kNN F1 {f1_a:.3f} -> {f1_b:.3f} without copies, "
-              f"source probe F1 {out[-1]['source_family_probe_f1']:.3f}")
+              f"source probe F1 {out[-1]['source_family_probe_f1']:.3f} (shuffled {shuf['mean']:.3f})")
     return out
 
 
@@ -327,6 +405,7 @@ def main(argv=None) -> int:
     ap.add_argument("--root", required=True)
     ap.add_argument("--t0-runs", default=None, help="DOAR_GPU_RESULTS/E1 (for the stratified A2 gap)")
     ap.add_argument("--t1", default="T1_v2")
+    ap.add_argument("--dataset-root", default=None, help="image folder (for the simple-statistics baseline)")
     a = ap.parse_args(argv)
     root = Path(a.root)
     t1_manifest = root / a.t1 / "t1_partition_manifest.csv"
@@ -349,6 +428,14 @@ def main(argv=None) -> int:
     diag = embedding_diagnostics(root / f"E1_{a.t1}", dev, groups_t1)
     if diag:
         write_csv(out / "T_embedding_diagnostics.csv", diag)
+    simple = None
+    if a.dataset_root:
+        print("R1c simple-statistics baseline (T1 train+valid) ...")
+        simple = simple_stats_baseline(Path(a.dataset_root), {r["image_id"]: r for r in man}, dev, groups_t1, out)
+        write_csv(out / "T_simple_stats_baseline.csv", [{
+            "source_family_probe_f1": simple["source_family_probe_f1"],
+            "source_family_probe_f1_shuffled_mean": simple["source_family_probe_f1_shuffled"]["mean"],
+            "emotion_probe_macro_f1": simple["emotion_probe_macro_f1"], "n_images": simple["n_images"]}])
     print("R1d link to T0 leakage gain ...")
     link = leakage_link(root, Path(a.t0_runs) if a.t0_runs else None, diag, a.t1)
     write_csv(out / "T_leakage_link_per_model.csv", link["per_model"])
@@ -367,6 +454,7 @@ def main(argv=None) -> int:
     write_json(out / "R1_summary.json", {
         "status": "post hoc / exploratory; no selection, no new test prediction",
         "R1a_source_vs_label": r1a, "R1c_embedding_diagnostics": diag,
+        "R1c_simple_stats_baseline": simple,
         "R1d_leakage_link": {k: v for k, v in link.items() if k != "stratified_runs"}, "R1b_test_by_source": r1b,
         "inputs": {"t1_manifest_sha256": sha256_file(t1_manifest)},
         "metadata": run_metadata("R1_representation_audit", vars(a))})

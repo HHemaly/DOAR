@@ -111,3 +111,7 @@ prediction. The four labels are benchmark categories of unknown origin.
   if they also fail, that evidence type is not used and this is reported as a limitation;
   (5) the rule is applied by `a5b_accepted_edges.py`, not by eye; any added group must still pass
   the largest-group (chaining) check of the T1 balance criteria.
+- 2026-11-06: C3/C4 (reference masks) not run — annotation not feasible (PROTOCOL_DEVIATIONS D6).
+  Added exploratory R1 controls (shuffled-source, simple-statistics baseline) and M1
+  (transformation consistency; rules fixed in M1_TRANSFORMATION_CONSISTENCY_PLAN.md before the
+  first real run). Neither reads the locked test images; no frozen result changes.

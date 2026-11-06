@@ -109,3 +109,18 @@ force a Drive sync before checkpoints are fingerprinted.
   run exactly (val macro-F1 0.8268, best-epoch index 4) and its best.pt reproduced the SHA-256
   frozen in the selection record (4e8c1ddd325a…). The selection record was not changed. B4 then ran
   once and COMPLETED.
+
+## D6 — Exploratory analyses added after the single test run (2026-11-06)
+
+The planned reference-mask study (C3/C4) needs ~120 hand-corrected masks plus a second annotator;
+this is not feasible for the journal paper, so C3/C4 are **not run** and the paper makes no claim
+about mask or measurement accuracy. Added instead, all post hoc, all exploratory, none reading the
+locked test images or changing any frozen result:
+* R1 (source-shortcut and representation audit) with two controls fixed before its first real run:
+  a shuffled-source control (labels permuted across evaluation groups) and a 12-statistic
+  pixel/size baseline.
+* M1 (transformation consistency of the 49 archived measurements on digital copies of the same
+  drawing, T1 train+valid only). All rules are fixed in `M1_TRANSFORMATION_CONSISTENCY_PLAN.md`,
+  committed before the first run on the real data. M1 measures repeatability, not accuracy.
+The C1 visual audit stays a supporting, descriptive result (its sampling and rating categories are
+reported as in the E2 holdout protocol; it is not presented as a population failure rate).
